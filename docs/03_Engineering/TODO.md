@@ -62,7 +62,7 @@
 |---|---|---|---|
 | M3-1 | DB migration 6 个 SQL（init/rls/triggers/pg_cron/storage/seed） | § 4 ARCH-DESIGN | ✅ 已完成 — 5 NEW migration 文件 (0003..0008) 扩展 M2 init (0001/0002) · 9 表 + 7 表 RLS (20 policies) + 3 trigger (T-01/T-02/T-03) + 3 pg_cron job (J-01/J-02/J-03) + 2 storage bucket + 2 RPC fn (fn_unread_counts/fn_mark_conversation_read) + 1 dev seed marker · S26.0 Session |
 | M3-2 | Sidebar 列出 1:1 + 群（按 MAX(messages.created_at) DESC） | F-CONV-01 | ⏳ 待开发 |
-| M3-3 | MessageList + MessageItem 渲染（text / image / file） | F-CONV-03 / F-MSG-01/02/03 | ⏳ 待开发 |
+| M3-3 | MessageList + MessageItem 渲染（text / image） | F-CONV-03 / F-MSG-01/02/03 | ✅ 已完成 — `lib/api/chat.ts` 扩 [listMessages (cursor 分页) + markConversationRead + getAttachmentSignedUrl] / `useMessages` 无限查询 + `useAttachmentUrl` 签名缓存 (55min) / `<MessageItem>` text+image（带 self/other 翻转 + edited/已删除 placeholder） / `<MessageList>` 用 `@tanstack/react-virtual` 虚拟滚动 + day separators + load-more + 自动滚到底 · ChatPanel 包装 + HomePage 接线 · S27.0 Session。文件类型占位 = M5-7；回复 / reaction = M4-6/7（接口预留） |
 | M3-4 | Composer floating island（DESIGN § 7 视觉） | F-MSG-01 | ⏳ 待开发 |
 | M3-5 | Realtime channel `conversation:<id>` 订阅 postgres_changes | § 6.3 ARCH-DESIGN | ⏳ 待开发 |
 | M3-6 | pg_cron J-01 (03:00 消息清理) + J-02 (04:00 邀请清理) + J-03 (04:30 orphans) | F-MSG-10 / F-SEC-02 | ⏳ 待开发 |

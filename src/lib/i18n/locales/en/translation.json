@@ -64,6 +64,15 @@
     "previewFile": "File",
     "previewSelf": "Me: "
   },
+  "messages": {
+    "loadMore": "Scroll up to load older messages",
+    "loadingMore": "Loading older messages…",
+    "noMore": "Beginning of conversation",
+    "deleted": "This message was deleted",
+    "imageLoadFailed": "Couldn't load image",
+    "fileUnsupported": "File messages arrive in M5-7",
+    "composerPlaceholder": "Composer coming in M3-4"
+  },
   "chat": {
     "inputPlaceholder": "Say something…",
     "send": "Send message",

@@ -64,6 +64,15 @@
     "previewFile": "文件",
     "previewSelf": "我: "
   },
+  "messages": {
+    "loadMore": "向上滚动加载更早消息",
+    "loadingMore": "正在加载更早的消息…",
+    "noMore": "已是全部消息",
+    "deleted": "此消息已删除",
+    "imageLoadFailed": "图片加载失败",
+    "fileUnsupported": "文件消息将在 M5-7 到来",
+    "composerPlaceholder": "输入框 (将在 M3-4 启用)"
+  },
   "chat": {
     "inputPlaceholder": "说点什么…",
     "send": "发送消息",
