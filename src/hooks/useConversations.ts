@@ -27,6 +27,12 @@ export function useConversationsQuery() {
     },
     enabled: Boolean(userId),
     staleTime: 30_000,
+    // Background poll (Nook ≤ 20 friends; effectively a heartbeat). The
+    // 30s interval covers the case where a message arrives in an *inactive*
+    // conversation (we don't fan-out one channel per accessible conv) and
+    // keeps sidebar previews + ordering fresh silently. Active-conv
+    // realtime push still wins for the currently-mounted room.
+    refetchInterval: 30_000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });

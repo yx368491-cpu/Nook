@@ -3,6 +3,7 @@ import { Sidebar } from '@/components/chat/Sidebar';
 import { ChatPanel } from '@/components/chat/ChatPanel';
 import { useUI } from '@/stores/useUI';
 import { useConversationsQuery } from '@/hooks/useConversations';
+import { useUserRealtime } from '@/hooks/useUserRealtime';
 
 /**
  * HomePage — authenticated chat surface.
@@ -20,6 +21,12 @@ export default function HomePage() {
   const selectedId = useUI((s) => s.selectedConversationId);
   const { data: conversations } = useConversationsQuery();
   const selected = conversations?.find((c) => c.id === selectedId);
+
+  // M3-5: subscribe user-global Realtime (conversation_members INSERT/UPDATE
+  //   + own profile UPDATE). Single channel, mounted at app-level so it
+  //   survives conversation-switch. Sidebar refresh logic is internal to
+  //   the hook.
+  useUserRealtime();
 
   return (
     <div className="flex min-h-screen bg-[var(--color-canvas-default)]">
