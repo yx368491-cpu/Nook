@@ -54,6 +54,16 @@
     "inviteMessageFade": "Messages automatically fade after 30 days",
     "invitePasswordHint": "At least 8 characters"
   },
+  "sidebar": {
+    "title": "Conversations",
+    "empty": "No conversations yet",
+    "emptyHint": "Ask an Owner to send you an invite link — then your shared chat will appear here.",
+    "error": "Failed to load conversations",
+    "retry": "Retry",
+    "previewImage": "Image",
+    "previewFile": "File",
+    "previewSelf": "Me: "
+  },
   "chat": {
     "inputPlaceholder": "Say something…",
     "send": "Send message",

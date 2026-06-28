@@ -54,6 +54,16 @@
     "inviteMessageFade": "消息将在 30 天后自动淡出",
     "invitePasswordHint": "至少 8 个字符"
   },
+  "sidebar": {
+    "title": "对话",
+    "empty": "暂无对话",
+    "emptyHint": "请 Owner 发送邀请链接，加入后你们的对话会出现在这里。",
+    "error": "加载对话失败",
+    "retry": "重试",
+    "previewImage": "图片",
+    "previewFile": "文件",
+    "previewSelf": "我: "
+  },
   "chat": {
     "inputPlaceholder": "说点什么…",
     "send": "发送消息",
