@@ -117,6 +117,15 @@ export function useConversationRealtime(conversationId: string | null) {
           actorUserId = oldRow.user_id;
         }
         if (!messageId || !emoji || !actorUserId) return;
+        // NOTE(M4-7+): Multi-device regression risk — RLS broadcasts the
+        // self INSERT row to EVERY of the user's open Nook tabs, not just
+        // the originating one. Skipping self-actor events here means an
+        // idle Tab B never learns about its own reaction performed in
+        // Tab A until a navigation refetch. For v1.0 single-tab-per-user
+        // this is acceptable; the proper fix is a per-tab optimistic-intent
+        // `Set<\`${msgId}|${emoji}\`>` so we skip only the SAME tab's echo
+        // (active tab) and apply foreign updates (passive tab / cross-tab
+        // sync) — see M4-7 follow-up note.
         if (actorUserId === userId) return; // self: handled by hook + invalidate
         qc.setQueryData<
           InfiniteData<MessagesPage, string | null> | undefined
