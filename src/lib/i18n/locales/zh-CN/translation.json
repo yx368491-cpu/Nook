@@ -131,6 +131,20 @@
       "dbError": "删除失败，请重试",
       "unknown": "删除失败"
     },
+    "reply": "回复",
+    "replyCard": {
+      "image": "图片",
+      "file": "文件",
+      "recalled": "此消息已撤回"
+    },
+    "replyError": {
+      "notFound": "你回复的消息已不存在",
+      "wrongConversation": "无法回复其他会话的消息",
+      "notMember": "你已不在此会话中",
+      "badKind": "无法回复系统消息",
+      "dbError": "回复失败，请重试",
+      "unknown": "回复失败"
+    },
     "replyTo": "回复 {{name}}",
     "imageAlt": "图片消息",
     "file": "文件",

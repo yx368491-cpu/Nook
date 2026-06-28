@@ -92,6 +92,28 @@ interface MessageRowEmbeds {
     uploaded_by: string;
     created_at: string;
   } | null;
+  // M4-6 join: messages_reply_to_id_fkey → messages (the referenced
+  // reply target). Hydrated for the `<ReplyCard>` preview chip; the
+  // nested sender projection is RPC-side chained so the preview can
+  // render the target's display_name without an extra round-trip.
+  // `null` either when (a) the bubble is not a reply, or (b) the FK
+  // resolved NULL (e.g. target hard-deleted by 30-day TTL — FK is
+  // `ON DELETE SET NULL`).
+  reply_to: {
+    id: string;
+    conversation_id: string;
+    sender_id: string;
+    kind: MessageKind;
+    body: string | null;
+    recalled_at: string | null;
+    deleted_by_sender_at: string | null;
+    created_at: string;
+    sender: {
+      id: string;
+      display_name: string | null;
+      avatar_url: string | null;
+    } | null;
+  } | null;
 }
 
 // ============================================================================
@@ -163,8 +185,43 @@ export interface MessageListItem {
     width: number | null;
     height: number | null;
   } | null;
-  /** M4-6 reply threading — populated but unused in M3-3 */
+  /**
+   * FK reference to the original `messages.id` being replied to.
+   * Always populated when `replyTo !== null`; useful as a stable ID
+   * for scroll-to-reply (v1.1+) and programmatic linkage independent
+   * of the display preview below.
+   */
   replyToId: string | null;
+  /**
+   * M4-6 — hydrated preview of the referenced message.
+   *
+   * Rendered as the `<ReplyCard>` chip ABOVE the bubble per SPEC
+   * § 2.3 F-MSG-04 wording. The preview carries enough to render
+   * a "(Recalled)" / "(Deleted)" muted placeholder WITHOUT a follow-up
+   * `messages:SELECT WHERE id = ANY(<replyToIds>)` query — common
+   * "what did Alice say I'm replying to?" gap that would otherwise
+   * cost a round-trip per reply-having message.
+   *
+   * `null` when:
+   *   - the message is not a reply (no FK set), OR
+   *   - the target row was later hard-deleted by 30-day TTL (FK is
+   *     `ON DELETE SET NULL` so the FK is null; we don't surface a
+   *     phantom card)  — handled at hydration level by listMessages.
+   *
+   * `recalledAt` + `deletedBySenderAt` here are scoped to the
+   * TARGET message, NOT the bubble they're labeling. This way the
+   * `<ReplyCard>` adapts to the target's state without a second
+   * fetch.
+   */
+  replyTo?: {
+    id: string;
+    senderName: string;
+    senderAvatarUrl: string | null;
+    kind: MessageKind;
+    body: string | null;
+    recalledAt: string | null;
+    createdAt: string;
+  } | null;
   editedAt: string | null;
   /** Already null due to SQL `.is('recalled_at', null)` */
   recalledAt: string | null;
@@ -289,6 +346,11 @@ export async function listMessages(args: {
         sender:profiles!messages_sender_id_fkey(id, display_name, avatar_url),
         attachment:attachments!messages_attachment_id_fkey(
           id, storage_path, mime, size_bytes, width, height, uploaded_by, created_at
+        ),
+        reply_to:messages!reply_to_id(
+          id, conversation_id, sender_id, kind, body,
+          recalled_at, deleted_by_sender_at, created_at,
+          sender:profiles!messages_sender_id_fkey(id, display_name, avatar_url)
         )
       `,
     )
@@ -472,6 +534,20 @@ function transformMessage(
         }
       : null,
     replyToId: row.reply_to_id,
+    replyTo: row.reply_to
+      ? {
+          id: row.reply_to.id,
+          senderName: row.reply_to.sender?.display_name?.trim() || '?',
+          senderAvatarUrl: row.reply_to.sender?.avatar_url ?? null,
+          kind: row.reply_to.kind,
+          body: row.reply_to.body,
+          recalledAt:
+            row.reply_to.recalled_at !== null
+              ? new Date(row.reply_to.recalled_at).toISOString()
+              : null,
+          createdAt: row.reply_to.created_at,
+        }
+      : null,
     editedAt: row.edited_at,
     recalledAt: row.recalled_at, // always null due to .is('recalled_at', null)
     deletedBySenderAt: row.deleted_by_sender_at,
@@ -677,6 +753,31 @@ export async function sendTextMessage(args: {
   const trimmed = body.trim();
   if (!trimmed) throw new Error('EMPTY_BODY');
 
+  // ----- M4-6 RPC dispatch: when caller carries a replyToId, send via
+  // `fn_send_reply_message` (SECURITY INVOKER, migration 0013) so R-14
+  // (same-conversation invariant) + R-15 (sender active-member) are
+  // enforced server-side. The plain-text REST INSERT path stays for
+  // non-reply sends because it skips the RPC round-trip overhead.
+  if (replyToId) {
+    const { data, error } = await supabase.rpc('fn_send_reply_message', {
+      p_conv: conversationId,
+      p_reply_to_id: replyToId,
+      p_body: trimmed,
+      p_client_msg_id: clientMsgId,
+    });
+    if (error) {
+      throw new MessageReplyError(mapReplyErrorCode(error.message), error.message);
+    }
+    const row = data as {
+      id: string;
+      conversation_id: string;
+      reply_to_id: string;
+      created_at: string;
+    };
+    return { id: row.id, createdAt: row.created_at };
+  }
+
+  // ----- Plain-text REST path (M3-4 legacy) -----
   const { data, error } = await supabase
     .from('messages')
     .insert({
@@ -697,6 +798,103 @@ export async function sendTextMessage(args: {
     };
   }
   return { id: data.id, createdAt: data.created_at };
+}
+
+// ============================================================================
+// Reply API (M4-6) — sender-threaded reply, same-conversation enforced
+// ============================================================================
+
+/**
+ * Custom error for rejected replies. Mirrors `MessageDeleteError` /
+ * `MessageRecallError` shape so callers can branch on `.code` consistently
+ * across the M4-3/4/5/6 quartet.
+ */
+export class MessageReplyError extends Error {
+  constructor(
+    public readonly code:
+      | 'NOT_FOUND'
+      | 'WRONG_CONVERSATION'
+      | 'NOT_MEMBER'
+      | 'BAD_KIND'
+      | 'DB_ERROR',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'MessageReplyError';
+  }
+}
+
+/**
+ * Map PG `E_MSG_REPLY_FORBIDDEN: <reason>` detail into a stable
+ * client-side code. Symmetric to the M4-3/4/5 mappers — keeps the
+ * client error-mapping logic aligned and unified.
+ */
+function mapReplyErrorCode(message: string): MessageReplyError['code'] {
+  if (/reply_target_not_found|not[_\s-]?found|missing/i.test(message))
+    return 'NOT_FOUND';
+  if (/wrong[_\s-]?conver|cross[_\s-]?conv/i.test(message))
+    return 'WRONG_CONVERSATION';
+  if (/sender_not_member|not[_\s-]?member|forbid/i.test(message))
+    return 'NOT_MEMBER';
+  if (/(?:^|[_\s-])(?:bad|invalid)[_\s-]?(?:kind|system)/i.test(message))
+    return 'BAD_KIND';
+  return 'DB_ERROR';
+}
+
+/**
+ * Send a reply message that references an existing `messages.id` via
+ * `reply_to_id`. Server-side enforcement via `fn_send_reply_message`
+ * (SECURITY INVOKER) per migration 0013.
+ *
+ * Guards enforced server-side:
+ *   - R-14  reply_to_id MUST be in the same conversation
+ *   - R-15  auth.uid() MUST be an active member of the conversation
+ *   - system messages are NOT replyable (server-emitted notices only)
+ *
+ * Idempotency: `clientMsgId` is the dedupe key (UNIQUE constraint on
+ * `messages.client_msg_id`); a duplicate replay resumes the canonical row
+ * via Postgres 23505 propagation.
+ *
+ * @throws MessageReplyError with stable code identifying which guard fired
+ * @throws Error('EMPTY_BODY') when body is whitespace-only
+ */
+export async function sendReplyMessage(args: {
+  conversationId: string;
+  senderId: string;
+  body: string;
+  replyToId: string;
+  clientMsgId: string;
+}): Promise<{
+  id: string;
+  conversationId: string;
+  replyToId: string;
+  createdAt: string;
+}> {
+  const { conversationId, body, replyToId, clientMsgId } = args;
+  const trimmed = body.trim();
+  if (!trimmed) throw new Error('EMPTY_BODY');
+
+  const { data, error } = await supabase.rpc('fn_send_reply_message', {
+    p_conv: conversationId,
+    p_reply_to_id: replyToId,
+    p_body: trimmed,
+    p_client_msg_id: clientMsgId,
+  });
+  if (error) {
+    throw new MessageReplyError(mapReplyErrorCode(error.message), error.message);
+  }
+  const row = data as {
+    id: string;
+    conversation_id: string;
+    reply_to_id: string;
+    created_at: string;
+  };
+  return {
+    id: row.id,
+    conversationId: row.conversation_id,
+    replyToId: row.reply_to_id,
+    createdAt: row.created_at,
+  };
 }
 
 /**

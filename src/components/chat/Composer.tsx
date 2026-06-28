@@ -12,7 +12,6 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  useSendTextMessage,
   useSendAttachmentMessage,
   ATTACHMENT_MIME_WHITELIST,
   AttachmentValidationError,
@@ -23,6 +22,7 @@ import { useAuth } from '@/stores/useAuth';
 import { useChat } from '@/stores/useChat';
 import { useDraftInput } from '@/hooks/useDraftInput';
 import { useTypingBroadcast } from '@/hooks/useTypingBroadcast';
+import { useSendReplyMessage } from '@/hooks/useSendReplyMessage';
 import { ComposeReplyCard } from './ComposeReplyCard';
 
 /**
@@ -73,7 +73,12 @@ export function Composer({ conversationId }: ComposerProps) {
 
   const { draft, setDraft, clearDraft } = useDraftInput(conversationId);
 
-  const sendTextM = useSendTextMessage(conversationId, selfUserId);
+  // M4-6 — useSendReplyMessage is a thin wrapper around the M3-4 text
+  // send hook that automatically reads `replyingTo` from Zustand and
+  // dispatches via `fn_send_reply_message` RPC when present (R-14 +
+  // R-15 enforced server-side). It also clears the Zustand reply on
+  // success (and PRESERVES it on error so the user can retry).
+  const sendTextM = useSendReplyMessage(conversationId, selfUserId);
   const sendAttachM = useSendAttachmentMessage(conversationId, selfUserId);
 
   /**
@@ -125,13 +130,15 @@ export function Composer({ conversationId }: ComposerProps) {
       stopTyping();
       const clientMsgId = generateClientMsgId();
       try {
+        // The wrapper `useSendReplyMessage` internally threads the
+        // Zustand `replyingTo.id` as `replyToId` AND clears the reply
+        // target on success — Composer no longer needs to do this
+        // manually. `replyToId` lookup has moved into the hook.
         await sendTextM.mutateAsync({
           body: trimmed,
-          replyToId: replyingTo?.id ?? null,
           clientMsgId,
         });
         clearDraft();
-        clearReply();
         setError(null);
       } catch (e) {
         setError({
@@ -145,9 +152,7 @@ export function Composer({ conversationId }: ComposerProps) {
     [
       selfUserId,
       sendTextM,
-      replyingTo,
       clearDraft,
-      clearReply,
       t,
       stopTyping,
     ],

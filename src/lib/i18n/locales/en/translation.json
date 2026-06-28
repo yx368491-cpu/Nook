@@ -131,6 +131,20 @@
       "dbError": "Delete failed. Please try again.",
       "unknown": "Delete failed"
     },
+    "reply": "Reply",
+    "replyCard": {
+      "image": "Image",
+      "file": "File",
+      "recalled": "This message was recalled"
+    },
+    "replyError": {
+      "notFound": "The message you're replying to no longer exists",
+      "wrongConversation": "You cannot reply to messages from another conversation",
+      "notMember": "You're no longer a member of this conversation",
+      "badKind": "You cannot reply to system messages",
+      "dbError": "Reply failed. Please try again.",
+      "unknown": "Reply failed"
+    },
     "replyTo": "Reply to {{name}}",
     "imageAlt": "Image message",
     "file": "File",

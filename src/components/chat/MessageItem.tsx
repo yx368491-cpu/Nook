@@ -4,6 +4,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Bubble } from '@/components/ui/Bubble';
 import { Button } from '@/components/ui/Button';
 import { AttachmentImage } from './AttachmentImage';
+import { ReplyCard } from './ReplyCard';
 import {
   isMessageEditable,
   isMessageRecallable,
@@ -16,6 +17,7 @@ import {
 import { useEditMessage } from '@/hooks/useEditMessage';
 import { useRecallMessage } from '@/hooks/useRecallMessage';
 import { useDeleteMessage } from '@/hooks/useDeleteMessage';
+import { useChat } from '@/stores/useChat';
 
 interface MessageItemProps {
   item: MessageListItem;
@@ -200,6 +202,80 @@ function DeleteMenuTrigger({ onClick }: { onClick: () => void }) {
 }
 
 /**
+ * M4-6 — small 16 px reply (↩ curving-down-left arrow) affordance.
+ *
+ * Clicking the trigger populates `useChat.replyingTo` with a
+ * `ReplyPreview{ id, senderName, bodyPreview }` blob sourced from the
+ * bubble's own preview fields. The `Composer.tsx` ComposeReplyCard chip
+ * is already wired to render when `useChat.replyingTo !== null` (M3-4
+ * shipped the receiver side); the missing piece was the trigger to
+ * populate it. M4-6 fills that in.
+ *
+ * Body-preview derivation priority (thinker D9):
+ *   1. `item.body` — the bubble's own body, used for plain text bubbles
+ *      (always available when `kind === 'text'`)
+ *   2. `chat.replyCard.image` → for image kind bubbles
+ *   3. `chat.replyCard.file`  → for file kind bubbles
+ *   4. `(empty string)` → for system bubbles or null bodies
+ *
+ * Mount-only on non-recalled/non-self-deleted bubbles. We deliberately
+ * gate by `kind !== 'system'` even though the server-side RPC also
+ * rejects system-message reply targets — frontend guards make the
+ * affordance disappear the moment it's no longer meaningful (paralleling
+ * the M4-3/4/5 delete/recall `canEdit/canRecall/canDelete` gates).
+ */
+function ReplyMenuTrigger({
+  onClick,
+}: {
+  onClick: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={t('chat.reply')}
+      title={t('chat.reply')}
+      className="
+        flex h-6 w-6 items-center justify-center rounded-full
+        text-[var(--color-ink-muted)]
+        opacity-0 transition-opacity duration-150
+        group-hover/message:opacity-100 group-focus-within/message:opacity-100
+        hover:text-[var(--color-ink-fg)]
+        focus-visible:opacity-100 focus-visible:outline-none
+        focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]/40
+      "
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        aria-hidden="true"
+      >
+        {/* Curving-down-left "reply" arrow (W3C-ish) */}
+        <path
+          d="M5 3.5v3.5h6a2.5 2.5 0 0 1 2.5 2.5V13"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+        <path
+          d="M2.5 6 5 3.5 7.5 6"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+      </svg>
+    </button>
+  );
+}
+
+/**
  * M4-3 — inline edit form (unchanged from prior ship).
  */
 interface InlineEditFormProps {
@@ -372,13 +448,14 @@ function errorMessageFor(
 export function MessageItem({ item, isConsecutive }: MessageItemProps) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
-  // Single error strip covers edit AND recall AND delete errors — they share
-  // the same UI affordance (aria-live=polite · role=alert) and the user
-  // only sees one operation at a time per message.
+  // Single error strip covers edit AND recall AND delete AND reply errors
+  // — they share the same UI affordance (aria-live=polite · role=alert)
+  // and the user only sees one operation at a time per message.
   const [actionError, setActionError] = useState<string | null>(null);
   const editMutation = useEditMessage(item.conversationId);
   const recallMutation = useRecallMessage(item.conversationId);
   const deleteMutation = useDeleteMessage(item.conversationId);
+  const setReplyingTo = useChat((s) => s.setReplyingTo);
 
   // Live "now" re-derivation: editable + recallable windows both expire
   // precisely when created_at + 2 minutes passes. Re-evaluate every 30 s
@@ -422,6 +499,17 @@ export function MessageItem({ item, isConsecutive }: MessageItemProps) {
     !isSelfDeleted &&
     !isRecalled &&
     isMessageDeletable(item);
+
+  // M4-6 — reply trigger is mountain-visible on any non-recalled,
+  // non-self-deleted, non-system bubble so the user can reply to anyone
+  // (including themselves). The server-side RPC (fn_send_reply_message
+  // migration 0013) rejects system-message targets, but the client
+  // gate hides the affordance ahead of time so the user never sees a
+  // // disable-visible trigger on system bubbles.
+  const canReply =
+    !isSelfDeleted &&
+    !isRecalled &&
+    item.kind !== 'system';
 
   const enterEdit = () => {
     setActionError(null);
@@ -518,6 +606,40 @@ export function MessageItem({ item, isConsecutive }: MessageItemProps) {
     );
   };
 
+  /**
+   * M4-6 click handler for the reply affordance.
+   * Populates `useChat.replyingTo` from the bubble's preview fields;
+   * the `<ComposeReplyCard>` already wires to render when the value is
+   * non-null (M3-4 receiver side). On click the overlay reply card
+   * appears above the composer input; the user types and the next send
+   * threads `replyToId = item.id` + `replyTo` via `fn_send_reply_message`
+   * RPC. No mutation is fired by this handler — it is purely a UI
+   * intent signal that Composer.tsx translates to a mutation on next
+   * Enter.
+   *
+   * Body-preview derivation priority (D9):
+   *   1. `item.body` for `kind === 'text'` bubbles
+   *   2. `chat.replyCard.image` / `chat.replyCard.file` for media bubbles
+   *   3. empty string for system rows (mount-only check: canReply gates
+   *      this out)
+   */
+  const handleReply = () => {
+    setActionError(null);
+    let bodyPreview = '';
+    if (item.kind === 'text' && item.body) {
+      bodyPreview = item.body;
+    } else if (item.kind === 'image') {
+      bodyPreview = t('chat.replyCard.image');
+    } else if (item.kind === 'file') {
+      bodyPreview = t('chat.replyCard.file');
+    }
+    setReplyingTo({
+      id: item.id,
+      senderName: item.senderName,
+      bodyPreview,
+    });
+  };
+
   return (
     <div
       className={`
@@ -549,16 +671,31 @@ export function MessageItem({ item, isConsecutive }: MessageItemProps) {
           </span>
         )}
 
+        {/* M4-6 — ReplyCard preview chip rendered ABOVE the bubble when
+            this message is a reply (item.replyTo FK populated via the
+            listMessages join). Sits inside the flex-col so the chip
+            shares the bubble's max-w-[72%] column — visually aligned,
+            no extra horizontal overflow. The chip is purely informational
+            (no click handler — v1.1 will add scroll-to-reply). */}
+        {item.replyTo && (
+          <ReplyCard preview={item.replyTo} />
+        )}
+
         <div
           className={`
             flex items-end gap-[var(--space-2xs)]
             ${item.isSelf ? 'flex-row-reverse' : 'flex-row'}
           `}
         >
-          {/* Triple hover triggers (M4-3 edit + M4-4 recall + M4-5 delete)
-              — side-by-side, each gated by its respective UI guard. Hidden
-              when editing so the inline form doesn't collide with the icon
-              column. */}
+          {/* Quad hover triggers (M4-3 edit + M4-4 recall + M4-5 delete
+              + M4-6 reply) — side-by-side, each gated by its respective
+              UI guard. Reply trigger mounts FIRST (leftmost in DOM order)
+              so it ends up closest to the bubble; the destructive trio
+              sits further out. Hidden when editing so the inline form
+              doesn't collide with the icon column. */}
+          {!editing && canReply && (
+            <ReplyMenuTrigger onClick={handleReply} />
+          )}
           {!editing && canEdit && (
             <EditMenuTrigger onClick={enterEdit} />
           )}
