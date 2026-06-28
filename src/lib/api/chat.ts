@@ -754,3 +754,112 @@ export async function sendAttachmentMessage(args: {
     createdAt: data.created_at,
   };
 }
+
+// ============================================================================
+// Edit API (M4-3) — 2-minute window, server-enforced
+// ============================================================================
+
+/** 2-minute edit window — matches SPEC § 6 BF-08 + DB fn_edit_message. */
+export const EDIT_WINDOW_MS = 2 * 60 * 1000;
+
+/**
+ * Custom error for rejected edits. The RPC raises
+ * `E_MSG_EDIT_FORBIDDEN` with the failing guard in the message;
+ * we map the message via regex into a stable code so callers can
+ * branch on `{NOT_OWNER | WINDOW_EXPIRED | ALREADY_EDITED | NO_CHANGE
+ * | NOT_FOUND | DB_ERROR}`.
+ */
+export class MessageEditError extends Error {
+  constructor(
+    public readonly code:
+      | 'NOT_OWNER'
+      | 'WINDOW_EXPIRED'
+      | 'ALREADY_EDITED'
+      | 'NO_CHANGE'
+      | 'BAD_KIND'
+      | 'NOT_FOUND'
+      | 'DB_ERROR',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'MessageEditError';
+  }
+}
+
+/**
+ * Edit a text message body within the 2-minute window. Server-side
+ * enforcement via `fn_edit_message` (security invoker):
+ *  - auth.uid() = sender_id
+ *  - created_at + 2 minutes > now()
+ *  - edited_at IS NULL (one-shot)
+ *  - recalled_at IS NULL
+ *  - body kind `text`
+ *  - new body differs from current (no-op check)
+ *  - body length 1..4000
+ *
+ * @throws MessageEditError with a stable code identifying which guard fired
+ * @throws Error('EMPTY_BODY') when newBody is whitespace-only
+ */
+export async function editMessage(args: {
+  messageId: string;
+  newBody: string;
+}): Promise<{ id: string; body: string; editedAt: string }> {
+  const { messageId, newBody } = args;
+  const trimmed = newBody.trim();
+  if (!trimmed) throw new Error('EMPTY_BODY');
+
+  const { data, error } = await supabase.rpc('fn_edit_message', {
+    p_msg_id: messageId,
+    p_new_body: trimmed,
+  });
+  if (error) {
+    throw new MessageEditError(mapEditErrorCode(error.message), error.message);
+  }
+  // RPC returns a JSONB row like `{ id, body, edited_at }`. supabase-js
+  // returns JSONB as a parsed object.
+  const row = data as { id: string; body: string; edited_at: string };
+  return { id: row.id, body: row.body, editedAt: row.edited_at };
+}
+
+/**
+ * Map the PG `E_MSG_EDIT_FORBIDDEN: <reason>` detail into a stable
+ * client-side code. Unrecognized reasons fall back to `DB_ERROR`
+ * (caller surfaces the raw message in the inline error strip).
+ */
+function mapEditErrorCode(message: string): MessageEditError['code'] {
+  if (/not[\s_-]?owner|unauthor/i.test(message)) return 'NOT_OWNER';
+  if (/window|expired|2[\s_-]?min/i.test(message)) return 'WINDOW_EXPIRED';
+  if (/already[\s_-]?(edit|once)/i.test(message)) return 'ALREADY_EDITED';
+  if (/recalled/i.test(message)) return 'ALREADY_EDITED'; // already recalled ↔ cannot edit
+  if (/no[\s_-]?change|identical|no[\s_-]?op/i.test(message)) return 'NO_CHANGE';
+  if (/text[\s_-]?message|kind/i.test(message)) return 'BAD_KIND';
+  if (/not[\s_-]?found|missing/i.test(message)) return 'NOT_FOUND';
+  return 'DB_ERROR';
+}
+
+/**
+ * Pure UI-side guard complementing the server check. Chat UI uses this
+ * to hide the edit affordance proactively (so the user doesn't click
+ * into an edit UI that will then fail).
+ *
+ *   - Self messages only
+ *   - Text kind only (image/file are immutable per kind_payload_chk)
+ *   - Not yet edited (single-shot)
+ *   - Not recalled / not sender-soft-deleted
+ *   - created_at within the 2-minute window
+ */
+export function isMessageEditable(item: {
+  isSelf: boolean;
+  createdAt: string;
+  editedAt: string | null;
+  recalledAt: string | null;
+  deletedBySenderAt: string | null;
+  kind: MessageKind;
+}): boolean {
+  if (!item.isSelf) return false;
+  if (item.kind !== 'text') return false;
+  if (item.editedAt !== null) return false;
+  if (item.recalledAt !== null) return false;
+  if (item.deletedBySenderAt !== null) return false;
+  return Date.now() - Date.parse(item.createdAt) < EDIT_WINDOW_MS;
+}
