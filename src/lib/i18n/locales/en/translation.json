@@ -146,6 +146,22 @@
       "unknown": "Reply failed"
     },
     "replyTo": "Reply to {{name}}",
+    "reaction": {
+      "triggerLabel": "Add reaction",
+      "pickerTitle": "Choose a reaction",
+      "pickerOption": "React with {{emoji}}",
+      "addLabel": "{{emoji}} · {{count}}",
+      "removeLabel": "Remove {{emoji}} reaction ({{count}})",
+      "a11yGroup": "Reactions on this message"
+    },
+    "reactionError": {
+      "notAuthenticated": "Please sign in to react",
+      "notFound": "This message no longer exists",
+      "badKind": "You cannot react to system messages",
+      "notMember": "You're no longer a member of this conversation",
+      "dbError": "Reaction failed. Please try again.",
+      "unknown": "Reaction failed"
+    },
     "imageAlt": "Image message",
     "file": "File",
     "today": "Today",

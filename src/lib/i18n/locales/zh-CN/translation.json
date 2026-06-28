@@ -146,6 +146,22 @@
       "unknown": "回复失败"
     },
     "replyTo": "回复 {{name}}",
+    "reaction": {
+      "triggerLabel": "添加表态",
+      "pickerTitle": "选择一个表态",
+      "pickerOption": "表态 {{emoji}}",
+      "addLabel": "{{emoji}} · {{count}}",
+      "removeLabel": "取消 {{emoji}} 表态（当前 {{count}}）",
+      "a11yGroup": "此消息的表态列表"
+    },
+    "reactionError": {
+      "notAuthenticated": "请先登录再表态",
+      "notFound": "此消息已不存在",
+      "badKind": "无法对系统消息表态",
+      "notMember": "你已不在此会话中",
+      "dbError": "表态失败，请重试",
+      "unknown": "表态失败"
+    },
     "imageAlt": "图片消息",
     "file": "文件",
     "today": "今天",

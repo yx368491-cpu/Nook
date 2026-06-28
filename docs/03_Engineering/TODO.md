@@ -82,7 +82,7 @@
 | M4-4 | 撤回（soft recall，DB row 不删） | F-MSG-06 / AC.09 | ⏳ 待开发 (本机 static only · 云 DB migration 0010 + 0011 `[待云 db push]`) |
 | M4-5 | 删除（仅自己端）— **列级软隐藏 `deleted_by_sender_at`** | F-MSG-07 / AC.10 | ⏳ 待开发 (本机 static only · 云 DB migration 0012 `[待云 db push]`) |
 | M4-6 | 引用 / 回复（reply_to_id + ReplyCard） | F-MSG-04 / AC.07 | ✅ 已完成 (本机 static only · 云 DB migration 0013 [待云 db push]) |
-| M4-7 | 6 emoji reaction toggle | F-MSG-09 | ⏳ 待开发 |
+| M4-7 | 6 emoji reaction toggle（CAP-15） | F-MSG-09 / AC.07 | ✅ 已完成 (本机 static only · 云 DB migration 0015 [待云 db push]) |
 | M4-8 | Ambient 在线状态（presence + 6 px lavender pulse） | F-ST-01 / AC.11 | ⏳ 待开发 |
 
 ---

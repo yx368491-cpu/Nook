@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import type {
   ConversationKind,
   MessageKind,
+  ReactionEmoji,
   UserRole,
 } from '@/shared/types/domain';
 
@@ -114,6 +115,15 @@ interface MessageRowEmbeds {
       avatar_url: string | null;
     } | null;
   } | null;
+  // M4-7 join: messages.id ←→ reactions (M:N msg×user×emoji, 6 hardcoded
+  // emojis). We deliberately hydrate just (emoji, user_id) — the rest
+  // (message_id, created_at) is redundant for bucketing client-side where
+  // `count` is the aggregate and `hasMine` is `user_id === self`.
+  // `null` when the message has no reactions (LEFT JOIN default).
+  reactions: {
+    emoji: ReactionEmoji;
+    user_id: string;
+  }[] | null;
 }
 
 // ============================================================================
@@ -227,6 +237,30 @@ export interface MessageListItem {
   recalledAt: string | null;
   /** F-MSG-07 sender-only soft delete; only honored when `isSelf` */
   deletedBySenderAt: string | null;
+  /**
+   * M4-7 — bucketed reaction summary per emoji (CAP-15 / F-MSG-09).
+   *
+   * Server-side hydration comes from `listMessages` LEFT JOIN on
+   * `reactions(emoji, user_id)`, aggregated client-side in
+   * `transformMessage` into the chip-friendly shape consumed by
+   * `<Bubble.Reactions>` and `<ReactionMenuTrigger>`. Each bucket
+   * carries:
+   *   - `emoji`   — one of the closed 6-whitelist (RP-15 / domain.ts)
+   *   - `count`   — total reacts across all conversation members
+   *   - `hasMine` — `true` when the current user has applied this emoji
+   *                  (drives the chip's accent tint + tooltip "你的反应")
+   *
+   * Empty/undefined when the message has zero reactions — the UI then
+   * renders only the picker trigger (hover/focus) without any chip row.
+   *
+   * Ordering constraint: buckets sorted by `count DESC, emoji ASC` so
+   * the most-popular reactions bubble to the front of the chip row.
+   */
+  reactions?: ReadonlyArray<{
+    emoji: ReactionEmoji;
+    count: number;
+    hasMine: boolean;
+  }>;
   /** Idempotency key for outbox dedup (M5-3) */
   clientMsgId: string | null;
   createdAt: string;
@@ -351,7 +385,8 @@ export async function listMessages(args: {
           id, conversation_id, sender_id, kind, body,
           recalled_at, deleted_by_sender_at, created_at,
           sender:profiles!messages_sender_id_fkey(id, display_name, avatar_url)
-        )
+        ),
+        reactions:reactions(emoji, user_id)
       `,
     )
     .eq('conversation_id', conversationId)
@@ -551,9 +586,54 @@ function transformMessage(
     editedAt: row.edited_at,
     recalledAt: row.recalled_at, // always null due to .is('recalled_at', null)
     deletedBySenderAt: row.deleted_by_sender_at,
+    reactions: bucketReactions(row.reactions ?? null, currentUserId),
     clientMsgId: row.client_msg_id,
     createdAt: row.created_at,
   };
+}
+
+/**
+ * M4-7 — bucket the raw `reactions(emoji, user_id)` rows into the
+ * chip-friendly `Array<{ emoji, count, hasMine }>` shape consumed by
+ * `<Bubble.Reactions>` and the picker.
+ *
+ * Bucketing rules:
+ *   - group rows by emoji
+ *   - sum count per emoji
+ *   - set hasMine = `userIds.includes(currentUserId)` (same user can
+ *     react with several emojis simultaneously since the PK is
+ *     `(message_id, user_id, emoji)` — Slack/Discord style — so
+ *     multiple `hasMine` buckets can light up on the same message)
+ *   - sort `count DESC, emoji ASC` for a stable visual order
+ *
+ * Returns `[]` when the source array is null or empty — callers can
+ * safely `.length === 0` to hide the chip row.
+ */
+function bucketReactions(
+  rows: Array<{ emoji: string; user_id: string }> | null,
+  currentUserId: string,
+): MessageListItem['reactions'] {
+  if (!rows || rows.length === 0) return [];
+  const map = new Map<ReactionEmoji, { count: number; hasMine: boolean }>();
+  for (const row of rows) {
+    const emoji = row.emoji as ReactionEmoji;
+    const existing = map.get(emoji);
+    if (existing) {
+      existing.count += 1;
+      if (row.user_id === currentUserId) existing.hasMine = true;
+    } else {
+      map.set(emoji, {
+        count: 1,
+        hasMine: row.user_id === currentUserId,
+      });
+    }
+  }
+  return Array.from(map.entries())
+    .map(([emoji, { count, hasMine }]) => ({ emoji, count, hasMine }))
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return a.emoji.localeCompare(b.emoji);
+    });
 }
 
 // ============================================================================
@@ -836,8 +916,11 @@ function mapReplyErrorCode(message: string): MessageReplyError['code'] {
     return 'WRONG_CONVERSATION';
   if (/sender_not_member|not[_\s-]?member/i.test(message))
     return 'NOT_MEMBER';
-  if (/(?:^|[_\s-])(?:bad|invalid)[_\s-]?(?:kind|system)/i.test(message))
-    return 'BAD_KIND';
+  // Server raises `bad_kind_<k>` (e.g. `bad_kind_system`,
+  // `bad_kind_image`, `bad_kind_text`) or `bad_emoji_<x>` when the
+  // caller passed an invalid emoji arg. Both signal a kind/arg
+  // mismatch the client surfaces as BAD_KIND.
+  if (/bad[_\s-]?(kind|emoji)/i.test(message)) return 'BAD_KIND';
   return 'DB_ERROR';
 }
 
@@ -1270,4 +1353,274 @@ export function isMessageDeletable(item: {
   if (item.recalledAt !== null) return false;
   if (item.deletedBySenderAt !== null) return false;
   return Date.now() - Date.parse(item.createdAt) < DELETE_WINDOW_MS;
+}
+
+// ===========================================================================
+// Reaction API (M4-7) — 6-emoji toggle, server-enforced via fn_add/remove_reaction
+// ===========================================================================
+
+/**
+ * Closed 6-emoji whitelist (CAP-15). Mirrors the DB CHECK constraint on
+ * `reactions.emoji` (migration 0003) and the explicit allowlist inside the
+ * fn_add/fn_remove RPCs (migration 0015). Re-exporting here so the rest of
+ * the client (hooks + UI) imports a single source of truth.
+ */
+export const REACTION_EMOJIS: ReadonlyArray<ReactionEmoji> = [
+  '👍',
+  '❤️',
+  '😂',
+  '👀',
+  '🔥',
+  '🙏',
+] as const;
+
+/**
+ * Custom error for rejected reaction toggles. Mirrors the M4-3/4/5/6 error
+ * shape so callers can branch on `.code` consistently and the picker UI
+ * can localize via `chat.reactionError.<code>` keys.
+ *
+ * Codes:
+ *   - NOT_AUTHENTICATED  — caller signed-out (defensive; auth-required EF)
+ *   - NOT_FOUND          — message id does not exist OR was hard-deleted
+ *   - BAD_KIND           — target kind = 'system' (server-emitted, no reactions)
+ *   - NOT_MEMBER         — caller is not an active conversation member
+ *   - DB_ERROR           — catch-all for unrecognized PG detail
+ */
+export class MessageReactionError extends Error {
+  constructor(
+    public readonly code:
+      | 'NOT_AUTHENTICATED'
+      | 'NOT_FOUND'
+      | 'BAD_KIND'
+      | 'NOT_MEMBER'
+      | 'DB_ERROR',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'MessageReactionError';
+  }
+}
+
+/**
+ * Map PG `E_REACTION_FORBIDDEN: <reason>` detail into a stable client code.
+ * Symmetric to `mapEditErrorCode` / `mapRecallErrorCode` / `mapDeleteErrorCode`
+ * / `mapReplyErrorCode` — same regex shape so client-mapping logic stays
+ * unified across the M4-3/4/5/6/7 pentachord.
+ */
+function mapReactionErrorCode(message: string): MessageReactionError['code'] {
+  if (/not[_\\s-]?authent/i.test(message)) return 'NOT_AUTHENTICATED';
+  if (/not[_\\s-]?found|missing/i.test(message)) return 'NOT_FOUND';
+  if (/(?:^|[_\\s-])(?:bad|invalid)[_\\s-]?(?:kind|system)/i.test(message))
+    return 'BAD_KIND';
+  if (/not[_\\s-]?member/i.test(message)) return 'NOT_MEMBER';
+  return 'DB_ERROR';
+}
+
+/**
+ * Pure UI-side guard complementing the server check. The picker trigger is
+ * hidden on system messages AND on recall-only-state bubbles to keep the
+ * affordance semantically meaningful (a recalled bubble can still display
+ * existing chip rows but new reactions are pointless).
+ *
+ * Allowed:
+ *   - any non-system kind (text / image / file)
+ *   - not recalled (recalled = conversation-wide hide; reactions stay on
+ *     the underlying row but the bubble renders as the inert placeholder;
+ *     we don't show the picker to avoid UI noise)
+ *   - not self-deleted (sender-exclusive hide; the bubble still renders
+ *     normally for recipients so the picker stays visible for them)
+ */
+export function isMessageReactable(item: {
+  kind: MessageKind;
+  recalledAt: string | null;
+}): boolean {
+  if (item.kind === 'system') return false;
+  if (item.recalledAt !== null) return false;
+  return true;
+}
+
+/**
+ * Add (or no-op upsert) the current user's emoji reaction to a message.
+ * Server-side enforcement via `fn_add_reaction` (SECURITY INVOKER, migration
+ * 0015). Guards mirror `fn_send_reply_message` shape:
+ *   - auth.uid() IS NOT NULL
+ *   - target message exists and is NOT kind='system'
+ *   - caller is an active conversation member
+ *   - emoji in 6-whitelist (also CHECK-constrained inline on the table)
+ *
+ * Idempotency: ON CONFLICT (message_id, user_id, emoji) DO NOTHING, so a
+ * re-click of the SAME emoji is a no-op success — same composite (msg,user,emoji)
+ * row would otherwise fail PK insert.
+ *
+ * Distinct emojis from the same user coexist in the table (PK includes emoji),
+ * so "切换" between emojis is a DELETE+INSERT pair, NOT a single call.
+ *
+ * @throws MessageReactionError with stable code identifying which guard fired
+ */
+export async function addReaction(args: {
+  messageId: string;
+  emoji: ReactionEmoji;
+}): Promise<{
+  messageId: string;
+  userId: string;
+  emoji: ReactionEmoji;
+}> {
+  const { messageId, emoji } = args;
+  if (!REACTION_EMOJIS.includes(emoji)) {
+    throw new MessageReactionError('DB_ERROR', `bad_emoji_${emoji}`);
+  }
+  const { data, error } = await supabase.rpc('fn_add_reaction', {
+    p_msg_id: messageId,
+    p_emoji: emoji,
+  });
+  if (error) {
+    throw new MessageReactionError(
+      mapReactionErrorCode(error.message),
+      error.message,
+    );
+  }
+  const row = data as {
+    message_id: string;
+    user_id: string;
+    emoji: string;
+  };
+  return {
+    messageId: row.message_id,
+    userId: row.user_id,
+    emoji: row.emoji as ReactionEmoji,
+  };
+}
+
+/**
+ * Remove the current user's emoji reaction from a message. Server-side
+ * enforcement via `fn_remove_reaction` (SECURITY INVOKER, migration 0015).
+ * Same 4-guard contract as `addReaction`.
+ *
+ * Idempotency: DELETE on a non-matching WHERE is 0-rows-affected and is
+ * intentionally treated as success — a user can re-click DELETE on a
+ * reaction they already removed without surfacing an error.
+ *
+ * @throws MessageReactionError with stable code identifying which guard fired
+ */
+export async function removeReaction(args: {
+  messageId: string;
+  emoji: ReactionEmoji;
+}): Promise<{
+  messageId: string;
+  userId: string;
+  emoji: ReactionEmoji;
+  rowsAffected: number;
+}> {
+  const { messageId, emoji } = args;
+  if (!REACTION_EMOJIS.includes(emoji)) {
+    throw new MessageReactionError('DB_ERROR', `bad_emoji_${emoji}`);
+  }
+  const { data, error } = await supabase.rpc('fn_remove_reaction', {
+    p_msg_id: messageId,
+    p_emoji: emoji,
+  });
+  if (error) {
+    throw new MessageReactionError(
+      mapReactionErrorCode(error.message),
+      error.message,
+    );
+  }
+  const row = data as {
+    message_id: string;
+    user_id: string;
+    emoji: string;
+    rows_affected: number;
+  };
+  return {
+    messageId: row.message_id,
+    userId: row.user_id,
+    emoji: row.emoji as ReactionEmoji,
+    rowsAffected: row.rows_affected ?? 0,
+  };
+}
+
+// ===========================================================================
+// Cache-patch helpers (M4-7) — used by both optimistic mutation hooks
+// AND Realtime projection. Keeping them in chat.ts so the source of truth
+// for bucket shape + sort order is single-file.
+// ===========================================================================
+
+/**
+ * Apply an ADD reaction to a `MessageListItem.reactions` bucket array.
+ * - If the emoji bucket is missing, creates one with `count = 1,
+ *   hasMine = <setHasMine flag>`.
+ * - If the bucket exists, increments `count` and ORs in `hasMine`.
+ * - Re-sorts by `(count DESC, emoji ASC)` to match `bucketReactions`'s
+ *   stable order so the chip row stays in the same canonical sequence.
+ *
+ * Used by:
+ *   - `useAddReaction.onMutate` (self optimistic patch)
+ *   - `useConversationRealtime.onReactionEvent` (INSERT echo — foreign
+ *     user reaction arrives over Realtime; for self, the optimistic
+ *     patch + invalidateOnSettled already converges)
+ */
+export function applyReactionAdd(
+  current: MessageListItem['reactions'],
+  emoji: ReactionEmoji,
+  setHasMine: boolean,
+): MessageListItem['reactions'] {
+  const list = current ? current.slice() : [];
+  const idx = list.findIndex((b) => b.emoji === emoji);
+  if (idx === -1) {
+    list.push({ emoji, count: 1, hasMine: setHasMine });
+  } else {
+    const bucket = list[idx]!;
+    list[idx] = {
+      ...bucket,
+      count: bucket.count + 1,
+      hasMine: setHasMine || bucket.hasMine,
+    };
+  }
+  list.sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    return a.emoji.localeCompare(b.emoji);
+  });
+  return list;
+}
+
+/**
+ * Apply a REMOVE reaction to a `MessageListItem.reactions` bucket array.
+ * - If the bucket is missing, returns the array untouched (defensive
+ *   against out-of-order Realtime echoes).
+ * - Decrements `count`. When `count` drops to 0, REMOVES the bucket so
+ *   empty chips do not render on the bubble.
+ * - `unsetHasMine` is OR'd negatively: if `unsetHasMine === true`,
+ *   `hasMine` becomes false. Otherwise the OR of the existing flag is
+ *   preserved (foreign user removes via Realtime → only their counts
+ *   drop; my own `hasMine` is preserved since I'm NOT the foreign user).
+ *
+ * Used by:
+ *   - `useRemoveReaction.onMutate` (self optimistic patch — always
+ *     passes `unsetHasMine: true`)
+ *   - `useConversationRealtime.onReactionEvent` (DELETE echo)
+ */
+export function applyReactionRemove(
+  current: MessageListItem['reactions'],
+  emoji: ReactionEmoji,
+  unsetHasMine: boolean,
+): MessageListItem['reactions'] {
+  if (!current) return [];
+  const idx = current.findIndex((b) => b.emoji === emoji);
+  if (idx === -1) return current;
+  const bucket = current[idx]!;
+  const newCount = bucket.count - 1;
+  if (newCount <= 0) {
+    return current.filter((_, i) => i !== idx);
+  }
+  const list = current.slice();
+  list[idx] = {
+    ...bucket,
+    count: newCount,
+    hasMine: unsetHasMine ? false : bucket.hasMine,
+  };
+  list.sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    return a.emoji.localeCompare(b.emoji);
+  });
+  return list;
 }

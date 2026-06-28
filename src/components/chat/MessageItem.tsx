@@ -1,23 +1,30 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Avatar } from '@/components/ui/Avatar';
 import { Bubble } from '@/components/ui/Bubble';
 import { Button } from '@/components/ui/Button';
 import { AttachmentImage } from './AttachmentImage';
 import { ReplyCard } from './ReplyCard';
+import { Reactions } from './Reactions';
+import { EmojiPicker } from './EmojiPicker';
 import {
   isMessageEditable,
   isMessageRecallable,
   isMessageDeletable,
+  isMessageReactable,
   MessageEditError,
   MessageRecallError,
   MessageDeleteError,
+  MessageReactionError,
   type MessageListItem,
 } from '@/lib/api/chat';
 import { useEditMessage } from '@/hooks/useEditMessage';
 import { useRecallMessage } from '@/hooks/useRecallMessage';
 import { useDeleteMessage } from '@/hooks/useDeleteMessage';
+import { useAddReaction } from '@/hooks/useAddReaction';
+import { useRemoveReaction } from '@/hooks/useRemoveReaction';
 import { useChat } from '@/stores/useChat';
+import type { ReactionEmoji } from '@/shared/types/domain';
 
 interface MessageItemProps {
   item: MessageListItem;
@@ -441,6 +448,23 @@ function errorMessageFor(
         return t('chat.deleteError.unknown');
     }
   }
+  // M4-7 — reaction toggle errors map through the same shared strip.
+  if (err instanceof MessageReactionError) {
+    switch (err.code) {
+      case 'NOT_AUTHENTICATED':
+        return t('chat.reactionError.notAuthenticated');
+      case 'NOT_FOUND':
+        return t('chat.reactionError.notFound');
+      case 'BAD_KIND':
+        return t('chat.reactionError.badKind');
+      case 'NOT_MEMBER':
+        return t('chat.reactionError.notMember');
+      case 'DB_ERROR':
+        return t('chat.reactionError.dbError');
+      default:
+        return t('chat.reactionError.unknown');
+    }
+  }
   if (err.message === 'EMPTY_BODY') return t('chat.editError.empty');
   return t('chat.editError.unknown');
 }
@@ -455,6 +479,8 @@ export function MessageItem({ item, isConsecutive }: MessageItemProps) {
   const editMutation = useEditMessage(item.conversationId);
   const recallMutation = useRecallMessage(item.conversationId);
   const deleteMutation = useDeleteMessage(item.conversationId);
+  const addReactionMutation = useAddReaction(item.conversationId);
+  const removeReactionMutation = useRemoveReaction(item.conversationId);
   const setReplyingTo = useChat((s) => s.setReplyingTo);
 
   // Live "now" re-derivation: editable + recallable windows both expire
@@ -510,6 +536,25 @@ export function MessageItem({ item, isConsecutive }: MessageItemProps) {
     !isSelfDeleted &&
     !isRecalled &&
     item.kind !== 'system';
+
+  // M4-7 — reaction picker is parallel to reply: any active conversation
+  // member can react to any non-system, non-recalled bubble (including
+  // their own outgoing bubbles). The server-side RPCs (`fn_add_reaction`
+  // + `fn_remove_reaction`, migration 0015) reject system-kind rows but
+  // the client gate hides the affordance FIRST so the picker never opens
+  // on a system bubble.
+  const canReact =
+    isMessageReactable(item) && !isSelfDeleted;
+
+  // M4-7 — current user's reacted-emoji set, derived from cached buckets.
+  // Used by the picker to disable already-applied emojis (picker is ADD-only;
+  // toggling-OFF is done by clicking the chip in `<Reactions>`).
+  const selfHasMine = useMemo<ReadonlyArray<ReactionEmoji>>(() => {
+    if (!item.reactions) return [];
+    return item.reactions
+      .filter((b) => b.hasMine)
+      .map((b) => b.emoji);
+  }, [item.reactions]);
 
   const enterEdit = () => {
     setActionError(null);
@@ -640,6 +685,42 @@ export function MessageItem({ item, isConsecutive }: MessageItemProps) {
     });
   };
 
+  /**
+   * M4-7 toggle handler routed from BOTH the picker (always `add`)
+   * and the chip row (context-sensitive: `add` if hasMine === false,
+   * `remove` if hasMine === true). Errors surface in the same
+   * `actionError` strip used by edit/recall/delete — they're all
+   * per-message transient errors so a single aria-live region is
+   * sufficient for the caller.
+   */
+  const handleReactionToggle = (
+    emoji: ReactionEmoji,
+    action: 'add' | 'remove',
+  ) => {
+    setActionError(null);
+    if (action === 'add') {
+      addReactionMutation.mutate(
+        { messageId: item.id, emoji },
+        {
+          // We rely on onSuccess invalidate + optimistic patch for UI;
+          // errors visible to the user go through the shared strip.
+          onError: (err) => setActionError(errorMessageFor(err, t)),
+        },
+      );
+    } else {
+      removeReactionMutation.mutate(
+        { messageId: item.id, emoji },
+        {
+          onError: (err) => setActionError(errorMessageFor(err, t)),
+        },
+      );
+    }
+  };
+
+  const handlePickerAdd = (emoji: ReactionEmoji) => {
+    handleReactionToggle(emoji, 'add');
+  };
+
   return (
     <div
       className={`
@@ -687,12 +768,18 @@ export function MessageItem({ item, isConsecutive }: MessageItemProps) {
             ${item.isSelf ? 'flex-row-reverse' : 'flex-row'}
           `}
         >
-          {/* Quad hover triggers (M4-3 edit + M4-4 recall + M4-5 delete
-              + M4-6 reply) — side-by-side, each gated by its respective
-              UI guard. Reply trigger mounts FIRST (leftmost in DOM order)
-              so it ends up closest to the bubble; the destructive trio
-              sits further out. Hidden when editing so the inline form
-              doesn't collide with the icon column. */}
+          {/* Quintuple hover triggers (M4-3 edit + M4-4 recall + M4-5 delete
+              + M4-6 reply + M4-7 emoji-react picker) — side-by-side, each
+              gated by its respective UI guard. The picker mounts FIRST
+              (leftmost in DOM order) so it ends up closest to the bubble;
+              the destructive trio sits further out. Hidden when editing
+              so the inline form doesn't collide with the icon column. */}
+          {!editing && canReact && (
+            <EmojiPicker
+              selfHasMine={selfHasMine}
+              onAdd={handlePickerAdd}
+            />
+          )}
           {!editing && canReply && (
             <ReplyMenuTrigger onClick={handleReply} />
           )}
@@ -760,6 +847,25 @@ export function MessageItem({ item, isConsecutive }: MessageItemProps) {
             </Bubble>
           )}
         </div>
+
+        {/* M4-7 — Reaction chip row rendered BELOW the bubble row.
+            Lives in the same flex-col as the bubble row so it shares
+            the bubble's max-w-[72%] column (aligned with the bubble's
+            left/right edge depending on `isSelf`). The row renders
+            nothing when `item.reactions` is empty/undefined. */}
+        {item.reactions && item.reactions.length > 0 && (
+          <div
+            className={`
+              max-w-[72%] flex
+              ${item.isSelf ? 'justify-end' : 'justify-start'}
+            `}
+          >
+            <Reactions
+              reactions={item.reactions}
+              onToggle={handleReactionToggle}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

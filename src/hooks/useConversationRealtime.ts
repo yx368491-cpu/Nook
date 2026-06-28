@@ -7,10 +7,13 @@ import {
   subscribeConversationEvents,
   type MessageChannelHandlers,
 } from '@/lib/realtime/conversationChannel';
-import type {
-  MessageListItem,
-  MessagesPage,
+import {
+  applyReactionAdd,
+  applyReactionRemove,
+  type MessageListItem,
+  type MessagesPage,
 } from '@/lib/api/chat';
+import type { ReactionEmoji } from '@/shared/types/domain';
 import { useAuth } from '@/stores/useAuth';
 
 const MESSAGES_QUERY_KEY = (userId: string, convId: string) =>
@@ -80,8 +83,52 @@ export function useConversationRealtime(conversationId: string | null) {
           InfiniteData<MessagesPage, string | null> | undefined
         >(key, (prev) => patchById(prev, id, delta));
       },
-      onReactionEvent: () => {
-        // M4-7 will wire the reactions UI; mobile-side no-op for M3-5.
+      onReactionEvent: (payload) => {
+        // M4-7 — patch bucketed reactions cache in-place on INSERT/DELETE
+        // for (message_id, emoji). applyReactionAdd/Remove re-sort + drop
+        // empty buckets so the chip row stays canonical.
+        //
+        // CRITICAL: skip patches where the actor is `self`. Self's cache
+        // is already authoritative via the optimistic Tanstack Query
+        // patch + `onSuccess.invalidateQueries` refetch in the M4-7 hooks.
+        // Letting the Realtime echo ALSO apply would double-count (insert)
+        // or under-count (delete) because both paths converge to the same
+        // server-truthful state. Foreign-actor patches remain the only
+        // path that brings external reactions into the local cache.
+        const event = payload.eventType;
+        const newRow = payload.new as
+          | { message_id: string; user_id: string; emoji: string }
+          | null
+          | undefined;
+        const oldRow = payload.old as
+          | { message_id: string; user_id: string; emoji: string }
+          | null
+          | undefined;
+        let messageId: string | null = null;
+        let emoji: ReactionEmoji | null = null;
+        let actorUserId: string | null = null;
+        if (event === 'INSERT' && newRow) {
+          messageId = newRow.message_id;
+          emoji = newRow.emoji as ReactionEmoji;
+          actorUserId = newRow.user_id;
+        } else if (event === 'DELETE' && oldRow) {
+          messageId = oldRow.message_id;
+          emoji = oldRow.emoji as ReactionEmoji;
+          actorUserId = oldRow.user_id;
+        }
+        if (!messageId || !emoji || !actorUserId) return;
+        if (actorUserId === userId) return; // self: handled by hook + invalidate
+        qc.setQueryData<
+          InfiniteData<MessagesPage, string | null> | undefined
+        >(key, (prev) =>
+          patchReactions(
+            prev,
+            messageId!,
+            emoji!,
+            event === 'INSERT' ? 'add' : 'remove',
+            false,
+          ),
+        );
       },
     };
 
@@ -206,6 +253,46 @@ function replaceAt(
         ),
       };
     }),
+  };
+}
+
+// --------------------------------------------------------------------------
+// M4-7 — reactions bucket patcher. Writes only to the matching message
+// row across all pages; leaves everything else untouched. Uses the shared
+// `applyReactionAdd` / `applyReactionRemove` helpers from chat.ts so the
+// bucket shape + sort + drop-at-zero semantics stay canonical.
+// --------------------------------------------------------------------------
+
+function patchReactions(
+  pages: InfiniteData<MessagesPage, string | null> | undefined,
+  messageId: string,
+  emoji: ReactionEmoji,
+  action: 'add' | 'remove',
+  isSelf: boolean,
+): InfiniteData<MessagesPage, string | null> | undefined {
+  if (!pages) return pages;
+  return {
+    ...pages,
+    pages: pages.pages.map((page) => ({
+      ...page,
+      items: page.items.map((item) => {
+        if (item.id !== messageId) return item;
+        if (action === 'add') {
+          return {
+            ...item,
+            reactions: applyReactionAdd(item.reactions, emoji, isSelf),
+          };
+        }
+        return {
+          ...item,
+          reactions: applyReactionRemove(
+            item.reactions,
+            emoji,
+            isSelf,
+          ),
+        };
+      }),
+    })),
   };
 }
 
