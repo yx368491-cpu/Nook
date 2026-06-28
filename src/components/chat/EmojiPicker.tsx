@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { REACTION_EMOJIS } from '@/lib/api/chat';
 import type { ReactionEmoji } from '@/shared/types/domain';
@@ -41,6 +47,14 @@ interface EmojiPickerProps {
 
 const HOVER_OPEN_DELAY_MS = 200;
 
+/**
+ * Vertical inset from the viewport edge that counts as "clipped". Below this
+ * margin we flip the popover below the trigger instead of above. 8 px is a
+ * tight enough margin to avoid the popover kissing the browser chrome on
+ * short viewports without flipping in still-comfortable scenarios.
+ */
+const FLIP_MARGIN_PX = 8;
+
 export function EmojiPicker({
   selfHasMine,
   onAdd,
@@ -51,6 +65,51 @@ export function EmojiPicker({
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const hoverTimerRef = useRef<number | null>(null);
+  // M4-7.1 — viewport-flip: when the popover (in default above-the-trigger
+  // position) would clip the top of the viewport, we flip it BELOW the
+  // trigger instead. Resets to `false` on close so the next open starts
+  // from the default position and re-measures (avoids a one-frame stale
+  // position from a previous open that may no longer be clipped).
+  const [flipBelow, setFlipBelow] = useState(false);
+
+  // Re-measure helper — wraps the popover rect check. Used both on the
+  // initial mount+open transition (useLayoutEffect) and the scroll/resize
+  // effect that follows scrollable message-list repositioning.
+  const measureClip = useCallback(() => {
+    if (!open) return;
+    const popover = popoverRef.current;
+    if (!popover) return;
+    const rect = popover.getBoundingClientRect();
+    setFlipBelow(rect.top < FLIP_MARGIN_PX);
+  }, [open]);
+
+  // Initial measurement on open: render first in default (above-the-trigger)
+  // position, then flip if clipped. Resets on close so a re-open starts
+  // fresh (no stale flip state from a previous session).
+  useLayoutEffect(() => {
+    if (!open) {
+      setFlipBelow(false);
+      return;
+    }
+    measureClip();
+  }, [open, measureClip]);
+
+  // Re-measure on viewport / scroll container changes so the flip tracks
+  // the user as they scroll up to read older messages where the picker
+  // would otherwise clip the top of the viewport. The scroll listener uses
+  // capture phase so it catches events fired by nested scroll containers
+  // (e.g. the message list scroller) without bubbling.
+  useEffect(() => {
+    if (!open) return;
+    const onResize = () => measureClip();
+    const onScroll = () => measureClip();
+    window.addEventListener('resize', onResize);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [open, measureClip]);
 
   // Dismiss on click-outside.
   useClickOutside(popoverRef, () => setOpen(false));
@@ -177,11 +236,16 @@ export function EmojiPicker({
           id={a11yDescriptionId}
           role="dialog"
           aria-label={t('chat.reaction.pickerTitle')}
+          data-flip={flipBelow ? 'below' : 'above'}
           className={[
             'absolute z-20',
-            // Position: above the trigger (close to the bubble's top),
-            // centered horizontally with the trigger.
-            'bottom-[calc(100%+var(--space-2xs))]',
+            // Position: above the trigger by default (close to the bubble's
+            // top). M4-7.1 — flips to BELOW the trigger when the popover
+            // would be clipped at the top of the viewport (latest-bubble
+            // case when the user scrolls up to react on a historical row).
+            flipBelow
+              ? 'top-[calc(100%+var(--space-2xs))]'
+              : 'bottom-[calc(100%+var(--space-2xs))]',
             'left-1/2 -translate-x-1/2',
             'bg-[var(--color-surface-2)]',
             'border border-[var(--color-hairline-default)]',

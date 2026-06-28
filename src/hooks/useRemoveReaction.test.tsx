@@ -383,6 +383,43 @@ describe('useRemoveReaction — optimistic reaction-emoji decrement', () => {
       expect((caught as MessageReactionError).code).toBe('BAD_KIND');
     });
 
+    // M4-7.1 — see useAddReaction.test.tsx for the parallel test header.
+    // The tightened regex `/bad_(?:kind|emoji)(?![a-z])/i` (negative-
+    // letter lookahead, NOT `\b` — see file header in chat.ts) must NOT
+    // match `bad_kinder` while still matching `bad_kind_system`.
+    it('bad_kinder → MessageReactionError DB_ERROR ((?![a-z]) forward-proof, M4-7.1)', async () => {
+      const qc = new QueryClient({
+        defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+      });
+      seedQueryCache(qc, [
+        makeMessagesPage([makeMessage({ reactions: [] })]),
+      ]);
+
+      mockRpcRejectOnce({
+        message: 'E_REACTION_FORBIDDEN: bad_kinder',
+      });
+
+      const { result } = renderHook(
+        () => useRemoveReaction(CONV_ID),
+        { wrapper: makeWrapper(qc) },
+      );
+
+      let caught: unknown;
+      await act(async () => {
+        try {
+          await result.current.mutateAsync({
+            messageId: MSG_ID,
+            emoji: '👍',
+          });
+        } catch (err) {
+          caught = err;
+        }
+      });
+
+      expect(caught).toBeInstanceOf(MessageReactionError);
+      expect((caught as MessageReactionError).code).toBe('DB_ERROR');
+    });
+
     it('not_member → MessageReactionError NOT_MEMBER', async () => {
       const qc = new QueryClient({
         defaultOptions: { queries: { retry: false, gcTime: Infinity } },

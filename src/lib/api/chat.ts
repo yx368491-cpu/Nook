@@ -1406,12 +1406,23 @@ export class MessageReactionError extends Error {
  * Symmetric to `mapEditErrorCode` / `mapRecallErrorCode` / `mapDeleteErrorCode`
  * / `mapReplyErrorCode` — same regex shape so client-mapping logic stays
  * unified across the M4-3/4/5/6/7 pentachord.
+ *
+ * The `bad_(?:kind|emoji)(?![a-z])` pattern (M4-7.1) tightens over the M4-7
+ * regex `/bad_(kind|emoji)/i` by adding a `(?![a-z])` negative-letter
+ * lookahead — required because future PG errors like `bad_kinder`,
+ * `bad_kindergarten`, or `bad_emojiish` would otherwise spuriously map to
+ * BAD_KIND. Note: a `\b` word-boundary is NOT sufficient here because
+ * `_` is a word character in regex, so `\b` between `d` and `_` (in
+ * `bad_kind_system`) is not a boundary. The `(?![a-z])` lookahead
+ * requires the matched token to be followed by a non-letter character
+ * (`_`, end-of-string, or punctuation ALL match; any ASCII letter
+ * rejects). All currently-known PG reasons (`bad_kind_system`,
+ * `bad_kind_image`, `bad_kind_text`, `bad_emoji_<x>`) continue to match.
  */
 function mapReactionErrorCode(message: string): MessageReactionError['code'] {
   if (/not[_\\s-]?authent/i.test(message)) return 'NOT_AUTHENTICATED';
   if (/not[_\\s-]?found|missing/i.test(message)) return 'NOT_FOUND';
-  if (/bad_(kind|emoji)/i.test(message))
-    return 'BAD_KIND';
+  if (/bad_(?:kind|emoji)(?![a-z])/i.test(message)) return 'BAD_KIND';
   if (/not[_\\s-]?member/i.test(message)) return 'NOT_MEMBER';
   return 'DB_ERROR';
 }

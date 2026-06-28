@@ -386,6 +386,51 @@ describe('useAddReaction — optimistic reaction-emoji toggle', () => {
       expect((caught as MessageReactionError).code).toBe('BAD_KIND');
     });
 
+    // M4-7.1 — the `(?![a-z])` negative-letter lookahead on
+    // `bad_(?:kind|emoji)(?![a-z])` was added precisely so future PG
+    // errors like `bad_kinder` / `bad_kindergarten` / `bad_emojiish` no
+    // longer spuriously map to BAD_KIND. A `\b` word-boundary is NOT
+    // sufficient here because `_` is a word character in regex, so the
+    // boundary between `d` and `_` (in `bad_kind_system`) does not
+    // exist — `\b` would actually BREAK the happy paths. The lookahead
+    // requires the matched token to be followed by a non-letter
+    // character (`_`, end-of-string, or punctuation all match; any
+    // ASCII letter rejects). This test pins the forward-proof: an error
+    // whose reason starts with `bad_kind...` but continues with a
+    // letter must now fall through to DB_ERROR.
+    it('rpc error bad_kinder → MessageReactionError DB_ERROR ((?![a-z]) forward-proof, M4-7.1)', async () => {
+      const qc = new QueryClient({
+        defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+      });
+      seedQueryCache(qc, [
+        makeMessagesPage([makeMessage({ reactions: [] })]),
+      ]);
+
+      mockRpcRejectOnce({
+        message: 'E_REACTION_FORBIDDEN: bad_kinder',
+      });
+
+      const { result } = renderHook(
+        () => useAddReaction(CONV_ID),
+        { wrapper: makeWrapper(qc) },
+      );
+
+      let caught: unknown;
+      await act(async () => {
+        try {
+          await result.current.mutateAsync({
+            messageId: MSG_ID,
+            emoji: '👍',
+          });
+        } catch (err) {
+          caught = err;
+        }
+      });
+
+      expect(caught).toBeInstanceOf(MessageReactionError);
+      expect((caught as MessageReactionError).code).toBe('DB_ERROR');
+    });
+
     it('rpc error not_member → MessageReactionError NOT_MEMBER', async () => {
       const qc = new QueryClient({
         defaultOptions: { queries: { retry: false, gcTime: Infinity } },
