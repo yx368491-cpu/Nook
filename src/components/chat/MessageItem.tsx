@@ -6,10 +6,13 @@ import { Button } from '@/components/ui/Button';
 import { AttachmentImage } from './AttachmentImage';
 import {
   isMessageEditable,
+  isMessageRecallable,
   MessageEditError,
+  MessageRecallError,
   type MessageListItem,
 } from '@/lib/api/chat';
 import { useEditMessage } from '@/hooks/useEditMessage';
+import { useRecallMessage } from '@/hooks/useRecallMessage';
 
 interface MessageItemProps {
   item: MessageListItem;
@@ -87,15 +90,59 @@ function EditMenuTrigger({ onClick }: { onClick: () => void }) {
 }
 
 /**
- * M4-3 — inline edit form that swaps in for the Bubble body when the
- * user clicks the edit affordance. Auto-focuses the textarea, selects
- * existing text, and supports Esc-to-cancel + Cmd/Ctrl+Enter to save
- * (per accessibility — SPEC AC.13).
- *
- * Save button is disabled while:
- *   - the body is whitespace-only
- *   - the body is unchanged from the original
- *   - the mutation is in flight
+ * M4-4 — small 16 px recall (↶ counter-clockwise) affordance, paralleling
+ * `EditMenuTrigger`. Mount-only when `isMessageRecallable` so the trigger
+ * disappears the moment the 2-minute window closes. The icon is a
+ * counter-clockwise arc + arrowhead (thinker decision #5).
+ */
+function RecallMenuTrigger({ onClick }: { onClick: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={t('chat.recall')}
+      title={t('chat.recall')}
+      className="
+        flex h-6 w-6 items-center justify-center rounded-full
+        text-[var(--color-ink-muted)]
+        opacity-0 transition-opacity duration-150
+        group-hover/message:opacity-100 group-focus-within/message:opacity-100
+        hover:text-[var(--color-ink-fg)]
+        focus-visible:opacity-100 focus-visible:outline-none
+        focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]/40
+      "
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        aria-hidden="true"
+      >
+        {/* Counter-clockwise arc + arrowhead = undo / withdraw symbol */}
+        <path
+          d="M11 4a5 5 0 1 0 1.5 6"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          fill="none"
+        />
+        <path
+          d="M11 2v3h-3"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+      </svg>
+    </button>
+  );
+}
+
+/**
+ * M4-3 — inline edit form (unchanged from prior ship).
  */
 interface InlineEditFormProps {
   initialBody: string;
@@ -116,7 +163,6 @@ function InlineEditForm({
   const [draft, setDraft] = useState(initialBody);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // M4-3 a11y: focus + select on mount; Esc cancels; Cmd/Ctrl+Enter saves.
   useEffect(() => {
     const ta = taRef.current;
     if (!ta) return;
@@ -199,9 +245,10 @@ function InlineEditForm({
 }
 
 /**
- * Map a M4-3 edit-mutation error to a localized, user-readable strip
- * message. The server returns stable codes via `MessageEditError.code`
- * (or, fallback, a generic Error).
+ * Map a M4-3 edit-mutation error + M4-4 recall-mutation error to a
+ * localized, user-readable strip message. Both `MessageEditError` and
+ * `MessageRecallError` carry a stable `.code` we map against
+ * `chat[editError | recallError].<code>` keys.
  */
 function errorMessageFor(
   err: Error | null,
@@ -228,6 +275,22 @@ function errorMessageFor(
         return t('chat.editError.unknown');
     }
   }
+  if (err instanceof MessageRecallError) {
+    switch (err.code) {
+      case 'NOT_OWNER':
+        return t('chat.recallError.notOwner');
+      case 'WINDOW_EXPIRED':
+        return t('chat.recallError.windowExpired');
+      case 'ALREADY_RECALLED':
+        return t('chat.recallError.alreadyRecalled');
+      case 'NOT_FOUND':
+        return t('chat.recallError.notFound');
+      case 'DB_ERROR':
+        return t('chat.recallError.dbError');
+      default:
+        return t('chat.recallError.unknown');
+    }
+  }
   if (err.message === 'EMPTY_BODY') return t('chat.editError.empty');
   return t('chat.editError.unknown');
 }
@@ -235,12 +298,16 @@ function errorMessageFor(
 export function MessageItem({ item, isConsecutive }: MessageItemProps) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
+  // Single error strip covers both edit AND recall errors — they share
+  // the same UI affordance (aria-live=polite · role=alert) and the user
+  // only sees one operation at a time per message.
+  const [actionError, setActionError] = useState<string | null>(null);
   const editMutation = useEditMessage(item.conversationId);
+  const recallMutation = useRecallMessage(item.conversationId);
 
-  // Live "now" re-derivation: the bubble's edit window expires precisely
-  // when created_at + EDIT_WINDOW_MS passes. We re-evaluate every 30 s
-  // so a bubble that was editable a moment ago cleanly hides the trigger.
+  // Live "now" re-derivation: editable + recallable windows both expire
+  // precisely when created_at + 2 minutes passes. Re-evaluate every 30 s
+  // so a bubble that was actionable a moment ago cleanly hides the triggers.
   const [, setTick] = useState(0);
   useEffect(() => {
     if (!item.isSelf || !item.createdAt) return;
@@ -250,29 +317,37 @@ export function MessageItem({ item, isConsecutive }: MessageItemProps) {
     return () => window.clearInterval(id);
   }, [item.isSelf, item.createdAt]);
 
-  // Sender name shown on first message in a run from each sender (group/channels
-  // mostly; also covers 1:1 where the avatar alone identifies the other person).
   const showSender = !item.isSelf && !isConsecutive;
 
   // F-MSG-07: only the sender sees the deleted placeholder
   const isSelfDeleted = item.deletedBySenderAt !== null && item.isSelf;
 
-  // M4-3: editable iff isMessageEditable() AND kind === 'text'
+  // M4-4: any party sees the recalled placeholder (recalled_at is global).
+  const isRecalled = item.recalledAt !== null;
+
+  // M4-3 / M4-4 affordance gates: editable / recallable triggers mount
+  // only when both the action's UI guard AND the rendered state allow it.
   const canEdit =
     !isSelfDeleted &&
+    !isRecalled &&
     item.kind === 'text' &&
     isMessageEditable(item);
 
+  const canRecall =
+    !isSelfDeleted &&
+    !isRecalled &&
+    isMessageRecallable(item);
+
   const enterEdit = () => {
-    setEditError(null);
+    setActionError(null);
     setEditing(true);
   };
   const cancelEdit = () => {
-    setEditError(null);
+    setActionError(null);
     setEditing(false);
   };
   const saveEdit = (newBody: string) => {
-    setEditError(null);
+    setActionError(null);
     editMutation.mutate(
       { messageId: item.id, newBody },
       {
@@ -280,14 +355,42 @@ export function MessageItem({ item, isConsecutive }: MessageItemProps) {
           setEditing(false);
         },
         onError: (err) => {
-          setEditError(errorMessageFor(err, t));
-          // If the server rejected because the window expired mid-edit,
-          // collapse the form back to read-only so the user can see the
-          // current (un-edited) body.
+          setActionError(errorMessageFor(err, t));
           if (
             err instanceof MessageEditError &&
             (err.code === 'WINDOW_EXPIRED' ||
               err.code === 'ALREADY_EDITED' ||
+              err.code === 'NOT_FOUND')
+          ) {
+            setEditing(false);
+          }
+        },
+      },
+    );
+  };
+
+  /**
+   * M4-4 click handler for the recall affordance.
+   * No confirmation step (per user request — matches WeChat's recall UX
+   * where the click is committed immediately). The 5s/2-min window guard
+   * + the irreversible nature of recall make the action low-risk for
+   * sender-owns-self semantics; the optimistic update gives instant
+   * feedback, and an error (e.g. WINDOW_EXPIRED) surfaces below the bubble.
+   */
+  const handleRecall = () => {
+    setActionError(null);
+    recallMutation.mutate(
+      { messageId: item.id },
+      {
+        onError: (err) => {
+          setActionError(errorMessageFor(err, t));
+          // WINDOW_EXPIRED / ALREADY_RECALLED / NOT_FOUND mean the bubble
+          // can't actually be recalled — close any open edit form so the
+          // user sees the (now read-only) bubble body.
+          if (
+            err instanceof MessageRecallError &&
+            (err.code === 'WINDOW_EXPIRED' ||
+              err.code === 'ALREADY_RECALLED' ||
               err.code === 'NOT_FOUND')
           ) {
             setEditing(false);
@@ -334,8 +437,14 @@ export function MessageItem({ item, isConsecutive }: MessageItemProps) {
             ${item.isSelf ? 'flex-row-reverse' : 'flex-row'}
           `}
         >
-          {canEdit && !editing && (
+          {/* Dual hover triggers (M4-3 edit + M4-4 recall) — side-by-side,
+              both gated by their respective UI guards. Hidden when editing
+              so the inline form doesn't collide with the icon column. */}
+          {!editing && canEdit && (
             <EditMenuTrigger onClick={enterEdit} />
+          )}
+          {!editing && canRecall && (
+            <RecallMenuTrigger onClick={handleRecall} />
           )}
 
           {editing ? (
@@ -348,7 +457,7 @@ export function MessageItem({ item, isConsecutive }: MessageItemProps) {
                 onSave={saveEdit}
                 onCancel={cancelEdit}
                 disabled={editMutation.isPending}
-                errorMessage={editError}
+                errorMessage={actionError}
               />
             </Bubble>
           ) : (
@@ -356,7 +465,9 @@ export function MessageItem({ item, isConsecutive }: MessageItemProps) {
               kind={item.isSelf ? 'self' : 'friend'}
               isConsecutive={isConsecutive}
             >
-              {isSelfDeleted ? (
+              {isRecalled ? (
+                <SelfDeletedBody placeholder={t('chat.recalled')} />
+              ) : isSelfDeleted ? (
                 <SelfDeletedBody placeholder={t('messages.deleted')} />
               ) : item.kind === 'text' && item.body ? (
                 <>
@@ -381,7 +492,6 @@ export function MessageItem({ item, isConsecutive }: MessageItemProps) {
                   height={item.attachment.height ?? 240}
                 />
               ) : (
-                // File typing comes in M5-7 (M3-3 placeholder = unsupported marker)
                 item.kind === 'file' && (
                   <span className="text-[var(--font-size-meta)] text-[var(--color-ink-muted)] italic">
                     {t('messages.fileUnsupported')}

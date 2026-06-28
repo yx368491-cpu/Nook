@@ -113,6 +113,15 @@
       "unknown": "Edit failed"
     },
     "recalled": "A message was recalled",
+    "recall": "Recall",
+    "recallError": {
+      "notOwner": "You can only recall your own messages",
+      "windowExpired": "The 2-minute recall window has closed",
+      "alreadyRecalled": "This message has already been recalled",
+      "notFound": "This message no longer exists",
+      "dbError": "Recall failed. Please try again.",
+      "unknown": "Recall failed"
+    },
     "replyTo": "Reply to {{name}}",
     "imageAlt": "Image message",
     "file": "File",

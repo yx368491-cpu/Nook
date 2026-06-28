@@ -113,6 +113,15 @@
       "unknown": "编辑失败"
     },
     "recalled": "已撤回一条消息",
+    "recall": "撤回",
+    "recallError": {
+      "notOwner": "只能撤回自己的消息",
+      "windowExpired": "2 分钟撤回时限已过",
+      "alreadyRecalled": "此消息已被撤回",
+      "notFound": "此消息已不存在",
+      "dbError": "撤回失败，请重试",
+      "unknown": "撤回失败"
+    },
     "replyTo": "回复 {{name}}",
     "imageAlt": "图片消息",
     "file": "文件",

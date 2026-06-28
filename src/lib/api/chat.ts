@@ -863,3 +863,109 @@ export function isMessageEditable(item: {
   if (item.deletedBySenderAt !== null) return false;
   return Date.now() - Date.parse(item.createdAt) < EDIT_WINDOW_MS;
 }
+
+// ============================================================================
+// Recall API (M4-4) — 2-minute window, soft recall (DB row stays, body → sentinel)
+// ============================================================================
+
+/** 2-minute recall window — matches SPEC § 6 BF-09 + DB fn_recall_message. */
+export const RECALL_WINDOW_MS = 2 * 60 * 1000;
+
+/**
+ * Sentinel string written to `messages.body` when a message is recalled.
+ * Per SPEC § 6 BF-09, both sender + recipients see the inert
+ * "A message was recalled" placeholder; the actual body is replaced so an
+ * offline log replay shows clearly what happened.
+ */
+export const RECALLED_BODY_SENTINEL = '__recalled__';
+
+/**
+ * Custom error for rejected recalls. Mirrors `MessageEditError` shape so
+ * callers can branch on `.code` consistently.
+ */
+export class MessageRecallError extends Error {
+  constructor(
+    public readonly code:
+      | 'NOT_OWNER'
+      | 'WINDOW_EXPIRED'
+      | 'ALREADY_RECALLED'
+      | 'NOT_FOUND'
+      | 'DB_ERROR',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'MessageRecallError';
+  }
+}
+
+/**
+ * Recall a message within the 2-minute window. Server-side enforcement via
+ * `fn_recall_message` (security invoker):
+ *   - auth.uid() = sender_id (owner-only)
+ *   - recalled_at IS NULL (single-shot, no double-recall)
+ *   - kind != 'system'
+ *   - created_at + 2 minutes > now() (window still open)
+ *
+ * Side-effects:
+ *   - UPDATE messages SET body = '__recalled__', recalled_at = now()
+ *
+ * @throws MessageRecallError with stable code identifying which guard fired
+ */
+export async function recallMessage(args: {
+  messageId: string;
+}): Promise<{ id: string; recalledAt: string }> {
+  const { messageId } = args;
+
+  const { data, error } = await supabase.rpc('fn_recall_message', {
+    p_msg_id: messageId,
+  });
+  if (error) {
+    throw new MessageRecallError(
+      mapRecallErrorCode(error.message),
+      error.message,
+    );
+  }
+  const row = data as { id: string; recalled_at: string };
+  return { id: row.id, recalledAt: row.recalled_at };
+}
+
+/**
+ * Map PG `E_MSG_RECALL_FORBIDDEN: <reason>` detail to a stable client code.
+ * Symmetric to `mapEditErrorCode` regex — keeps client-mapping logic aligned.
+ */
+function mapRecallErrorCode(message: string): MessageRecallError['code'] {
+  if (/not[\s_-]?owner|unauthor/i.test(message)) return 'NOT_OWNER';
+  if (/window|expired|2[\s_-]?min/i.test(message)) return 'WINDOW_EXPIRED';
+  if (/already[\s_-]?(recall|recalled|once)/i.test(message))
+    return 'ALREADY_RECALLED';
+  if (/not[\s_-]?found|missing/i.test(message)) return 'NOT_FOUND';
+  return 'DB_ERROR';
+}
+
+/**
+ * Pure UI-side guard for the recall affordance. Complements the server check.
+ *
+ *   - Self messages only
+ *   - NOT system kind (system messages are server-created, immutable)
+ *   - Not yet recalled (single-shot)
+ *   - Not sender-soft-deleted
+ *   - created_at within the 2-minute window
+ *
+ * Edit (M4-3) and recall (M4-4) are PARALLEL operations; a message may
+ * be edited within 2 min OR recalled within 2 min independently.
+ * Once recalled, fn_edit_message guards #3 (`recalled_at IS NULL`) blocks
+ * any subsequent edit.
+ */
+export function isMessageRecallable(item: {
+  isSelf: boolean;
+  createdAt: string;
+  recalledAt: string | null;
+  deletedBySenderAt: string | null;
+  kind: MessageKind;
+}): boolean {
+  if (!item.isSelf) return false;
+  if (item.kind === 'system') return false;
+  if (item.recalledAt !== null) return false;
+  if (item.deletedBySenderAt !== null) return false;
+  return Date.now() - Date.parse(item.createdAt) < RECALL_WINDOW_MS;
+}
