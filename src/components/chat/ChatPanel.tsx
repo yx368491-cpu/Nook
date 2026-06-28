@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Avatar } from '@/components/ui/Avatar';
 import { MessageList } from './MessageList';
+import { Composer } from './Composer';
 import { useMarkConversationRead } from '@/hooks/useMessages';
 
 interface ChatPanelProps {
@@ -57,8 +58,12 @@ export function ChatPanel({
 
       <MessageList conversationId={conversationId} />
 
-      <footer className="border-t border-[var(--color-hairline-default)] bg-[var(--color-canvas-soft)] px-[var(--space-md)] py-[var(--space-sm)] text-center text-[var(--font-size-meta)] text-[var(--color-ink-muted)]">
-        {t('messages.composerPlaceholder')}
+      {/* M3-4 Composer floating island (DESIGN § 7 form B). Handles its own
+          padding-up so the outer footer remains borderless. Reply
+          preview, attach buttons, send, and draft retention are all
+          internal to <Composer />. */}
+      <footer className="border-t border-[var(--color-hairline-default)] bg-[var(--color-canvas-default)]">
+        <Composer conversationId={conversationId} />
       </footer>
     </section>
   );

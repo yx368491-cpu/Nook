@@ -73,6 +73,20 @@
     "fileUnsupported": "File messages arrive in M5-7",
     "composerPlaceholder": "Composer coming in M3-4"
   },
+  "composer": {
+    "inputLabel": "Message input",
+    "placeholder": "Say something…",
+    "placeholderReply": "Reply to {{name}}…",
+    "send": "Send",
+    "sendFailed": "Failed to send. Please try again.",
+    "attachImage": "Attach image",
+    "attachFile": "Attach file",
+    "replyToLabel": "Replying to {{name}}",
+    "replyCancel": "Cancel reply",
+    "fileEmpty": "File is empty",
+    "fileTooLarge": "File too large (max {{size}} MiB)",
+    "fileUnsupported": "File type not supported"
+  },
   "chat": {
     "inputPlaceholder": "Say something…",
     "send": "Send message",

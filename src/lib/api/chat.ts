@@ -479,3 +479,278 @@ function transformMessage(
     createdAt: row.created_at,
   };
 }
+
+// ============================================================================
+// Composer API (M3-4)
+// ============================================================================
+
+/**
+ * Whitelist of acceptable attachment MIME types — mirrors the `attachments`
+ * bucket policy in supabase/migrations/0007 alongside DATA-MODEL § 9.4.
+ * The DB-side CHECK constraint on `attachments.size_bytes` is the ultimate
+ * gate (≤ 52,428,800 bytes), but we validate locally first to avoid
+ * wasted bandwidth on rejected uploads (thinker decision #8).
+ */
+export const ATTACHMENT_MIME_WHITELIST = [
+  'image/png',
+  'image/jpeg',
+  'image/heic',
+  'image/webp',
+  'application/pdf',
+  'text/plain',
+  'text/markdown',
+  'application/zip',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+] as const;
+export type AttachmentMime = (typeof ATTACHMENT_MIME_WHITELIST)[number];
+
+export function isImageMime(mime: string): boolean {
+  return mime.toLowerCase().startsWith('image/');
+}
+
+/** Hard 50 MiB ceiling — matches `attachments.size_bytes` DB CHECK (50 * 1048576). */
+export const MAX_ATTACHMENT_BYTES = 52_428_800;
+
+export interface UploadedAttachment {
+  id: string;
+  storagePath: string;
+  mime: string;
+  sizeBytes: number;
+  width: number | null;
+  height: number | null;
+  originalName: string;
+}
+
+export class AttachmentValidationError extends Error {
+  constructor(
+    public readonly code:
+      | 'EMPTY_FILE'
+      | 'TOO_LARGE'
+      | 'UNSUPPORTED_MIME'
+      | 'MISSING_MIME',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'AttachmentValidationError';
+  }
+}
+
+function validateAttachmentFile(file: File): void {
+  if (file.size === 0) {
+    throw new AttachmentValidationError('EMPTY_FILE', '文件为空');
+  }
+  if (file.size > MAX_ATTACHMENT_BYTES) {
+    throw new AttachmentValidationError(
+      'TOO_LARGE',
+      `文件超过 ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MiB 上限`,
+    );
+  }
+  if (!file.type) {
+    throw new AttachmentValidationError('MISSING_MIME', '浏览器未提供文件 MIME 类型');
+  }
+  if (!ATTACHMENT_MIME_WHITELIST.includes(file.type as AttachmentMime)) {
+    throw new AttachmentValidationError(
+      'UNSUPPORTED_MIME',
+      `不支持的文件类型: ${file.type}`,
+    );
+  }
+}
+
+/**
+ * Best-effort image dimension probe. Returns null when the file is not an
+ * image, when the browser fails to decode, or when the user aborts. EXIF
+ * stripping + canvas compression are deferred to M5-4 / M5-5 per TODO;
+ * for M3-4 we upload the original bytes (DATA-MODEL R-30 — image 不压缩, 原图保真).
+ */
+async function probeImageDims(
+  file: File,
+): Promise<{ width: number; height: number } | null> {
+  if (!isImageMime(file.type)) return null;
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const dims = { width: img.naturalWidth, height: img.naturalHeight };
+      URL.revokeObjectURL(url);
+      resolve(dims);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+    img.src = url;
+  });
+}
+
+/**
+ * Upload a file to the `attachments` bucket + insert an `attachments` row
+ * (SPEC § 6 BF-06 happy path).
+ *
+ * Flow:
+ *   1. Local validation (size + MIME)
+ *   2. Generate UUID-prefixed storage path: `<uuid>/<safe-filename>`
+ *   3. Upload bytes via `supabase.storage.from('attachments').upload()`
+ *   4. INSERT `attachments` row with `message_id = NULL`
+ *      (the FK is backfilled by `sendAttachmentMessage` after the message row
+ *      exists, so cleanup accounting at pg_cron J-01 stays consistent).
+ *
+ * @throws AttachmentValidationError for local validation failures
+ * @throws { code: 'STORAGE_ERROR' | 'DB_ERROR', ... } for network / RLS errors
+ */
+export async function uploadAttachment(file: File): Promise<UploadedAttachment> {
+  validateAttachmentFile(file);
+  const dims = await probeImageDims(file);
+
+  const fileId = crypto.randomUUID();
+  const safeName =
+    file.name.replace(/[^\w.\-]+/g, '_').slice(0, 100) || 'file';
+  const storagePath = `${fileId}/${safeName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('attachments')
+    .upload(storagePath, file, {
+      contentType: file.type,
+      cacheControl: '3600',
+      upsert: false,
+    });
+  if (uploadError) {
+    throw {
+      code: 'STORAGE_ERROR',
+      message: uploadError.message,
+    };
+  }
+
+  const { data, error } = await supabase
+    .from('attachments')
+    .insert({
+      id: fileId,
+      storage_path: storagePath,
+      mime: file.type,
+      size_bytes: file.size,
+      width: dims?.width ?? null,
+      height: dims?.height ?? null,
+      original_name: file.name,
+    })
+    .select('id')
+    .single();
+  if (error) {
+    // Best-effort cleanup of orphan storage object (no error propagation)
+    void supabase.storage.from('attachments').remove([storagePath]);
+    throw {
+      code: 'DB_ERROR',
+      message: error.message,
+      details: error.details ?? null,
+    };
+  }
+
+  return {
+    id: data.id,
+    storagePath,
+    mime: file.type,
+    sizeBytes: file.size,
+    width: dims?.width ?? null,
+    height: dims?.height ?? null,
+    originalName: file.name,
+  };
+}
+
+/**
+ * Send a text message (CAP-09 / SPEC § 2.3 F-MSG-01 / BF-05).
+ *
+ * `clientMsgId` is the per-message idempotency key: callers MUST generate a
+ * UUID before this call and reuse it for the optimistic-cache entry, the
+ * messages query dedupe, and the future Dexie outbox (M5). The DB has a
+ * UNIQUE constraint on `messages.client_msg_id` (migration 0001).
+ *
+ * @throws { code: 'DB_ERROR' } on RLS / constraint failures
+ * @throws Error('EMPTY_BODY') when body is whitespace-only
+ */
+export async function sendTextMessage(args: {
+  conversationId: string;
+  senderId: string;
+  body: string;
+  replyToId?: string | null;
+  clientMsgId: string;
+}): Promise<{ id: string; createdAt: string }> {
+  const { conversationId, senderId, body, replyToId, clientMsgId } = args;
+  const trimmed = body.trim();
+  if (!trimmed) throw new Error('EMPTY_BODY');
+
+  const { data, error } = await supabase
+    .from('messages')
+    .insert({
+      conversation_id: conversationId,
+      sender_id: senderId,
+      kind: 'text',
+      body: trimmed,
+      reply_to_id: replyToId ?? null,
+      client_msg_id: clientMsgId,
+    })
+    .select('id, created_at')
+    .single();
+  if (error) {
+    throw {
+      code: 'DB_ERROR',
+      message: error.message,
+      details: error.details ?? null,
+    };
+  }
+  return { id: data.id, createdAt: data.created_at };
+}
+
+/**
+ * Send an image or file message that references an already-uploaded
+ * `attachments` row (SPEC § 2.3 F-MSG-02/03 / BF-06).
+ *
+ * Calls `uploadAttachment` first, then INSERTs `messages` with the FK,
+ * then best-effort UPDATE of `attachments.message_id` so the FK is
+ * symmetrical (cleanup cron picks up either direction).
+ */
+export async function sendAttachmentMessage(args: {
+  conversationId: string;
+  senderId: string;
+  kind: 'image' | 'file';
+  file: File;
+  replyToId?: string | null;
+  clientMsgId: string;
+}): Promise<{ messageId: string; attachmentId: string; createdAt: string }> {
+  const { conversationId, senderId, kind, file, replyToId, clientMsgId } = args;
+
+  const uploaded = await uploadAttachment(file);
+
+  const { data, error } = await supabase
+    .from('messages')
+    .insert({
+      conversation_id: conversationId,
+      sender_id: senderId,
+      kind,
+      attachment_id: uploaded.id,
+      reply_to_id: replyToId ?? null,
+      client_msg_id: clientMsgId,
+    })
+    .select('id, created_at')
+    .single();
+  if (error) {
+    // Best-effort: clean up the attachment row + storage object
+    void supabase.from('attachments').delete().eq('id', uploaded.id);
+    void supabase.storage.from('attachments').remove([uploaded.storagePath]);
+    throw {
+      code: 'DB_ERROR',
+      message: error.message,
+      details: error.details ?? null,
+    };
+  }
+
+  // Symlink attachments.message_id → newly created message.id (best-effort).
+  void supabase
+    .from('attachments')
+    .update({ message_id: data.id })
+    .eq('id', uploaded.id);
+
+  return {
+    messageId: data.id,
+    attachmentId: uploaded.id,
+    createdAt: data.created_at,
+  };
+}
