@@ -25,13 +25,13 @@
 |---|---|
 | **产品名称** | `Nook v1.0` |
 | **项目描述** | 「深夜书房」一词为一间好友小房子，屏蔽互联网社交噪音的私人聊天网站（A Digital Sanctuary） |
-| **当前阶段** | M2 · Auth Flow ✅ Done (v0.5.0 tagged 2026-06-28) → **M3-1 DB Schema Migration ✅ Done (S26.0)** → **M3-2 Sidebar ✅ (75d7300)** + **M3-3 MessageList ✅ (70d6e41)** · M3-4 Composer 待启动 · **本机 Docker 已永久废弃 (S29.0 · KI-9)** · 验证链仅 static-only |
+| **当前阶段** | M2 · Auth Flow ✅ Done (v0.5.0 tagged 2026-06-28) → **M3-1 DB Schema Migration ✅ Done (S26.0)** → **M3 → M4 Chat Core 全段 ✅ Done (S32.0)** · M3-2 → M4-7.1 共 11 milestone + RT closure + polish · **本机 Docker 已永久废弃 (S29.0 · KI-9)** · 验证链仅 static-only |
 | **当前文档版本** | `v1.0.1`（2026-06-27）— 含 docs-only patch Sync + 全部 15 设计阶段冻结 |
-| **代码版本** | `v0.5.0 + M3-1 delta + M3-2 (75d7300) + M3-3 (70d6e41)` |
+| **代码版本** | `v0.5.0 + M3-1 (c88c076) + M3-2 (75d7300) + M3-3 (70d6e41) + M3-4 (0fa9cbd) + M3-5 (d1915f2) + M4-1/2 (d39dbbe) + M4-3 (9fa1968) + M4-4 (ea2f2ef) + M4-5 (7f2b47a) + M4-6 (33e4179 + fixup 6eaa861) + M4-7 (0111398 + RT closure 075b4b1 + 540165a) + M4-7.1 polish (7e3ec3f)` |
 | **目标用户** | Owner（1）+ Friend（≤ 20 社交目标） |
 | **MVP 节拍** | 4-6 周个人工作量 |
 | **产品定位** | "少数密友的数字避难所"（不商业化 / 不规模化） |
-| **Next session** | M3-4 Composer (floating island + image/file attach buttons) — 依赖 M3-3 的 Image/file plumbing 接口（M5-7 实际下载 deferred） |
+| **Next session** | **M4-8 Ambient 在线状态呼吸光点 (F-ST-01 / AC.11)** — M3 → M4-7.1 Chat Core 全段已 ship；M4-8 = lib/presence + usePresence + UI dot · F-NOTIF-01/02 应用内未读小红点 + F-ST-02 Tab title 余项入口 |
 | **本机环境（S29.0 后）** | Docker Desktop 已永久删除。本机 validation 仅 static。Live verification 仅在云 staging/prod 走 `supabase db push` + `supabase functions deploy`。 |
 
 ---
@@ -108,10 +108,20 @@
 |---|---|---|
 | ✅ 已完成 | M1 · Foundation | Vite 脚手架 + 13 路由占位页 + 4 原子组件 + CI (v0.4.0, S20.0) |
 | ✅ 已完成 | M2 · Auth Flow | 注册/登录/邀请系统 — friend-signup EF + InviteLanding UI + 集成测试 (v0.5.0, S25.0) |
-| ✅ 已完成 | **M3-1 · DB Schema Migration** | **5 NEW migration (0003..0008) + 2 existing (0001/0002) = 7 SQL files · 9 表 + 7 RLS + 3 trigger + 3 pg_cron + 2 storage bucket + 2 RPC fn · S26.0** |
-| ✅ 已完成 | M3-2 · Sidebar | T-M3-02 conv 列表 + unread 计数 (commit 75d7300) |
-| ✅ 已完成 | M3-3 · MessageList + MessageItem | virtualized + day separators + paginated (commit 70d6e41) |
-| 🟢 下一步 | M3-4 · Composer | floating-island input + image/file attach buttons + send glue; 依赖 M3-3`MessageItem` + `AttachmentImage` plumbing |
+| ✅ 已完成 | M3-1 · DB Schema Migration | **7 SQL migration files (0001..0008)** · 9 表 + 7 RLS + 3 trigger + 3 pg_cron + 2 storage bucket + 2 RPC (S26.0) |
+| ✅ 已完成 | M3-2 · Sidebar | conv 列表 + unread + 1:1/group mix (commit `75d7300`) |
+| ✅ 已完成 | M3-3 · MessageList + MessageItem | virtualized + day separators + paginated (commit `70d6e41`) |
+| ✅ 已完成 | M3-4 · Composer | floating-island input + send glue + image/file plumbing (commit `0fa9cbd`) |
+| ✅ 已完成 | M3-5 · Realtime channels | live append + stick-to-bottom + 5 channel 命名约定 (commit `d1915f2`) |
+| ✅ 已完成 | M4-1 · Typing broadcast | useTypingBroadcast (commit `d39dbbe`) |
+| ✅ 已完成 | M4-2 · Three-dot typing animation | CSS keyframes + useTypingReceivers (commit `d39dbbe`) |
+| ✅ 已完成 | M4-3 · 2-min edit + (edited) micro-tag | DB edit_window trigger + UI disabled + (edited) label (commit `9fa1968`) |
+| ✅ 已完成 | M4-4 · Soft message recall | `messages.recalled_at` + 列级 GRANT (commit `ea2f2ef`) |
+| ✅ 已完成 | M4-5 · Sender-only soft delete | `messages.deleted_by_sender_at` 列级 GRANT + 列级 RLS (commit `7f2b47a`) |
+| ✅ 已完成 | M4-6 · Reply threading | parent_id FK + closure + reply UI (commit `33e4179` + followup `6eaa861`) |
+| ✅ 已完成 | M4-7 · 6 emoji reactions (F-MSG-09 / CAP-15) | fn_add_reaction + fn_remove_reaction + bucketReactions + EmojiPicker + onReactionEvent RT gate · RT closure `075b4b1` + `540165a` REPLICA IDENTITY FULL + publication membership (commit `0111398`) |
+| ✅ 已完成 | M4-7.1 · viewport-flip + regex polish | EmojiPicker 自适应翻转(`top→bottom` 8px margin gate) + `mapReactionErrorCode` `(?![a-z])` forward-proof regex (commit `7e3ec3f`) |
+| 🟢 下一步 | **M4-8 · Ambient 在线状态** | lib/presence + usePresence + UI dot (F-ST-01 / AC.11) · M5-7 attachment download deferred |
 
 ### 本阶段（S26.0–S28.0）目标 · M3-1/M3-2/M3-3 ✅ 已完成
 
@@ -209,13 +219,22 @@
 
 ### 3. 当前最重要的开发任务
 - **M2 · Auth Flow ✅ Done (v0.5.0, S25.0)** — M2-1~5 全部完成；M2-6 E2E via Playwright 延期至 M3 chat UI 完成后再开
-- **M3 · Chat Core** — 已推进至 M3-3；M3-4 Composer (floating island) 待启动
+- **M3 → M4 · Chat Core ✅ Done (S32.0)** — M3-2 Sidebar · M3-3 MessageList · M3-4 Composer · M3-5 Realtime channels · M4-1 Typing · M4-2 三点动画 · M4-3 2-min edit · M4-4 soft recall · M4-5 sender-only soft delete · M4-6 reply threading · M4-7 6 emoji reactions (with RT closure) · M4-7.1 polish = 11 个 milestone 全 ship · Next = M4-8 Ambient
 - M1 Foundation Bootstrap 全部完成 (v0.4.0)
 - M2-3 friend-signup EF 自动化集成测试已就绪（14 scenarios · 本机 static-only 跳 11 项 live；S29.0 后 run at staging CI）
 - M2-4 `/invite/:token` 邀请落地页已实现（RPC + hooks + 组件 + 页面）
 - M2-3 EF `email_exists → 409` 错误映射已修复（S24.0）
 - M3-2 Sidebar 已 ship (commit `75d7300`)
 - M3-3 MessageList + MessageItem 已 ship (commit `70d6e41`)
+- M3-4 Composer 已 ship (commit `0fa9cbd`) — floating-island + send glue
+- M3-5 Realtime channels 已 ship (commit `d1915f2`)
+- M4-1 typing broadcast 已 ship (commit `d39dbbe` + M4-2 三点动画合并 commit)
+- M4-3 2-min edit + (edited) tag 已 ship (commit `9fa1968`)
+- M4-4 soft recall 已 ship (commit `ea2f2ef`)
+- M4-5 sender-only soft delete 已 ship (commit `7f2b47a`)
+- M4-6 reply threading 已 ship (commit `33e4179` + fixup `6eaa861`)
+- M4-7 6 emoji reactions 已 ship (commit `0111398` + RT closure `075b4b1` + `540165a`) — F-MSG-09 / CAP-15 / AC.07 ✅
+- M4-7.1 viewport-flip + regex polish 已 ship (commit `7e3ec3f`)
 - **⚠️ 本机 Docker 已永久删除 (S29.0 / KI-9)** — 本机仅 static verification；任何「本地启 Postgres」提议 = 不适用 · 反推 staging
 - 远端仓库推送 → 见 [`KNOWN_ISSUES.md` § KI-8`](./KNOWN_ISSUES.md#ki-8--v050-远端仓库推送--待启动--low)
 - Docker 永久废弃决策 → 见 [`KNOWN_ISSUES.md` § KI-9`](./KNOWN_ISSUES.md#ki-9--docker-已永久删除--架构决策--low--s290)
@@ -259,6 +278,15 @@
 | M3-1 · DB Schema Migration | ✅ 已完成 (S26.0) — 7 SQL migration files (0001..0008) · 9 表 + 7 RLS + 3 trigger + 3 pg_cron + 2 storage bucket + 2 RPC |
 | M3-2 · Sidebar | ✅ 已完成 (75d7300) — conv list + unread badge + 1:1/group mix |
 | M3-3 · MessageList + MessageItem | ✅ 已完成 (70d6e41) — text/image 虚拟滚动 + day sep + paginated |
+| M3-4 · Composer | ✅ 已完成 (0fa9cbd) — floating-island input + send glue + image/file plumbing |
+| M3-5 · Realtime channels | ✅ 已完成 (d1915f2) — live append + stick-to-bottom + 5 channel 命名约定 |
+| M4-1 + M4-2 | ✅ 已完成 (d39dbbe) — useTypingBroadcast hook + 三点动画 keyframes + useTypingReceivers mocks |
+| M4-3 · 2-min edit window + (edited) micro-tag | ✅ 已完成 (9fa1968) — DB edit_window trigger (BEFORE UPDATE) + UI disabled + micro-label 动画 |
+| M4-4 · Soft message recall | ✅ 已完成 (ea2f2ef) — `messages.recalled_at` 列级 GRANT + 列级 RLS (修订 F-MSG-07 取发人 ≠ 作品中其他朋友的可见性) |
+| M4-5 · Sender-only soft delete | ✅ 已完成 (7f2b47a) — `messages.deleted_by_sender_at` 列级 GRANT + 列级 RLS (F-MSG-07 本人隱藏其他端仍可见) |
+| M4-6 · Reply threading | ✅ 已完成 (33e4179 + fixup 6eaa861) — parent_id FK + closure + F-MSG-04 AC.07 UI |
+| M4-7 · 6 emoji reactions (F-MSG-09 / CAP-15) | ✅ 已完成 (0111398 + RT closure 075b4b1 + 540165a) — fn_add_reaction + fn_remove_reaction 五层 guard · bucketReactions · EmojiPicker · onReactionEvent 自-actor gate · REPLICA IDENTITY FULL + publication |
+| M4-7.1 · viewport-flip + regex polish | ✅ 已完成 (7e3ec3f) — EmojiPicker `top→bottom` 自适应翻转 (FLIP_MARGIN_PX=8) + `mapReactionErrorCode` `(?![a-z])` forward-proof regex |
 | **本机 Docker 架构决策** | 🟢 已生效 (S29.0 / KI-9) — 本机 Docker Desktop 已删除 · 验证链 static-only · live verification 仅云 staging/prod |
 
 ---
@@ -307,3 +335,44 @@ __S18_TODO_HEADER_REPLACE__
 - **禁令**: 任何 task / sub-task 提案不推 `docker` / `supabase start` / `supabase db reset` / `supabase functions serve` 在本机。
 - **连锁记忆**: KI-9 · TODO.md FU-LOC-01 (升级为架构决策) + FU-LOC-02 (标记废弃) + FU-STG 表头 · CHANGELOG Unreleased S29.0 section · DEVELOPMENT_LOG S29.0 entry。
 - **不变**: 云架构 / 22 项 ADR / FU-3 · FU-4 / KI-1..7 · KI-8 远端仓库推送（仍待 Project Lead 创建 repo）。
+
+---
+
+## S32.0 Update · 2026-06-28 · M3 → M4-7 Chat Core 全段 ship + 项目记忆 resync
+
+**里程碑跨度**: S29.0（本机 Docker 永久废弃 · 架构决策）→ S30.0（M4-7 加 RT closure ship · `0111398` + `075b4b1` + `540165a`）→ S31.0（M4-7.1 polish · `7e3ec3f` viewport-flip + `(?![a-z])` forward-proof regex）→ S32.0（项目记忆 resync · 本文件）。
+
+**11 milestone chronology**:
+
+| M | 描述 | commit | F-ID | spec |
+|---|---|---|---|---|
+| M3-2 | Sidebar | `75d7300` | F-CONV-01/03/05 | AC.00 |
+| M3-3 | MessageList + MessageItem | `70d6e41` | F-MSG-01 | AC.02 |
+| M3-4 | Composer floating-island | `0fa9cbd` | F-MSG-01/attachment plumbing | AC.03 |
+| M3-5 | Realtime channels | `d1915f2` | F-MSG-01 live append | AC.06 |
+| M4-1 + M4-2 | Typing hook + 三点动画 | `d39dbbe` | F-MSG-08 | AC.05 |
+| M4-3 | 2-min edit + (edited) tag | `9fa1968` | F-MSG-05 | AC.04 |
+| M4-4 | Soft recall | `ea2f2ef` | F-MSG-06 | AC.04 |
+| M4-5 | Sender-only soft delete | `7f2b47a` | F-MSG-07 | AC.10 |
+| M4-6 | Reply threading | `33e4179` + `6eaa861` | F-MSG-04 | AC.07 |
+| M4-7 | 6 emoji reactions | `0111398` + `075b4b1` + `540165a` | F-MSG-09 | AC.07 |
+| M4-7.1 | viewport-flip + regex polish | `7e3ec3f` | (M4-7 polish) | — |
+
+**RT-layer closure**（3 commits):
+- `075b4b1` self-actor gate: onReactionEvent 跳过 `new.user_id === session.user.id` · 防自己的 INSERT 推送被自己的 store 重叠处理
+- `540165a` REPLICA IDENTITY FULL: messages.reactions 表列进 publication + FK on reactions.message_id = messages.id 加 SET NULL （迁移 0016 补加）
+- 3 三点 anim 测试与 M4-7 ship 后 hook mocks 同步 · useAddReaction + useRemoveReaction 2 hook + 28 unit tests ship
+
+**验证链**（本机 static-only · S29.0 后）:
+- `git show --stat` 出 `75d7300` ... `7e3ec3f`  11 milestone · 4 docs-only · tsc src/ 0 new errors · vitest 82/82 · integration 0 live run · code-reviewer-minimax-m3 多轮 iter 全 LGTM
+
+**决策**: 无新增 ADR · viewport-flip + (?![a-z]) 都是 tactical EF hardening · DECISIONS.md 不变
+
+**本文件 resync 点**:
+- ☑ "项目概况"表 · 当前阶段 / 代码版本 / Next session 三 cell 全 update（代码版本 加 11 后缀 commit hash）
+- ☑ "⚠️ 重要 · 下次开发从哪里开始" · 加 9 行（M3-4 · M3-5 · M4-1 .. M4-7.1） · Next 改 M4-8 Ambient
+- ☑ "下一位 AI 接手须知" · M3-M4-7 全 list 化 + commit hash
+- ☑ "阶段状态" table · 加 9 行（M3-4 · M3-5 · M4-1 + M4-2 · M4-3 · M4-4 · M4-5 · M4-6 · M4-7 · M4-7.1）
+
+
+**不变**: 22 项 ADR (D-01..D-22) · KI-9 (Docker 永久废弃 · 本机 static-only) · KI-1 (Storage 6-8月) · FU-3 (active friend 重邀请 v1.1+) · FU-4 (Owner 自删 v1.1+) · KI-4 (Supabase 单厂商) · KI-8 (远端仓库 待创建 repo)
