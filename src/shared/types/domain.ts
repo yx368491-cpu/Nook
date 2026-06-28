@@ -4,8 +4,23 @@ export type UserRole = 'owner' | 'friend';
 /** Conversation type */
 export type ConversationKind = 'one_to_one' | 'group';
 
-/** Message content type */
-export type MessageKind = 'text' | 'image' | 'file';
+/**
+ * Message content type.
+ *
+ * `'system'` is included even though the user-facing UI has no composer for
+ * system rows — DB CHECK constraint `messages_kind_payload_chk` (migration
+ * 0011 branch B) explicitly reserves `kind = 'system'` rows for server-side
+ * emitted notices (e.g. "Alice joined the chat"). Including `'system'` in
+ * the TS union:
+ *   - allows `isMessageRecallable` (M4-4) and `isMessageDeletable` (M4-5)
+ *     to compare `item.kind === 'system'` without TS2367 "no overlap" errors;
+ *   - lets future hooks (e.g. M4-8 ambient presence system messages)
+ *     type-narrow system rows cleanly without `as string` casts;
+ *   - the M4-3 edit RPC and the M4-4 recall RPC both reject `kind = 'system'`
+ *     server-side, so user-facing callers continue to NEVER produce or accept
+ *     system rows.
+ */
+export type MessageKind = 'text' | 'image' | 'file' | 'system';
 
 /** Reaction emoji (closed set of 6) */
 export type ReactionEmoji = '👍' | '❤️' | '😂' | '👀' | '🔥' | '🙏';

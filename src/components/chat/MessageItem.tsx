@@ -7,12 +7,15 @@ import { AttachmentImage } from './AttachmentImage';
 import {
   isMessageEditable,
   isMessageRecallable,
+  isMessageDeletable,
   MessageEditError,
   MessageRecallError,
+  MessageDeleteError,
   type MessageListItem,
 } from '@/lib/api/chat';
 import { useEditMessage } from '@/hooks/useEditMessage';
 import { useRecallMessage } from '@/hooks/useRecallMessage';
+import { useDeleteMessage } from '@/hooks/useDeleteMessage';
 
 interface MessageItemProps {
   item: MessageListItem;
@@ -142,6 +145,61 @@ function RecallMenuTrigger({ onClick }: { onClick: () => void }) {
 }
 
 /**
+ * M4-5 — small 16 px delete (🗑 trash) affordance, paralleling
+ * `EditMenuTrigger` + `RecallMenuTrigger`. Mount-only when
+ * `isMessageDeletable` so the trigger disappears the moment the 2-minute
+ * sender-only delete window closes. F-MSG-07: the delete is SENDER-ONLY —
+ * the recipient view is preserved, so this is effectively a "hide from
+ * my own history" gesture. The trash-can glyph signals permanent-feel
+ * semantics while the implementation is reversible-by-window (server-side
+ * window guard means re-deleting past 2 min returns WINDOW_EXPIRED +
+ * the row stays intact).
+ */
+function DeleteMenuTrigger({ onClick }: { onClick: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={t('chat.delete')}
+      title={t('chat.delete')}
+      className="
+        flex h-6 w-6 items-center justify-center rounded-full
+        text-[var(--color-ink-muted)]
+        opacity-0 transition-opacity duration-150
+        group-hover/message:opacity-100 group-focus-within/message:opacity-100
+        hover:text-[var(--color-ink-fg)]
+        focus-visible:opacity-100 focus-visible:outline-none
+        focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]/40
+      "
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        aria-hidden="true"
+      >
+        {/* Trash-can glyph: lid + tray + 3 vertical lines */}
+        <path
+          d="M3 4h10M6.5 4V2.5h3V4M4.5 4l.7 9.5a1 1 0 0 0 1 1h3.6a1 1 0 0 0 1-1L11.5 4"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M6.7 7v5M9.3 7v5"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+        />
+      </svg>
+    </button>
+  );
+}
+
+/**
  * M4-3 — inline edit form (unchanged from prior ship).
  */
 interface InlineEditFormProps {
@@ -245,10 +303,10 @@ function InlineEditForm({
 }
 
 /**
- * Map a M4-3 edit-mutation error + M4-4 recall-mutation error to a
- * localized, user-readable strip message. Both `MessageEditError` and
- * `MessageRecallError` carry a stable `.code` we map against
- * `chat[editError | recallError].<code>` keys.
+ * Map a M4-3 edit-mutation error + M4-4 recall-mutation error + M4-5
+ * delete-mutation error to a localized, user-readable strip message.
+ * All three `MessageXxxError` types carry a stable `.code` we map
+ * against `chat[editError | recallError | deleteError].<code>` keys.
  */
 function errorMessageFor(
   err: Error | null,
@@ -291,6 +349,22 @@ function errorMessageFor(
         return t('chat.recallError.unknown');
     }
   }
+  if (err instanceof MessageDeleteError) {
+    switch (err.code) {
+      case 'NOT_OWNER':
+        return t('chat.deleteError.notOwner');
+      case 'WINDOW_EXPIRED':
+        return t('chat.deleteError.windowExpired');
+      case 'ALREADY_DELETED':
+        return t('chat.deleteError.alreadyDeleted');
+      case 'NOT_FOUND':
+        return t('chat.deleteError.notFound');
+      case 'DB_ERROR':
+        return t('chat.deleteError.dbError');
+      default:
+        return t('chat.deleteError.unknown');
+    }
+  }
   if (err.message === 'EMPTY_BODY') return t('chat.editError.empty');
   return t('chat.editError.unknown');
 }
@@ -298,12 +372,13 @@ function errorMessageFor(
 export function MessageItem({ item, isConsecutive }: MessageItemProps) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
-  // Single error strip covers both edit AND recall errors — they share
+  // Single error strip covers edit AND recall AND delete errors — they share
   // the same UI affordance (aria-live=polite · role=alert) and the user
   // only sees one operation at a time per message.
   const [actionError, setActionError] = useState<string | null>(null);
   const editMutation = useEditMessage(item.conversationId);
   const recallMutation = useRecallMessage(item.conversationId);
+  const deleteMutation = useDeleteMessage(item.conversationId);
 
   // Live "now" re-derivation: editable + recallable windows both expire
   // precisely when created_at + 2 minutes passes. Re-evaluate every 30 s
@@ -325,8 +400,9 @@ export function MessageItem({ item, isConsecutive }: MessageItemProps) {
   // M4-4: any party sees the recalled placeholder (recalled_at is global).
   const isRecalled = item.recalledAt !== null;
 
-  // M4-3 / M4-4 affordance gates: editable / recallable triggers mount
-  // only when both the action's UI guard AND the rendered state allow it.
+  // M4-3 / M4-4 / M4-5 affordance gates: editable / recallable / deletable
+  // triggers mount only when both the action's UI guard AND the rendered
+  // state allow it.
   const canEdit =
     !isSelfDeleted &&
     !isRecalled &&
@@ -337,6 +413,15 @@ export function MessageItem({ item, isConsecutive }: MessageItemProps) {
     !isSelfDeleted &&
     !isRecalled &&
     isMessageRecallable(item);
+
+  // M4-5 — delete is independent of recall (a message may be deleted for
+  // the sender's view while remaining globally visible to the recipient).
+  // We hide the delete affordance when the bubble is already recalled
+  // (recalled wins visually) or already deleted-for-self (no-op trigger).
+  const canDelete =
+    !isSelfDeleted &&
+    !isRecalled &&
+    isMessageDeletable(item);
 
   const enterEdit = () => {
     setActionError(null);
@@ -400,6 +485,39 @@ export function MessageItem({ item, isConsecutive }: MessageItemProps) {
     );
   };
 
+  /**
+   * M4-5 click handler for the delete affordance.
+   * No confirmation step (per thinker decision #4 — matches the M4-4
+   * recall click-to-commit UX; the 2-min server-side window guard +
+   * the sender-only semantics make this low-risk). The optimistic UI
+   * patch sets `deletedBySenderAt = <now>` so the bubble switches to
+   * the `messages.deleted` placeholder the moment the sender clicks;
+   * an error (e.g. WINDOW_EXPIRED) rolls back the patch via
+   * `useDeleteMessage.onError` and surfaces below the bubble.
+   */
+  const handleDelete = () => {
+    setActionError(null);
+    deleteMutation.mutate(
+      { messageId: item.id },
+      {
+        onError: (err) => {
+          setActionError(errorMessageFor(err, t));
+          // WINDOW_EXPIRED / ALREADY_DELETED / NOT_FOUND mean the bubble
+          // can't actually be deleted — close any open edit form so the
+          // user sees the (now read-only) bubble body.
+          if (
+            err instanceof MessageDeleteError &&
+            (err.code === 'WINDOW_EXPIRED' ||
+              err.code === 'ALREADY_DELETED' ||
+              err.code === 'NOT_FOUND')
+          ) {
+            setEditing(false);
+          }
+        },
+      },
+    );
+  };
+
   return (
     <div
       className={`
@@ -437,14 +555,18 @@ export function MessageItem({ item, isConsecutive }: MessageItemProps) {
             ${item.isSelf ? 'flex-row-reverse' : 'flex-row'}
           `}
         >
-          {/* Dual hover triggers (M4-3 edit + M4-4 recall) — side-by-side,
-              both gated by their respective UI guards. Hidden when editing
-              so the inline form doesn't collide with the icon column. */}
+          {/* Triple hover triggers (M4-3 edit + M4-4 recall + M4-5 delete)
+              — side-by-side, each gated by its respective UI guard. Hidden
+              when editing so the inline form doesn't collide with the icon
+              column. */}
           {!editing && canEdit && (
             <EditMenuTrigger onClick={enterEdit} />
           )}
           {!editing && canRecall && (
             <RecallMenuTrigger onClick={handleRecall} />
+          )}
+          {!editing && canDelete && (
+            <DeleteMenuTrigger onClick={handleDelete} />
           )}
 
           {editing ? (

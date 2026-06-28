@@ -62,6 +62,12 @@ function previewText(
       return `${prefix}· ${t('sidebar.previewImage')}`;
     case 'file':
       return `${prefix}· ${t('sidebar.previewFile')}`;
+    // `MessageKind` includes `'system'` (server-emitted notices per
+    // migration 0011 CHECK branch B). System rows have no user-friendly
+    // preview, so we render just the self-prefix (or nothing for others).
+    case 'system':
+    default:
+      return prefix;
   }
 }
 

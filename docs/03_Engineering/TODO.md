@@ -80,7 +80,7 @@
 | M4-2 | Typing 三点降速动画（4 px / 120 ms 错落） | DESIGN § 9.4 | ✅ 已完成 — `src/components/chat/TypingIndicator.tsx` render 3 6-px lavender dots · staggered 0/150/300 ms · `@keyframes typing-pulse` (opacity 0.30 ⇄ 1.00 + scale 0.85 ⇄ 1.00 · 1200 ms loop) · Tailwind `motion-safe:` prefix to skip animation under prefers-reduced-motion · multi-user copy (1 = `chat.isTyping` · 2 = `chat.typingTwo` · 3+ = `chat.typingMany` · unresolved peer = `chat.typingAnonymous`) · slot in ChatPanel header right of conversation title · `role="status"` + `aria-live="polite"` silent announcement · tokens.css append `@keyframes` (1 section) |
 | M4-3 | 编辑消息（2 min 时间窗） + `(edited)` 微标签 | F-MSG-05 / AC.08 | ⏳ 待开发 (本机 static only · 云 DB migration 0009 `[待云 db push]`) |
 | M4-4 | 撤回（soft recall，DB row 不删） | F-MSG-06 / AC.09 | ⏳ 待开发 (本机 static only · 云 DB migration 0010 + 0011 `[待云 db push]`) |
-| M4-5 | 删除（仅自己端）— **列级软隐藏 `deleted_by_sender_at`** | F-MSG-07 / AC.10 | ⏳ 待开发 |
+| M4-5 | 删除（仅自己端）— **列级软隐藏 `deleted_by_sender_at`** | F-MSG-07 / AC.10 | ⏳ 待开发 (本机 static only · 云 DB migration 0012 `[待云 db push]`) |
 | M4-6 | 引用 / 回复（reply_to_id + ReplyCard） | F-MSG-04 / AC.07 | ⏳ 待开发 |
 | M4-7 | 6 emoji reaction toggle | F-MSG-09 | ⏳ 待开发 |
 | M4-8 | Ambient 在线状态（presence + 6 px lavender pulse） | F-ST-01 / AC.11 | ⏳ 待开发 |

@@ -969,3 +969,107 @@ export function isMessageRecallable(item: {
   if (item.deletedBySenderAt !== null) return false;
   return Date.now() - Date.parse(item.createdAt) < RECALL_WINDOW_MS;
 }
+
+// ============================================================================
+// Delete API (M4-5) — 2-minute window, sender-only soft-delete (recipient view preserved)
+// ============================================================================
+
+/** 2-minute delete window — matches SPEC F-MSG-07 + DB fn_delete_own_message. */
+export const DELETE_WINDOW_MS = 2 * 60 * 1000;
+
+/**
+ * Custom error for rejected deletes. Mirrors `MessageRecallError` shape so
+ * callers can branch on `.code` consistently across the M4-3/4/5 trio.
+ */
+export class MessageDeleteError extends Error {
+  constructor(
+    public readonly code:
+      | 'NOT_OWNER'
+      | 'WINDOW_EXPIRED'
+      | 'ALREADY_DELETED'
+      | 'NOT_FOUND'
+      | 'DB_ERROR',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'MessageDeleteError';
+  }
+}
+
+/**
+ * Delete (sender-only soft-hide) a non-system message within the 2-minute
+ * window. Server-side enforcement via `fn_delete_own_message` (security
+ * invoker):
+ *   - auth.uid() = sender_id (owner-only)
+ *   - deleted_by_sender_at IS NULL (single-shot, no double-delete)
+ *   - kind != 'system'
+ *   - created_at + 2 minutes > now() (window still open)
+ *
+ * Side-effects:
+ *   - UPDATE messages SET deleted_by_sender_at = now()
+ *   - body / attachment_id / recalled_at / edited_at are INTACT
+ *   - Recipient view of the conversation is unchanged (per F-MSG-07
+ *     sender-only semantics).
+ *
+ * @throws MessageDeleteError with stable code identifying which guard fired
+ */
+export async function deleteOwnMessage(args: {
+  messageId: string;
+}): Promise<{ id: string; deletedAt: string }> {
+  const { messageId } = args;
+
+  const { data, error } = await supabase.rpc('fn_delete_own_message', {
+    p_msg_id: messageId,
+  });
+  if (error) {
+    throw new MessageDeleteError(
+      mapDeleteErrorCode(error.message),
+      error.message,
+    );
+  }
+  const row = data as { id: string; deleted_at: string };
+  return { id: row.id, deletedAt: row.deleted_at };
+}
+
+/**
+ * Map PG `E_MSG_DELETE_FORBIDDEN: <reason>` detail to a stable client code.
+ * Symmetric to `mapRecallErrorCode` regex — keeps client-mapping logic aligned.
+ */
+function mapDeleteErrorCode(message: string): MessageDeleteError['code'] {
+  if (/not[\s_-]?owner|unauthor/i.test(message)) return 'NOT_OWNER';
+  if (/window|expired|2[\s_-]?min/i.test(message)) return 'WINDOW_EXPIRED';
+  if (/already[\s_-]?(delete|deleted|once)/i.test(message))
+    return 'ALREADY_DELETED';
+  if (/(not[\s_-]?found|missing)/i.test(message)) return 'NOT_FOUND';
+  return 'DB_ERROR';
+}
+
+/**
+ * Pure UI-side guard for the delete affordance. Complements the server check.
+ *
+ *   - Self messages only (sender-private per F-MSG-07)
+ *   - NOT system kind (system messages are server-created, immutable)
+ *   - Not yet deleted (single-shot)
+ *   - Not recalled (already globally gone — deleting is no-op visually
+ *     since recall's placeholder wins in render order; we hide the
+ *     delete affordance to avoid offering a no-op action)
+ *   - created_at within the 2-minute window
+ *
+ * Edit (M4-3) and delete (M4-5) are independent operations within 2 min. The
+ * sender's UI hides the row (renders `messages.deleted` placeholder via
+ * `isSelfDeleted`); recipients continue to see the original body exactly as
+ * if the delete RPC had never fired.
+ */
+export function isMessageDeletable(item: {
+  isSelf: boolean;
+  createdAt: string;
+  recalledAt: string | null;
+  deletedBySenderAt: string | null;
+  kind: MessageKind;
+}): boolean {
+  if (!item.isSelf) return false;
+  if (item.kind === 'system') return false;
+  if (item.recalledAt !== null) return false;
+  if (item.deletedBySenderAt !== null) return false;
+  return Date.now() - Date.parse(item.createdAt) < DELETE_WINDOW_MS;
+}

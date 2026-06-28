@@ -122,6 +122,15 @@
       "dbError": "Recall failed. Please try again.",
       "unknown": "Recall failed"
     },
+    "delete": "Delete",
+    "deleteError": {
+      "notOwner": "You can only delete your own messages",
+      "windowExpired": "The 2-minute delete window has closed",
+      "alreadyDeleted": "You've already deleted this message",
+      "notFound": "This message no longer exists",
+      "dbError": "Delete failed. Please try again.",
+      "unknown": "Delete failed"
+    },
     "replyTo": "Reply to {{name}}",
     "imageAlt": "Image message",
     "file": "File",

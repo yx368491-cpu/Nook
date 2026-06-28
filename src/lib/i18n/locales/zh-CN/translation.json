@@ -122,6 +122,15 @@
       "dbError": "撤回失败，请重试",
       "unknown": "撤回失败"
     },
+    "delete": "删除",
+    "deleteError": {
+      "notOwner": "只能删除自己的消息",
+      "windowExpired": "2 分钟删除时限已过",
+      "alreadyDeleted": "你已经删除了这条消息",
+      "notFound": "此消息已不存在",
+      "dbError": "删除失败，请重试",
+      "unknown": "删除失败"
+    },
     "replyTo": "回复 {{name}}",
     "imageAlt": "图片消息",
     "file": "文件",
