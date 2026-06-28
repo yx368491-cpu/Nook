@@ -353,6 +353,87 @@
 
 ---
 
+## S30.0 · 2026-06-28 · M4-7 6 emoji reactions + RT-layer closure
+
+- **开发内容**: 实现 Nook v1.0 M4-7 6 emoji reactions 完整链（CAP-15 / F-MSG-09 / AC.07）— server-side RPC fn_add/fn_remove · client-side TanStack Query mutations with optimistic cache-patch · UI picker + Reactions chip 行 · i18n × 2 · Realtime 闭包（self-actor gate + REPLICA IDENTITY FULL + publication membership）。同 session ship 1 main + 2 critical fixups · 本机 static-only 验收 (per S29.0 Docker 永久废弃)。
+- **新增功能** (main ship @ `0111398` · 12 files):
+  - `supabase/migrations/20260628000015_fn_reactions.sql` — `fn_add_reaction(p_msg_id uuid, p_emoji text)` + `fn_remove_reaction(p_msg_id uuid, p_emoji text)`，SECURITY INVOKER，5-guard contract: `not_authenticated` / `not_found` / `bad_kind_<k>` / `bad_emoji_<x>` / `not_member` / `db_error`。Add: `ON CONFLICT (message_id, user_id, emoji) DO NOTHING` 单行幂等 upsert；Remove: `DELETE ... RETURNING` + `rows_affected` 标签（0 = 已删幂等 success）。跨 conv 拒绝 server-side 拍板，写信 bug： emoji 必须在 6 whitelist 内（hardcoded list 同 M3-1）。
+  - `src/lib/api/chat.ts` 扩 — `MessageReactionError` 5-code 类 + `REACTION_EMOJIS: ReadonlyArray<ReactionEmoji>` 6 whitelist export + `bucketReactions()` 客户端聚合（`count DESC, emoji ASC` stable sort）+ `listMessages` LEFT JOIN `reactions(emoji, user_id)` + `mapReactionErrorCode` (M-3/4/5/6/7 五联 mapper 对称设计，保持统一 regex 形状) + `applyReactionAdd / applyReactionRemove` cache-patch helper exports (供 optimistic mutation 与 Realtime projection 共用)。
+  - `src/hooks/useAddReaction.ts` + `useRemoveReaction.ts` — TanStack Query `useMutation` optimistic cache-patch (onMutate 快照 + 应用 bucket / onError 回滚 by snapshot restore / onSettled invalidate `['messages', selfUserId, convId]` for canonical refetch)；hook 接受 conversationId 作 query key 中段（per-conv cache 隔断）。
+  - `src/components/chat/Reactions.tsx` — chip 行渲染（accent-soft-bg when hasMine + sort badge · 点击 → `useAddReaction` 或 `useRemoveReaction`）。
+  - `src/components/chat/EmojiPicker.tsx` — popover 含 6 emoji · hover 200ms delay + click toggle + click-outside + Escape close + `aria-haspopup / aria-expanded / aria-label` 全套。
+  - `src/components/chat/MessageItem.tsx` wireup — quintuple hover triggers（M4-3 edit + M4-4 recall + M4-5 delete + M4-6 reply + M4-7 emoji-react picker）按 DOM 顺序前 5 个 + Reactions chip 行 在气泡下 maybe `max-w-[72%]` 对齐。
+  - i18n — `chat.reaction.{triggerLabel, pickerTitle, pickerOption}` + `chat.reactionError.{notAuthenticated, notFound, badKind, notMember, dbError, unknown}` × 中英双语 共 7 + 6 = 13 key。
+  - 测试 28 个:
+    - `src/hooks/useAddReaction.test.tsx` (8 tests) — RPC dispatch + optimistic patch correctness + 5-error mapping + client-side emoji guard（whitelist miss → DB_ERROR before RPC）。
+    - `src/hooks/useRemoveReaction.test.tsx` (8 tests) — parallel symmetric shape; bucket-removal-on-zero-count 覆盖。
+    - `tests/unit/applyReactionCache.test.ts` (12 tests) — pure helper: bucket add/remove/create-or-increment/sort-stable/order-canonical。
+- **修改内容** (现有文件更新，与 M4-7 写作伴生):
+  - `docs/03_Engineering/TODO.md` — M4-7 row promote 从 `⏳ 待开发` → `✅ 已完成`，附 S30.0 船辰后才补释性 detail。
+- **修复问题** (followups @ `075b4b1` + `540165a`):
+  - **Self-actor gate @ `075b4b1`** — `src/hooks/useConversationRealtime.ts` `onReactionEvent` self-actor skip：RT INSERT/DELETE events where `payload.new.user_id === selfUserId`（或 DELETE 时 `payload.old.user_id === selfUserId`）不 patch cache，但**不会** drop other-user events。Reason： optimistic patch is canonical，RT echo round-trip 让 cache 弄 self second-counting 不可能。`useAuth.userId` per-callback re-read（非 hook-mount-time closure 避免 stale）。
+  - **RT-layer critical closure @ `540165a`** — `supabase/migrations/20260628000016_reactions_replica_identity_full.sql`：❶ `ALTER TABLE public.reactions REPLICA IDENTITY FULL`（让 RT DELETE payload `old` 包含完整 row (含 user_id)，使 self-actor gate 在 self-remove 路径生效；否则 `payload.old?.user_id === undefined` ≠ selfUid → gate fails open → self remove off-by-one flicker）❷ idempotent `ALTER PUBLICATION supabase_realtime ADD TABLE public.reactions` (DO block + `pg_publication` existence guard + RAISE NOTICE fallback for self-hosted vanilla Postgres without realtime publication)。**Critical fix** — 未 provisions at M4-7 main, RT layer 整体 dead：`reactions` 表 创建后未显式 `ADD TABLE` 进 `supabase_realtime` publication → Postgres `postgres_changes` broadcast never fires → invalidate refetch 也看不到其他 user 的 reaction change。verify: `SELECT pubname, schemaname, tablename FROM pg_publication_tables WHERE pubname='supabase_realtime' AND tablename='reactions';`。
+  - **Regex blocker（ship-time iteration）** — `mapReactionErrorCode` 初版 regex `/bad_(?:kind|emoji)\b/i` (\b word-boundary) happy path 全部 fail: `_` 是 regex word character，`\b` 在 `bad_kind_system` 的 `d_` 之间 **非** boundary。Fix 为 `/bad_(?:kind|emoji)(?![a-z])/i` (negative-letter lookahead)。
+- **遇到的问题** (3 issues materialised at ship start):
+  - **Self-actor gate stale-closure 风险** — 如果 `useAuth.userId` 在 hook-mount 跨出 arrive 后 session refresh / tab 切换 → closure locked old uid → gate 用 stale uid skip foreign-actor events as-if-self。Fix: per-callback re-read from `useAuth.getState()` (或 store selector inside callback)。
+  - **REPLICA IDENTITY migration transaction-safety** — supabase_realtime publication 在 self-hosted vanilla Postgres **无默认存在**，ALTER PUBLICATION raises `publication does not exist` → 整 transaction rollback (含 REPLICA IDENTITY 本身)。Fix: outer IF EXISTS on `pg_publication WHERE pubname='supabase_realtime'` + RAISE NOTICE + RETURN（不 abort transaction）。
+  - **`(?![a-z])` vs `\b` design decision** — `\b` 是「word-boundary 隐会」，`(?![a-z])` 是「non-letter lookahead 显会」。前者依赖 `[_] IS word` 启发 hardened 钝 · 后者明确 purpose（避免 `bad_kinder` 子串误命中）不必依赖 heuristic。
+- **解决方案**:
+  - **Realtime gate pattern** — 一个 `onReactionEvent` callback implemented, single source of truth for INSERT/DELETE projection。Self-actor short-circuits → invalidates-on-settled 末 fetch canonical coverage。testing 路径变得可复现。
+  - **REPLICA IDENTITY migration idempotent** — outer `IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname='supabase_realtime')` + `RAISE NOTICE` + `RETURN` 保证上 production 上云 前-environment where publication missing 不会 fail migration cleanup。
+  - **1 次 reviewer iteration \b → (?![a-z])** — reviewer-minimax-m3 指出 \b regression 后 fix 1 regex literal + 2 unit tests pin（bad_kind_system happy / bad_kinder forward-proof）后 LGTM。
+- **当前状态**: M4-7 main ship ✅ + RT 闭包 ✅ + 1 additional reviewer iteration resolved (`540165a` 是 S30.0 闭包 commit) 。1 main commit + 2 fixups · 28 new unit tests + reactive `applyReaction*` helpers。code-reviewer-minimax-m3 multi-round LGTM。
+- **下一步计划**: M4-8 Ambient 在线状态 (F-ST-01 / AC.11) — 未启动 。M4-7.1 cosmetic polish 后 ship → 见 S31.0。
+- **验证结果** (本机 static-only · S29.0 决策下):
+  - vitest final `82/82` ✓ (session-end signed-off count; M4-7 additive 28 + M4-7.1 polish 6 = 34 net new vs pre-M4-7 baseline; breakdown stored in S31.0 entry)
+  - integration `20/20` ✓ (unaffected by M4-7 additive)
+  - tsc `src/` 13 errors (purely pre-existing M3-5 / M4-3 / M4-4 / M4-5 / conversationChannel typing) ✓ 0 new in S30.0
+  - code-reviewer-minimax-m3 multi-round LGTM (after 1 ship-time regex `\b` regression iteration corrected to `(?!a-z)`) ✓
+  - 3 commits clean (`0111398` / `075b4b1` / `540165a`)
+  - 未来的云 `supabase db push --include-all` will close S30.0 final gap (整合 migration 0015/0016 + fn invocations)
+
+---
+
+## S31.0 · 2026-06-28 · M4-7.1 cosmetic polish (viewport-flip + forward-proof regex)
+
+- **开发内容**: 在 M4-7 main ship 完成 (S30.0) 之上 ship 两项 cosmetic polish — EmojiPicker viewport-flip (latest-bubble-on-scrolled-up case clips) + mapReactionErrorCode regex forward-proof tightening · 1 code commit + 1 docs-only commit · 6 new tests · 0 functional behavior change。
+- **新增功能** (code commit @ `7e3ec3f` · 5 files):
+  - `src/components/chat/EmojiPicker.tsx` viewport-flip logic：
+    - `flipBelow` boolean state + `FLIP_MARGIN_PX = 8` constant ("有 8px feels-safe margin before viewport top" heuristic)
+    - `measureClip` callback → reads `popoverRef.getBoundingClientRect()` → `setFlipBelow(rect.top < FLIP_MARGIN_PX)`
+    - `useLayoutEffect` deps `[open, measureClip]` → close 时 reset `flipBelow = false` (避免 stale flip state) · open 时 remeasure (useLayoutEffect 同步 flush pre-paint · no visible flash)
+    - `useEffect` deps `[open, measureClip]` → attaches `resize` + capture-phase `scroll` listeners (捕获 nested message list scroller events bubbling to window)
+    - Conditional className：`flipBelow ? 'top-[calc(100%+var(--space-2xs))]' : 'bottom-[calc(100%+var(--space-2xs))]'` (JIT Tailwind both branches 撑住)
+    - `data-flip="above"|"below"` attribute 供 testing/调试 introspection (slightly noisy in production DOM — acceptable trade-off)
+  - `src/lib/api/chat.ts` `mapReactionErrorCode` regex forward-proof：
+    - 老 `/bad_(kind|emoji)/i` 任何未来 `bad_kindergarden` / `bad_kinder` / `bad_emojiish` 会 误命中 BAD_KIND
+    - 新 `/bad_(?:kind|emoji)(?![a-z])/i` — negative-letter lookahead · 要求 next char NOT letter (`_` / EOL / 标点 都 OK · any ASCII letter reject)
+- **修改内容** (file diffs):
+  - `src/components/chat/EmojiPicker.tsx` +72行 net (useCallback + useLayoutEffect + FLIP_MARGIN_PX constant + flipBelow state + measureClip callback + 2 effects + conditional className + data-flip attr)
+  - `src/lib/api/chat.ts` +9行 net (JSDoc 扩 + regex tightened)
+  - `tests/unit/emojiPickerFlip.test.tsx` NEW (140+ 行 · 4 tests)：默认 above 位置 · clipped flip below · close 时 reset (下次 open 重 measure 不会袭 stale state) · FLIP_MARGIN_PX=8 boundary pin (top==7 flip / top==8 stay above)
+  - `src/hooks/useAddReaction.test.tsx` +1 test：`bad_kinder` → DB_ERROR forward-proof pin (× 2 × 2 hooks)
+  - `src/hooks/useRemoveReaction.test.tsx` +1 test：parallel forward-proof pin
+- **修复问题**:
+  - 初版 M4-7.1 proposal 要求 regex tighten 用 `\b` word-boundary，但 `\b` 在此场景 **不表达 intent**:`_` is regex word char → `\b` 在 `d_` (in `bad_kind_system`) NOT boundary → `\b` 反而狂 happy path (verified regression: N=31 existing `bad_kind_system → BAD_KIND` tests broken)。Fix: `(?![a-z])` negative-letter lookahead。
+- **遇到的问题**:
+  - `useLayoutEffect` does nothing on SSR — Nook is SPA (Vite + CloudFlare Pages static)无获。Forward-compat：如果 future Next.js migration 起偏，应 换 `useIsomorphicLayoutEffect`。Acceptable for current setup。
+  - Scroll listener capture-phase correctness — capture (3rd arg `true`) bubbles 通过 window so nested scroller events catch。alternate 是 attach 在每个 known scroll container 上，但 hard-coded set is fragile。
+  - vitest `vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')` reliability — must 区分 popover (role=dialog) vs trigger (role=button / implicit) via `this.getAttribute('role')` check inside mockImplementation。Any other element returns generic mock 是 safe。
+- **解决方案**:
+  - **useLayoutEffect 同步 flush pre-paint** — React guarantees measurement-then-setState within useLayoutEffect's flushing phase, no flash regardless of scroll position. Renaissance example of useLayoutEffect's 主要 use case。
+  - **Capture-phase scroll listener** — listens to nested scrollables by capturing scroll events bubbling to window (1 handler covers 1+ scroll containers including message list + window itself)。
+  - **(?![a-z]) regex validation round** — Node REPL verify: 6 happy paths true (system/image/text/_x/kind/emoji ends) · 3 forward-proof false (kinder·kindergarten·emojiish) 。
+- **当前状态**: M4-7.1 polish ship ✅ — 1 code commit (`7e3ec3f`) + 1 docs commit (`bbde87a`). 4 new flip tests + 2 new forward-proof tests。 全 green badge。
+- **下一步计划**: M4-8 Ambient 在线状态 (F-ST-01 / AC.11) 未启动 · 或 M4-7.2+ deferred polish (bottom-clip symmetric guard + mapReplyErrorCode parity)。
+- **验证结果** (本机 static-only · S29.0 决策下):
+  - vitest final `82/82` ✓ (session-end signed-off count; M4-7.1 polish added 6: 4 new flip tests + 2 forward-proof pins across existing useAddReaction / useRemoveReaction test files)
+  - integration tests `20/20` ✓ (unaffected by cosmetic layer)
+  - typecheck `src/` 13 errors (purely pre-existing) ✓ 0 new in S31.0
+  - code-reviewer-minimax-m3 LGTM (after 1 polish-time regex `\b` regression iteration corrected to `(?![a-z])`) ✓
+
+---
+
 ## S19.0 Note · 2026-06-27
 
 - 目录名 i18n 化,所有路径已为英文
