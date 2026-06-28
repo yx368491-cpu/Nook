@@ -10,9 +10,9 @@ import type {
 import type { UserRole } from '@/shared/types/domain';
 
 /**
- * Realtime subscription helpers (M3-5).
+ * Realtime subscription helpers (M3-5 postgres_changes + M4-1 Presence).
  *
- * Two channel topologies per Nook-API-DESIGN § 6.1:
+ * Three channel topologies per Nook-API-DESIGN § 6.1:
  *
  *   1. `conversation:<uuid>` — per active room
  *      INSERT + UPDATE on `messages` (filtered by conversation_id)
@@ -22,7 +22,11 @@ import type { UserRole } from '@/shared/types/domain';
  *      INSERT + UPDATE on `conversation_members` (filtered by user_id)
  *      UPDATE on `profiles` (filtered by id = self — own profile only for M3-5)
  *
- * Both helpers return an `unsubscribe()` function intended to be called
+ *   3. `presence:<uuid>`    — per active room (M4-1 typing indicator)
+ *      Realtime Presence with key=`user_id` so each peer is unique.
+ *      Presence payload: `{ user_id, online: true, typing: boolean }`
+ *
+ * All helpers return an `unsubscribe()` function intended to be called
  * from a `useEffect` cleanup so supabase-js sends the matching Leave
  * payload. Re-subscribing with the same channel name is a no-op
  * (supabase-js dedupes by name).
@@ -67,6 +71,19 @@ interface RawProfileRow {
   role: UserRole | null;
 }
 
+/**
+ * Per-user Presence payload tracked by M4-1 typing indicator.
+ *
+ * `online` is always `true` while the channel holds the row — the
+ * channel's own `.untrack()` or `Leave` event marks absence. `typing`
+ * toggles on Composer keystroke + 5s-idle reset.
+ */
+export interface PresenceState {
+  user_id: string;
+  online: true;
+  typing: boolean;
+}
+
 // ============================================================================
 // Handler contracts
 // ============================================================================
@@ -95,6 +112,23 @@ export interface UserChannelHandlers {
   onMemberChange?: () => void;
   /** Self profile changed (display_name / avatar / language) */
   onProfileUpdate?: (id: string) => void;
+}
+
+export interface PresenceChannelHandlers {
+  /**
+   * Fires on every presence sync (initial + every remote track).
+   * Receives the full flattened list of currently-tracked peers
+   * (including self). Caller is responsible for filtering `self`
+   * and `typing=false` rows out.
+   */
+  onSync?: (peers: PresenceState[]) => void;
+  /**
+   * Optional finer-grained handlers — useful for animation state
+   * transitions (fade-in / fade-out) but not required for the
+   * baseline 3-dot indicator.
+   */
+  onJoin?: (key: string, peers: PresenceState[]) => void;
+  onLeave?: (key: string, peers: PresenceState[]) => void;
 }
 
 // ============================================================================
@@ -214,6 +248,93 @@ export function subscribeUserEvents(
   return () => {
     void supabase.removeChannel(channel);
   };
+}
+
+/**
+ * Subscribe to the active conversation's Realtime Presence channel
+ * (M4-1 typing indicator). Each peer .track()'s a `PresenceState`
+ * keyed by `user_id`, so the sync state naturally dedupes to one
+ * entry per peer.
+ *
+ * Mount lifetime: intended for `useEffect` cleanup. Composer is a
+ * separate child component that calls `.track()` on the SAME channel
+ * (supabase-js dedupes by name), so the lifecycle stays split:
+ *   - ChatPanel owns subscribe/unsubscribe.
+ *   - Composer only `.track()`s.
+ */
+export function subscribePresenceEvents(
+  conversationId: string,
+  handlers: PresenceChannelHandlers,
+): () => void {
+  if (!conversationId) return () => undefined;
+  const channelName = `presence:${conversationId}`;
+  const channel: RealtimeChannel = supabase.channel(channelName, {
+    config: {
+      presence: {
+        key: 'user_id',
+      },
+    },
+  });
+
+  if (handlers.onSync) {
+    channel.on('presence', { event: 'sync' }, () => {
+      const state = channel.presenceState<PresenceState>();
+      handlers.onSync!(flattenPresenceState(state));
+    });
+  }
+
+  if (handlers.onJoin) {
+    channel.on(
+      'presence',
+      { event: 'join' },
+      ({ key, newPresences }) => {
+        handlers.onJoin!(
+          key,
+          (newPresences as PresenceState[]) ?? [],
+        );
+      },
+    );
+  }
+
+  if (handlers.onLeave) {
+    channel.on(
+      'presence',
+      { event: 'leave' },
+      ({ key, leftPresences }) => {
+        handlers.onLeave!(
+          key,
+          (leftPresences as PresenceState[]) ?? [],
+        );
+      },
+    );
+  }
+
+  channel.subscribe();
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+}
+
+/**
+ * Flatten the `presenceState` map shape `{ [userKey]: T[] }` into a
+ * single de-duplicated array of peers. The supabase-js spec guarantees
+ * that keys with `key='user_id'` carry at most one row (re-track
+ * replaces, not appends), so we take the first row per key.
+ */
+function flattenPresenceState(
+  state: Record<string, PresenceState[]>,
+): PresenceState[] {
+  const out: PresenceState[] = [];
+  const seen = new Set<string>();
+  for (const key of Object.keys(state)) {
+    const rows = state[key];
+    if (!rows || rows.length === 0) continue;
+    const row = rows[0]!;
+    if (seen.has(row.user_id)) continue;
+    seen.add(row.user_id);
+    out.push(row);
+  }
+  return out;
 }
 
 // ============================================================================

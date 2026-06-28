@@ -22,6 +22,7 @@ import {
 import { useAuth } from '@/stores/useAuth';
 import { useChat } from '@/stores/useChat';
 import { useDraftInput } from '@/hooks/useDraftInput';
+import { useTypingBroadcast } from '@/hooks/useTypingBroadcast';
 import { ComposeReplyCard } from './ComposeReplyCard';
 
 /**
@@ -75,6 +76,20 @@ export function Composer({ conversationId }: ComposerProps) {
   const sendTextM = useSendTextMessage(conversationId, selfUserId);
   const sendAttachM = useSendAttachmentMessage(conversationId, selfUserId);
 
+  /**
+   * M4-1 typing broadcast: pairs with ChatPanel's `useTypingReceivers`
+   * (supabase-js dedupes the `presence:<conversationId>` channel by name
+   * so we share one instance between broadcast + receive sides).
+   * - `startTyping():` re-arms the 5 s idle window on each keystroke; the
+   *   underlying hook debounces so `track({typing:true})` only fires
+   *   ONCE per quiet gap.
+   * - `stopTyping():` called on send, attach, blur, and unmount.
+   */
+  const { startTyping, stopTyping } = useTypingBroadcast({
+    conversationId,
+    selfUserId: selfUserId || null,
+  });
+
   const [error, setError] = useState<LocalError | null>(null);
 
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -105,6 +120,9 @@ export function Composer({ conversationId }: ComposerProps) {
       }
       const trimmed = body.trim();
       if (!trimmed) return;
+      // Clear typing eagerly so the receiver shows the message bubble as
+      // the user expects — `stopTyping()` is idempotent if already idle.
+      stopTyping();
       const clientMsgId = generateClientMsgId();
       try {
         await sendTextM.mutateAsync({
@@ -131,6 +149,7 @@ export function Composer({ conversationId }: ComposerProps) {
       clearDraft,
       clearReply,
       t,
+      stopTyping,
     ],
   );
 
@@ -149,12 +168,35 @@ export function Composer({ conversationId }: ComposerProps) {
     }
   };
 
+  /**
+   * M4-1 keystroke fan-out: writes the new draft AND arms the typing
+   * debounce. Only fires `startTyping()` when the draft becomes
+   * non-empty — avoids the conv-switch startup flicker where Composer
+   * re-mounts with hydration content loaded.
+   */
+  const handleDraftChange = useCallback(
+    (next: string) => {
+      setDraft(next);
+      if (next.length > 0) startTyping();
+    },
+    [setDraft, startTyping],
+  );
+
+  /** M4-1 explicit stop on outer click / tab switch (mirrors 5 s idle). */
+  const handleBlur = useCallback(() => {
+    stopTyping();
+  }, [stopTyping]);
+
   const dispatchFile = useCallback(
     async (file: File) => {
       if (!selfUserId) {
         setError({ message: t('errors.unauthorized') });
         return;
       }
+      // Attachment send = user finished an action, so we stop typing
+      // (file content isn't tracked in the typing payload, but the
+      // state machine is symmetric with text send).
+      stopTyping();
       try {
         const kind = isImageMime(file.type) ? 'image' : 'file';
         const clientMsgId = generateClientMsgId();
@@ -181,7 +223,7 @@ export function Composer({ conversationId }: ComposerProps) {
         }
       }
     },
-    [selfUserId, sendAttachM, replyingTo, clearReply, t],
+    [selfUserId, sendAttachM, replyingTo, clearReply, t, stopTyping],
   );
 
   const onPickImage = (e: ChangeEvent<HTMLInputElement>) => {
@@ -355,9 +397,10 @@ export function Composer({ conversationId }: ComposerProps) {
         <textarea
           ref={taRef}
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => handleDraftChange(e.target.value)}
           onKeyDown={handleKeyDown}
           onPaste={onPaste}
+          onBlur={handleBlur}
           placeholder={placeholderFor(i18n.language, replyingTo)}
           disabled={isBusy}
           aria-label={t('composer.inputLabel')}

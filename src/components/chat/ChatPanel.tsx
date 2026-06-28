@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { Avatar } from '@/components/ui/Avatar';
 import { MessageList } from './MessageList';
 import { Composer } from './Composer';
+import { TypingIndicator } from './TypingIndicator';
+import { useTypingReceivers } from '@/hooks/useTypingReceivers';
 import { useMarkConversationRead } from '@/hooks/useMessages';
 
 interface ChatPanelProps {
@@ -38,6 +40,15 @@ export function ChatPanel({
     void markRead.mutate(conversationId);
   }, [conversationId, markRead]);
 
+  /**
+   * M4-1 typing receiver: subscribes to the shared
+   * `presence:<conversationId>` channel and pushes the filtered
+   * (self-excluded, online=true, typing=true) user-ids into Zustand.
+   * The header `<TypingIndicator>` reads from that store and resolves
+   * names against the cached sidebar query.
+   */
+  useTypingReceivers({ conversationId });
+
   return (
     <section
       className="flex h-full min-w-0 flex-col"
@@ -49,11 +60,14 @@ export function ChatPanel({
           src={avatarUrl ?? null}
           name={title ?? '?'}
         />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h2 className="truncate font-[600] text-[var(--font-size-body)] text-[var(--color-ink-default)]">
             {title ?? t('chat.emptyConversation')}
           </h2>
         </div>
+        {/* M4-1 / M4-2 — ambient 3-dot typing indicator. Returns null
+            when no one is typing, so the header is layout-stable. */}
+        <TypingIndicator conversationId={conversationId} />
       </header>
 
       <MessageList conversationId={conversationId} />
