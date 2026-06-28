@@ -158,8 +158,8 @@
 
 | 编号 | 限制状态 | 问题描述 | 临时现状 | Staging 上预期 |
 |---|---|---|---|---|
-| **FU-LOC-01** | ⚠️ 已知（**v0.5.0 milestone 静态 与 staging live 并行**） | 本机目前 `dockerDesktopLinuxEngine` 命名管道不通（tasklist 未见 Docker Desktop 进程） → `supabase start` 无法启动容器 → `supabase db reset` 不能走 → **M3-1 后 7 个 SQL 迁移本地仅走 static verification**（已过 code-reviewer round 1+2 + typecheck 0 errors + unit tests 1/1 + commit `c88c076`）。**v0.5.0 milestone is shipped on static verification only** — 不需要本地 live apply 才能打包。 | 本地 v0.5.0 ⇒ 静态 ✅；本地 live verification 需 (a) 手动启动 Docker Desktop 守护进程 + (b) 重起 shell 使 Deno 加入 PATH 。**Production cutover 受 FU-STG-01..04 闸门控制** — 不走本地 demo 跳过 live。 | 云 Supabase staging/prod 不依赖 Docker Desktop：CI via `supabase db push --include-all` + Cloud EF `supabase functions deploy` 走 live verification。详 FU-STG-01..04。 |
-| **FU-LOC-02** | ⚠️ 已知 | **PostgREST schema cache reload 有 TTL漂移** — 仅有 dp 该模已刷新 curl 走道了 /rest/v1/ 走道是另一个 cache命中 | 本地以 `docker exec ... NOTIFY pgrst, 'reload schema'` 手动刷；有时需 `docker restart supabase_rest_nook` | 云 Supabase CI/CD 走 `supabase db push` 会自动 routes flush cache |
+| **FU-LOC-01** | 🟢 **架构决策（Docker 已永久废弃 · S29.0 / KI-9）** | 本机 Docker Desktop 已**主动删除**（Project Lead 决策 · 原话「docker已删除，以后不需要做任何docker测试」）→ `supabase start` / `supabase db reset` / `supabase functions serve` / 本地 PostgreSQL 等**全部 live verification 路径永久不再适用**。M3-1 后 7 个 SQL 迁移 与此后任意 migration · 本机验证 仅 = static review (code-reviewer-minimax-m3 多轮 + typecheck 0 errors + unit tests 1/1 + convention commit + worktree clean)。**v0.5.0 milestone = static-only ship**；不需本地 live apply 方可包版。 | 本地 v0.5.0 / v0.5+ ⇒ 静态 ✅；live verification **仅 云 staging/prod 走**。Production cutover 受 FU-STG-01..04 闸门控制 — 本地 demo 跳过 live ＝**预期模式 = 唯一模式**。 | 云 Supabase staging/prod 不依赖本机 Docker：CI via `supabase db push --include-all` + Cloud EF `supabase functions deploy`。详 FU-STG-01..04。 |
+| **FU-LOC-02** | 🟢 **已废弃（S29.0 · Docker 永久删除使问题自动不存在）** | PostgREST schema cache reload TTL 漂移 · 原需 `docker exec ... NOTIFY pgrst, 'reload schema'` 手动刷 | **遗留不再适用**：本机不再运行 PostgreSQL container · 本机无 Docker · 修复手段 本身 依赖 docker 即不复存在。云 schema 用 `/rest/v1/` 走 ✅。 | 不再跟踪。云 Supabase `db push` path 自动 routes flush cache；本表项保留仅为「类类别·不脚脚」·今后 readme 不跡跡提及。 |
 | **FU-LOC-03** | ⚠️ 已知 | **Vite PWA workbox `runtimeCaching` 缓存 `/rest/v1/`**（`NetworkFirst` 策略）会缓存失败的 "schema cache" 错误响应 | 本地 UI 验证需重启 vite + 换 origin port + 验证 vite.config `handler: 'NetworkOnly'` | 云部署走 Production build，SW 中 NetworkFirst 下加 "修正驻留" 策略后会补偿 |
 | **FU-LOC-04** | ⚠️ 已知 | `.env` 项目根存**云服务凭据**（不属本地），Vitest 会自动加载 · 本地跑集成测试需用 `.env.local` 覆盖 | 集成测试现在走 `npx supabase status -o env` 动态拉，绕过 `.env` | 云凭据在 CI secret 中，不会被本地测试误用 |
 
@@ -169,7 +169,9 @@
 
 ## Staging Followup 验证清单（FU-STG）
 
-> **迁移到云 Supabase staging 环境后**，需逐项验证以下场景以替代本地限制：
+> **迁移到云 Supabase staging 环境后**，需逐项验证以下场景以替代本地限制。
+>
+> **S29.0 架构变更后**：本地不再走任何 DB/EF live path。本表 FU-STG-01..04 为 v0.5.0/1.0 cutover **唯一** verification 途径 · 本机不增 patch 。
 
 | 编号 | 验证项 | 本地状态 | Staging 上验收点 |
 |---|---|---|---|
@@ -212,6 +214,56 @@
 - 7 份 docs/* 项目记忆已迁至 `docs/03_Engineering/`
 
 ## S19.0 Note · 2026-06-27
+
+---
+
+## S29.0 · 2026-06-28 · 架构决策 · 本机 Docker 永久废弃
+
+- **决策文本（原話不动保留原話）**: "docker已删除，以后不需要做任何docker测试"
+
+- **决策本体**: Project Lead 在 2026-06-28 明确从本机除去 Docker Desktop。 **这是架构级别 的决策** · 不是一个遗留 bug。是将多个 FU-LOC（本地验证链）项之上的 final decision。删除后 · any 一切走 `docker` / `supabase start` / `supabase db reset` / `supabase functions serve` / 任何 local PostgreSQL 的路径 · 在本机 · 永久不再在 solution space 之内。
+
+- **连锁影响 · 验证模型**:
+  - 本机 Real State: 「supabase.live」 = 不存在。
+  - 本机验收门槛 = static only:
+    - code-reviewer-minimax-m3 多轮评审（2-3 轮 typical）
+    - `npx tsc --noEmit` · 0 errors
+    - `npx vitest run` · 仅 1+ unit placeholders pass（本机仅 unit · integration 不再走）
+    - git worktree clean + conventional commit message
+  - Live verification · **仅**走 云 Supabase staging/prod:
+    - SQL migration： `supabase db push --include-all --project-ref <cloud>`
+    - EF deploy：`supabase functions deploy <name> --project-ref <cloud>`
+    - CI on cloud 里验 invocation · **不重不反问 · 本机永远不 live verify**。
+
+- **KU-Family 变动**:
+  - **KU-LOC-01**：原「本机 Docker 不通」→ 转 「架构决策」 → 本机永久不可能 live → status 🟢 (从 ⚠️ 升级为 🟢 · 决策生效状态)
+  - **KU-LOC-02**：原「PostgREST schema cache reload TTL 漂移」 → **已废弃**（遗留修复靠 docker exec · 本机不再有 docker = 问题自动不成立）
+  - **KU-LOC-03 / KU-LOC-04**：**保留**（Vite SW + .env 云凭据与 docker 无关 · 本机仍走 static only 但 Vite dev server 仍跑）
+  - **FU-STG-01..04** 表头：从「云 staging CI 验收」 明示为「云 path only · 本机不验」
+
+- **连锁修改（本次与之后 commit）**：
+  - `KNOWN_ISSUES.md` · 新增 KI-9
+  - `TODO.md` · KU-LOC-01 + KU-LOC-02 + KU-STG 表头重写
+  - `AI_HANDOVER.md` · 「下一位 AI 接手须知」新增 · 阶段表新增 1 行
+  - `CHANGELOG.md` · `[Unreleased]` 新增 S29.0 section
+  - 本 `DEVELOPMENT_LOG.md` · S29.0 entry（本条）
+
+- **不变**:
+  - 云架构依旧（Supabase Cloud Free + CF Pages + R2 + Sentry + LogSnag）— 不变
+  - 22 项 ADR 不变
+  - FU-3 / FU-4 / KI-1..7 · 不变
+  - KI-8 远端仓库推送 仍待 Project Lead 创建 repo
+
+- **AI 接受决策后怎么做**:
+  - 任何 task / sub-task 提案 · 🛑 不推「本机跑 docker」 /「本机跑 supabase start」 / 「本地启 postgres」。资源入口都是 static only。
+  - 如果某机能临时需求「local DB」 · 反问 · 推到 staging · **不重不拟 ad-hoc local DB**。
+  - 期望 future AI 接手 Nook · 读 S29.0 后 · 不反复问 docker status。
+
+- **当前状态**: 🟢 决策生效（Project Lead 在本机主动删 Docker Desktop）。本次 commit 为 docs-only（BUFFY 不删任何代码 · 仅 Project Memory · 5 docs 文件同步决策）。
+
+- **下一步计划**: M3-4 Composer floating island（未启动） · M3-2/M3-3 已 ship 不动。
+
+- **验证结果**: docs-only commit · 不走 typecheck / 不走 tests。仅保证 5 doc 文件 内 MD 语法 readable · JSON 文件不因 i18n entry 添加坏 formatting。
 
 - 目录名 i18n 化,所有路径已为英文
 - Total Sessions: 19 (cumulative)

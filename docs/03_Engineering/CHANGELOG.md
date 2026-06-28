@@ -408,6 +408,28 @@
 
 ## Unreleased
 
+### [docs-only · S29.0] · 2026-06-28 · 本机 Docker 永久废弃 · 架构决策
+
+**决策原话（保留）**: "docker已删除，以后不需要做任何docker测试"
+
+#### Changed（验证模型调整）
+- **本机验收模式从「本地 static + 本地 docker live」彻底转为「本地仅 static」**：
+  - 删除 `supabase start` / `supabase stop` / `supabase db reset` / `supabase functions serve` / 任何 `docker ...` 在本机的运行依赖。
+  - 所有 v0.5.0+ milestone 的本机验收仅 static review：code-reviewer-minimax-m3 多轮 + `npx tsc --noEmit` 0 errors + `npx vitest run` unit pass + git worktree clean。
+  - Cloud Supabase `supabase db push --include-all` + `supabase functions deploy` 为 Project Lead 操作 · 不依赖本机 Docker。
+
+#### Deprecated
+- **TODO FU-LOC-02** (PostgREST schema cache reload TTL) — 原需 docker exec 修复手段遗留不再适用。表中标记 🟢 已废弃。
+
+#### Known Issues (新增)
+- **KNOWN_ISSUES § KI-9 · Docker 已永久删除 · 架构决策 (🟢 Low · S29.0)** — 原话保留。
+
+#### Reference
+- TODO.md · KU-LOC-01 + KU-LOC-02 + FU-STG 表头重写（architectural decision applied）
+- KNOWN_ISSUES.md · KI-9 新条目
+- AI_HANDOVER.md · 阶段表 + 接手须知 增补
+- DEVELOPMENT_LOG.md · S29.0 entry 原话保留
+
 ### [M3.1.0] · 2026-06-28 · DB Schema Migration 完整部署（mid-M3 task · 不 bump version）
 
 #### Added
@@ -486,7 +508,7 @@
 - InviteLanding.tsx: 移除死代码 try/catch
 - M2-3 EF test #8 (Email already registered → 409) 之前崩为 500 → 现正确 409
 - M2-3/4 集成测试对 Supabase CLI 新 key 格式兼容性（S23.0）：新增 `IS_CI` 哨兵 + 动态 `supabase status -o env` 拉取 key + `supabaseHeaders()` 同时发 `apikey + Authorization: Bearer`
-- 集成测试 HTTP 401 静默错误（S23 root cause）：vitest 自动加载 `.env` 透传 cloud service role，未与 local GoTrue signing secret 关联 → 现本地模式完全忽略 `process.env` 走 `supabase status -o env`
+- 集成测试 HTTP 401 静默错误（S23 root cause）：vitest 自动加载 `.env` 透传 cloud service role，未与本地 GoTrue signing secret 关联 → 现本地模式完全忽略 `process.env` 走 `supabase status -o env`
 - `supabase/migrations/20260628000001_init_core_tables.sql` — 6 业务表 (profiles / conversations / conversation_members / invites / messages / app_events) + 索引 + RLS + GRANT 已就绪
 
 ### Security

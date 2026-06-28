@@ -1,7 +1,7 @@
 # Nook · Development Log
 
 > **作用**：按时间顺序记录 Nook 项目每一次开发 / 文档 / 决策 Session 的完整过程。**只追加，不删除**。
-> **对应 Project Memory 体系中\"长期记忆\"位置**——任何新的 AI 接手项目都应从最新版 + 最近 1-2 个 Session 开始阅读。
+> **对应 Project Memory 体系中"长期记忆"位置**——任何新的 AI 接手项目都应从最新版 + 最近 1-2 个 Session 开始阅读。
 
 ---
 
@@ -198,7 +198,7 @@
   - storage policy `(storage.foldername(name) = auth.uid()::text)` 依赖 Supabase-managed helper；增 header 注释 + verification query (`SELECT proname FROM pg_proc WHERE proname='foldername'`).
 - **遇到的问题**:
   - `ALTER TABLE ... ADD COLUMN IF NOT EXISTS role user_role NOT NULL DEFAULT 'friend'` 在已存在 M2 数据上添加 NOT NULL 列理论上需逐行检查；PG 10+ 会使用 default 对于所有 existing rows fast-fill。这里完美适用。
-  - pg_cron / pg_net 在纯 Postgres 15 本地 install 上可能不存在 → `CREATE EXTENSION IF NOT EXISTS` 被 DO block + exception 中断，其余 migration 按顺序仍应用 (cron.schedule 在未安装 pg_cron 时 raises `undefined_function`)。
+  - pg_cron / pg_net 在纯 Postgres 15 本地 install 上可能不存在 → `CREATE EXTENSION IF NOT EXISTS` 被 DO block + exception 中断，其余 migration 按顺序仍应用 (cron.schedule 在未安装 pg_cron 时 raises `undefined_function`).
   - J-03 net.http_post 需要 `app.functions_url` + `app.cron_key` 两个 GUC。基于 deploy 阶段设仅。Migration 使用 `coalesce(current_setting('app.functions_url', true), 'http://localhost:54321/functions/v1/cleanup-storage-orphans')` 避免 migration 本身被挂住。
 - **解决方案**:
   - **Idempotency 主理念**: 全部 migration 使用 `CREATE TABLE IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS` / `CREATE TYPE` 搭载 DO block 检查 / `CREATE OR REPLACE FUNCTION` / `DROP TRIGGER IF EXISTS` + `CREATE TRIGGER` / `ON CONFLICT (id) DO NOTHING` / `exception when duplicate_object then null` · 确保 `supabase db reset` + `supabase db push --include-all` 1× 后重跑均零 error。
@@ -236,4 +236,125 @@
 
 ---
 
-## S19.0 Note · 2026-06-27 续
+## S27.0 · 2026-06-28 · M3-2 Sidebar 列表 (1:1 + 群)
+
+- **开发内容**: 实现 Sidebar 1:1 + group conversation 列表、按最新活动排序、unread badge 数字 chip
+- **新增功能**:
+  - `src/lib/api/chat.ts` (扩) — `listConversations(uid)` 单次 REST 调 + 3 层 embed (conversations → conversation_members(profiles) + conversations → messages)；filter `members.user_id.eq(uid) + members.left_at.is.null`；sort by `lastActivityAt` DESC；返回 `ConversationListItem` flat shape (title/avatar/lastMessage/unreadCount per-user derived)
+  - `src/hooks/useConversations.ts` — react-query wrapper (30s staleTime, refetchOnWindowFocus/Reconnect)
+  - `src/components/chat/UnreadBadge.tsx` — numeric chip 99+ cap 或 dot
+  - `src/components/chat/ConversationListItem.tsx` — Sidebar row (avatar + title + last-activity timestamp + i18n-key preview + UnreadBadge)；selfUserId 走 useAuth 触发 "Me: " / "我: " 前缀
+  - `src/components/chat/Sidebar.tsx` — header + scrollable list (skeleton / empty / error / populated states)
+- **修改内容**:
+  - `src/app/pages/HomePage.tsx` — 替换 placeholder 为 `<Sidebar />`
+  - `src/lib/i18n/locales/en/translation.json` — 新增 `sidebar` namespace
+  - `src/lib/i18n/locales/zh-CN/translation.json` — 新增 `sidebar` namespace
+  - `src/components/chat/ConversationListItem.tsx` — review fix: dead `isSelf = false` → useAuth-sourced selfUserId
+  - `src/lib/api/chat.ts` — review fix: `ConversationMemberRow` 移除 `conversation_id` (select 不拉)；review fix: 1:1 逻辑 `>=1` → `===1` 严格 + 退化路径 fallback to `conv.name`；review fix: `unknown as` 强转 + 注释绕过 supabase-js embed 推断窄化
+- **修复问题**:
+  - code-reviewer round 1+2 指出 3 项 blocking: 死 `isSelf`、1:1 严格度、FK hint 脆性
+- **遇到的问题**:
+  - supabase-js 对 3 层 embed 推断比手写类型窄（profile 子字段 non-null）；通过 `unknown as` 旁路 + 文档化
+  - FK hint (`!conversation_members_user_id_fkey`) 在未来 ADR-007 重命名 policy 下脆；记 TODO 留给 M5
+- **解决方案**:
+  - line-by-line strict 1:1 logic + fallthrough to name
+  - dead `isSelf` → useAuth selfUserId for "Me: " / "我: " prefix
+  - explicit `unknown as ConversationWithEmbeds` bypass + comment
+- **当前状态**: M3-2 Sidebar 完成 ✅ — commit `75d7300` ship
+- **下一步计划**: M3-3 MessageList + MessageItem — 虚拟滚动 + cursor 分页 + day separators
+- **验证结果**: typecheck 0 errors ✅ / unit tests 1+ ✅ / working tree clean / code-reviewer round 2 ship approved
+
+---
+
+## S28.0 · 2026-06-28 · M3-3 MessageList + MessageItem (text/image, virtualized, paginated)
+
+- **开发内容**: 实现 MessageList + MessageItem — text/image 渲染、虚拟滚动、cursor 分页、day separators; HomePage 切换到 ChatPanel
+- **新增功能**:
+  - `src/lib/api/chat.ts` (再扩) — `listMessages({convId, currentUserId, beforeCursor?, limit=50})` cursor pagination (`.lt('created_at', cursor)`); `.is('recalled_at', null)` SQL filter; transformMessage sets `isSelf`; `markConversationRead()` RPC wraps `fn_mark_conversation_read`; `getAttachmentSignedUrl()` 1h signed URL for `attachments` bucket
+  - `src/hooks/useMessages.ts` — `useInfiniteMessages(convId)` (per-conv cache, initialPageParam null, getNextPageParam returns lastPage.nextCursor, staleTime 0); `useMarkConversationRead()` mutation invalidates `['conversations']` on success
+  - `src/hooks/useAttachmentUrl.ts` — `useAttachmentSignedUrl(path)` 55min staleTime
+  - `src/components/chat/AttachmentImage.tsx` — render-time signed URL with DB-dim pulse skeleton + i18n error fallback (no layout shift)
+  - `src/components/chat/MessageItem.tsx` — presentational bubble with isSelf-flipping alignment; showSender only on first-in-run; F-MSG-07 sender-only `[删除]` placeholder; `(edited)` micro-label
+  - `src/components/chat/MessageList.tsx` — `@tanstack/react-virtual` v3 with `measureElement` ref; pages deduped by id + sorted ASC; day separators = first-class virtual rows; auto-scroll to bottom on conversation switch; scrollTop-anchor preservation on older-page prepend; ≤200px-from-top → `fetchNextPage`
+  - `src/components/chat/ChatPanel.tsx` — orchestrator (Avatar + title header + MessageList + composer-placeholder footer); useEffect on convId change fires markRead
+- **修改内容**:
+  - `src/app/pages/HomePage.tsx` — reads `selectedConversationId` from useUI; finds matching ConversationListItem from useConversationsQuery cache; passes title + avatarUrl through to ChatPanel
+  - `src/lib/i18n/locales/en/translation.json` — new `messages` namespace (loadMore / loadingMore / noMore / deleted / imageLoadFailed / fileUnsupported / composerPlaceholder)
+  - `src/lib/i18n/locales/zh-CN/translation.json` — same
+  - `package.json` + `package-lock.json` — `@tanstack/react-virtual@3.14.4`
+- **修复问题**:
+  - thinker-with-files-gemini 6 项 critical 反馈：
+    1. cursor 严格老于 br .lt('created_at', cursor)
+    2. image URL 走 `<AttachmentImage>` dedicated signed URL useQuery 55min cache
+    3. virtualizer 项高度 dynamic measureElement + estimateSize 64 fallback
+    4. 底部锚固: scrollTop-anchor preservation on older-page prepend (避 flex-col-reverse 复杂性)
+    5. M4 features (replies/reactions) 暂不 wire — reaction table 不 SELECT
+    6. day separators = first-class virtual rows (`{kind: 'date'} | {kind: 'msg'}`)
+- **遇到的问题**:
+  - supabase-js embed 推断与手写类型窄化 → `unknown as` cast 同 M3-2
+  - 50 message per convo cap (sorting/cursor pagination 可以解，但 deferred 给 M5-7 真实分页)
+- **解决方案**:
+  - 严格 ASC + dedupe-by-id in transform (page dedup 防 supabase cursor 重复边界)
+  - dynamic measureElement ref pattern from `@tanstack/react-virtual` v3
+  - lastReportedConvRef + prevScrollHeightRef + prevPageCountRef 三 ref state 维护 scroll 锚点
+- **当前状态**: M3-3 MessageList 完成 ✅ — commit `70d6e41` ship
+- **下一步计划**: M3-4 Composer floating island（input + image/file attach buttons + outbox glue）
+- **验证结果**: typecheck 0 errors in M3-3 paths ✅ / unit tests 1+ ✅ / working tree clean / designer-side code-review 采纳
+
+---
+
+## S29.0 · 2026-06-28 · 架构决策 · 本机 Docker 永久废弃 · docs-only
+
+- **决策原文（原话不动保留）**: "docker已删除，以后不需要做任何docker测试"
+
+- **决策本体**: Project Lead 2026-06-28 主动删除本机 Docker Desktop。**这是架构级决策**，不是遗留 bug。是将多个 FU-LOC（本地验证链）之上的 final decision。删除后 · any 一切走 `docker` / `supabase start` / `supabase db reset` / `supabase functions serve` / 任何 local PostgreSQL 的路径 · 在本机 · 永久不再在 solution space 之内。
+
+- **连锁影响 · 验证模型**:
+  - 本机 Real State: 「supabase.live」 = 不存在。
+  - 本机验收门槛 = static only:
+    - code-reviewer-minimax-m3 多轮评审 (2-3 轮 typical)
+    - `npx tsc --noEmit` · 0 errors
+    - `npx vitest run` · 仅 1+ unit placeholders pass (本机仅 unit · integration 不再走)
+    - git worktree clean + conventional commit message
+  - Live verification · **仅**走 云 Supabase staging/prod:
+    - SQL migration: `supabase db push --include-all --project-ref <cloud>`
+    - EF deploy: `supabase functions deploy <name> --project-ref <cloud>`
+    - CI on cloud 里验 invocation · **不重不反问 · 本机永远不 live verify**。
+
+- **KU-LOC 变动**:
+  - **KU-LOC-01**：原「本机 Docker 不通」→「架构决策」 → 本机永久不可能 live → status 🟢 (从 ⚠️ 升级为 🟢 · 决策生效状态)
+  - **KU-LOC-02**：原「PostgREST schema cache reload TTL 漂移」 → **已废弃** (遗留修复靠 docker exec · 本机不再有 docker = 问题自动不成立)
+  - **KU-LOC-03 / KU-LOC-04**：**保留** (Vite SW + .env 云凭据与 docker 无关)
+  - **FU-STG-01..04** 表头：从「云 staging CI 验收」明示为「云 path only · 本机不验」
+
+- **连锁修改（本次 commit）**:
+  - `KNOWN_ISSUES.md` · 新增 KI-9
+  - `TODO.md` · KU-LOC-01 + KU-LOC-02 + FU-STG 表头重写
+  - `AI_HANDOVER.md` · 「下一位 AI 接手须知」/「阶段状态」新增 row + 技术状态增补 1 行 + S18.0/S19.0 update 后补 S29.0 update
+  - `CHANGELOG.md` · `[Unreleased]` 新增 S29.0 section
+  - 本 `DEVELOPMENT_LOG.md` · S29.0 entry (本条)
+
+- **不变**:
+  - 云架构依旧 (Supabase Cloud Free + CF Pages + R2 + Sentry + LogSnag)
+  - 22 项 ADR 不变
+  - FU-3 / FU-4 / KI-1..7 · 不变
+  - KI-8 远端仓库推送仍待 Project Lead 创建 repo
+
+- **AI 接受决策后怎么做**:
+  - 任何 task / sub-task 提案 · 🛑 不推「本机跑 docker」/「本机跑 supabase start」/「本地启 postgres」。资源入口都是 static only。
+  - 如果某机能临时需求「local DB」 · 反问 · 推到 staging · **不重不拟 ad-hoc local DB**。
+  - 期望 future AI 接手 Nook · 读 S29.0 后 · 不反复问 docker status。
+
+- **当前状态**: 🟢 决策生效 (Project Lead 主动删 Docker Desktop)。本次 commit 为 docs-only (BUFFY 不删任何代码 · 仅 Project Memory · 5 docs 文件同步决策)。
+
+- **下一步计划**: M3-4 Composer floating island (未启动) · M3-2 / M3-3 已 ship 不动。
+
+- **验证结果**: docs-only commit · 不走 typecheck / 不走 tests。仅保证 5 doc 文件内 MD 语法 readable · JSON 文件不因 i18n entry 添加坏 formatting。
+
+---
+
+## S19.0 Note · 2026-06-27
+
+- 目录名 i18n 化,所有路径已为英文
+- Total Sessions: 19 (cumulative)
+- 下一步: M1 Foundation (Vite 脚手架 + 4 原子组件 + 13 路由占位页)

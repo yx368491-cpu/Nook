@@ -156,6 +156,24 @@
 
 ---
 
+## KI-9 · Docker 已永久删除 · 架构决策 (🟢 Low · S29.0)
+
+**字段** | **内容**
+---|---
+**决策描述** | 2026-06-28 · Project Lead 决定：删除本机 Docker Desktop · **今后不再做任何 docker 测试**。记录原话："docker已删除，以后不需要做任何docker测试"。
+**影响范围** | 本地验证链全景：①所有 local Supabase Docker Compose 容器路径 (Postgres + PostgREST + GoTrue + Realtime + Storage + Studio + Edge Functions)；②本地集成测试 (vitest integration suite 需要 live `supabase start`)；③本地 EF serve (`supabase functions serve`)；④本地 PostgREST schema cache reload (FU-LOC-02 的修复手段)。
+**严重程度** | 🟢 Low · **架构决策** · 不是遗留问题。本机不再预计本地 live verification。
+**临时方案** | **所有 v0.5.0+ 里程碑仅 static-only ship** : 本机验证 = code-reviewer-minimax-m3 多轮评审 + `npx tsc --noEmit` 0 errors + `npx vitest run` unit tests pass + git conventional commit + worktree clean。**live verification 仅在上线前云 staging/prod 走**：`supabase db push --include-all --project-ref <cloud>` + `supabase functions deploy <name> --project-ref <cloud>`。
+**是否已计划修复** | 🚫 **永不修复** — 设计决策。Docker 从本机离开后 · 任何 task 都需从「本机验证链」中零思考剔除。如需本地 ephemeral DB · v2.0+ 决策。
+**修复方负责** | 架构决策已记；后续确保所有本地脚本 / AI prompt 不再依赖 `supabase start` · `docker` 命令
+**状态** | 🟢 **决策已生效**
+**连锁 · TODO.md** | FU-LOC-01 升级为架构决策 🟢（从 ⚠️）；FU-LOC-02 标记 🟢 已废弃。
+**连锁 · AI_HANDOVER** | 「下一位 AI 接手须知」 · 「阶段状态」 表 增补 1 行。
+**连锁 · CHANGELOG** | `[Unreleased]` 新增 S29.0 annotation section。
+**连锁 · DEVELOPMENT_LOG** | S29.0 entry 原话保留。
+
+---
+
 ## 历史已修复（保留 row · 不删除）
 
 | ID | 描述 | 修复 Session | 修复方式 |
