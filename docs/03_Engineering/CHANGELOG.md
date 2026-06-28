@@ -471,6 +471,44 @@
 
 未在本 Session 走通的能力需后继 M3-2..M7 走 Round-Trip Coding 补充。记录于此避免 future Reader 认为 M3-1 = chat MVP可发。
 
+### [M4-7 + M4-7.1 polish] · 2026-06-28 · 6 emoji reactions + UX 打磨
+
+#### Added（M4-7 · commit `0111398` — F-MSG-09 / AC.07 / CAP-15）
+- `supabase/migrations/20260628000015_fn_reactions.sql` — `fn_add_reaction(...)` + `fn_remove_reaction(...)`（SECURITY INVOKER · 5-layer guard: not_authenticated / not_found / bad_kind_* / not_member / db_error）· ON CONFLICT DO NOTHING idempotent toggle · 输出精简 JSONB（`message_id, user_id, emoji` · `rows_affected` for delete）· 跨 conv 拒绝由 server 拍板
+- `src/lib/api/chat.ts` — `MessageReactionError` 5-code 类 + `REACTION_EMOJIS` 6 whitelist export + `bucketReactions` 客户端聚合（sorted `count DESC, emoji ASC`）+ `listMessages` LEFT JOIN `reactions(emoji, user_id)` + `mapReactionErrorCode` (M-3/4/5/6/7 五联 mapper 对称设计) + `applyReactionAdd / applyReactionRemove` cache-patch helpers
+- `src/hooks/useAddReaction.ts` + `useRemoveReaction.ts` — TanStack Query `useMutation` optimistic cache patch (onMutate → 快照 + 应用 bucket → onError 回滚 → onSettled invalidate `['messages', selfUserId, convId]` for canonical refetch)；hook 接受 conversationId 闭包作 query key 中段
+- `src/hooks/useAddReaction.test.tsx` + `useRemoveReaction.test.tsx` — 16 unit tests (RPC dispatch + optimistic patch correctness + 5-error code mapping + client-side emoji guard)
+- `tests/unit/applyReactionCache.test.ts` — 12 pure-helper 测试 (bucket add/remove/create/sort-stable/order-canonical)
+- UI 组件:
+  - `src/components/chat/Reactions.tsx` — chip 行渲染（accent-soft-bg when hasMine + 排序 badge · 点击 toggle）
+  - `src/components/chat/EmojiPicker.tsx` — popover 含 6 emoji · hover 200ms delay + click toggle + click-outside + Escape 关闭 + aria-haspopup/expanded/label
+- MessageItem wireup — 5 个 quasi-并行 trigger (M4-3 edit + M4-4 recall + M4-5 delete + M4-6 reply + **M4-7 emoji-react picker**) + Reactions 气泡下 chip 行
+- i18n — `chat.reaction.{triggerLabel, pickerTitle, pickerOption}` + `chat.reactionError.{notAuthenticated, notFound, badKind, notMember, dbError, unknown}` × 中英双语
+- `docs/03_Engineering/TODO.md` M4-7 row promote 待启动 → 已完成
+
+#### Fixed（M4-7 followups · commits `075b4b1` + `540165a`）
+- `075b4b1` — `src/hooks/useConversationRealtime.ts` **self-actor gate** in `onReactionEvent`：skips RT INSERT/DELETE events where `payload.new.user_id === selfUserId`（避免 optimistic patch 之后再被 RT 回环 double-count，避免 jitter）
+- `540165a` — `supabase/migrations/20260628000016_reactions_replica_identity_full.sql`：① `ALTER TABLE public.reactions REPLICA IDENTITY FULL`（让 RT DELETE payload 的 `old` 包含完整 row，包含 user_id，使 self-actor gate 在 self-remove 路径生效）② idempotent `ALTER PUBLICATION supabase_realtime ADD TABLE public.reactions`（DO block + `pg_publication` existence guard + NOTICE fallback for self-hosted vanilla Postgres without realtime pub）。**Critical fix** — 缺这一条 M4-7 RT layer 整体 dead（pg_publication 未加入 reactions，事件根本不投递）
+
+#### Changed（M4-7.1 polish · commit `7e3ec3f`，本机 static only）
+- `src/components/chat/EmojiPicker.tsx` — **viewport-flip**：popover 默认 above-the-trigger (`bottom-[calc(100%+var(--space-2xs))]`) 会随母消息高 position clip viewport topedge。`flipBelow` state + `FLIP_MARGIN_PX = 8` constant + `measureClip` callback (reads `popoverRef.getBoundingClientRect()`) + `useLayoutEffect` (reset on close / remeasure on open, 同步 flush pre-paint → 没有 flash) + `useEffect` 监听 `resize` + capture-phase `scroll`（确保 nested message list scroller 滚动也触发 reflip）。Conditional class: `flipBelow ? 'top-[...]' : 'bottom-[...]'`. Exposes `data-flip="above"|"below"` 供 test/调试 introspection。
+- `src/lib/api/chat.ts` `mapReactionErrorCode` regex 进一步 forward-proof：原 M4-7 末态 `/bad_(kind|emoji)/i` 任何 `bad_kind...` / `bad_emoji...` 子串都会误命中 BAD_KIND（包括未来 PG 若加 `bad_kinder` / `bad_kindergarten` / `bad_emojiish`）。M4-7.1 改为 `/bad_(?:kind|emoji)(?![a-z])/i` —— **negative-letter lookahead**。\b word-boundary 在此场景**不可用**：因为 `_` 是 regex word character，\b 在 `bad_kind_system` 中 `d` 和 `_` 之间**不**是 word boundary（用了反而破坏 happy path）。`(?![a-z])` 要求匹配 token 之后是 non-letter字符（_ / 标点 / 字符串末尾都通过；任何 ASCII letter 拒绝）。
+- 测试:
+  - `tests/unit/emojiPickerFlip.test.tsx` (NEW · 4 tests): 默认 above 位置 · clipped flip below · close 时 flipBelow reset（避免下二次 open 带 stale state）· FLIP_MARGIN_PX=8 boundary pin (top==7 flip / top==8 stay above)
+  - `src/hooks/useAddReaction.test.tsx` (+1 test): `bad_kinder` → DB_ERROR forward-proof pin
+  - `src/hooks/useRemoveReaction.test.tsx` (+1 test): 平行 forward-proof pin
+
+#### Verification（M4-7 + M4-7.1）
+- 单元测试：76 → 82 ✓ (+6: 4 flip + 2 forward-proof)
+- 集成测试：20/20 ✓ (unaffected by polish)
+- typecheck：13 pre-existing errors in src/ (M3-5 Composer fixme · M4-3/4/5 MessageItem button types · M3-3/4/5 conversationChannel typing)，0 new ✓
+- 评审：code-reviewer-minimax-m3 多轮 LGTM (after 1 regex regression iteration corrected via (?![a-z]))
+- 本机 static only（per S29.0 architectural decision · 不在 live verification path）
+
+#### Known Limitations（deferred M4-7.1+）
+- flip **没有** symmetric bottom-edge guard：tall bubble + short viewport 场景可能翻 flipBelow 后本身晻底 · 透显 给 future polish task（成本：加一行 `rect.bottom > window.innerHeight - FLIP_MARGIN_PX` 解轻）
+- `mapReplyErrorCode` 仍用 **口味较宽** 旧版（`/bad[_\\s-]?(kind|emoji)/i`）· 未来 likely 走同样的 `(?![a-z])` 看齐 函数 · 不阻塞 M4-7 闭盘
+
 ---
 
 ## [0.5.0] · 2026-06-28 · M2 Auth Flow Complete (M2-3 EF + M2-4 UI + S23/S24 修复)
