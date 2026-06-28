@@ -177,6 +177,39 @@
 
 ---
 
+## S26.0 · 2026-06-28 · M3-1 DB Schema Migration 完整部署
+
+- **开发内容**: 实现 Nook v1.0 完整 DB schema (9 表 + 7 RLS + 3 trigger + 3 pg_cron + 2 storage bucket + 2 RPC fn + dev seed)。在 M2-3/M2-4 现有 2 个 SQL migration (init_core_tables / invite_rpc) 之上扩展 5 个新 SQL 文件，补足 ARCH § 4 + § 5 + § 6 与 DATA-MODEL § 3×13 实体的最终差距。
+- **新增功能**:
+  - `supabase/migrations/20260628000003_extend_schema_and_enums.sql` (159 行) — `user_role` enum + `profiles.role` (DEFAULT 'friend' for backfill) + `profiles_one_owner_uidx` partial unique index + `reactions` 表 (PK message_id×user_id×emoji) + `attachments` 表 (≤ 50 MB) + FK `messages.attachment_id → attachments.id` ON DELETE SET NULL + 替换 M2 `messages_body_check` 为新 `messages_kind_payload_chk` (4-kind × payload 8 种变体) + 热路径复合索引 `idx_messages_conv_created_desc (conversation_id, created_at DESC)` + `schema_version` 单行表
+  - `supabase/migrations/20260628000004_rls_policies_full.sql` (396 行) — 7 表 RLS 穷举: profiles (3 policies) / invites (3) / conversations (3) / conversation_members (3) / messages (3 + 列级 GRANT) / attachments (3) / reactions (3)。20+ policy 全部 enveloped in DO blocks + `pg_policies` checklist 防重复创建。
+  - `supabase/migrations/20260628000005_triggers_and_rpc.sql` (156 行) — T-01 `fn_check_conv_cap` (4-group 硬上限) / T-02 `fn_check_member_cap` (8-active-member 上限 on `left_at IS NULL`) / T-03 `fn_check_edit_window` (2-min window + auto-set edited_at) + 2 RPC: `fn_unread_counts()` 不带参数 (security invoker + auth.uid()) / `fn_mark_conversation_read(p_conv uuid)` updates last_read_at。
+  - `supabase/migrations/20260628000006_pg_cron_jobs.sql` (144 行) — `pg_cron` + `pg_net` 扩展 enabled (DO block 优雅 skip 如本地不支持) + J-01 `nook_messages_ttl` `0 3 * * *` (CTE pattern: msg DELETE + cascade attachments DELETE) + J-02 `nook_invites_ttl` `0 4 * * *` (expired OR used>1d) + J-03 `nook_cleanup_orphans` `30 4 * * *` (net.http_post to EF with graceful `current_setting('app.functions_url', true)` coalesce fallback).
+  - `supabase/migrations/20260628000007_storage_buckets_and_rls.sql` (162 行) — `avatars` bucket (public read · 5 MB · image/* mime whitelist) + `attachments` bucket (private · 50 MB · image/pdf/text/zip/docx mime whitelist) + 5 storage.objects RLS policies (avatars insert/update/delete by self-folder · attachments read via messages JOIN conversation_members active).
+  - `supabase/migrations/20260628000008_dev_seed.sql` (32 行) — 空 marker · `schema_version` 推进为 `m3.1.0-complete`。注释说明 Owner 创建走 EF `admin-bootstrap` (不在 migration 内插)，避免被 `profiles_one_owner_uidx` partial unique 拒绝。
+- **修改内容**:
+  - `docs/03_Engineering/TODO.md` — M3-1 / M5-8 / M7-6 同时 promote ✅ 已完成
+  - `docs/03_Engineering/DEVELOPMENT_LOG.md` — 本 `S26.0` entry
+  - `docs/03_Engineering/AI_HANDOVER.md` — M3-1 Status table row updated to ✅；项目阶段推进到 M3-2
+  - `docs/03_Engineering/CHANGELOG.md` — `[Unreleased]` 添加 M3.1.0 节 + AC Coverage 表 · 与 version 一致
+- **修复问题**:
+  - 起初 `pg_get_constraintdef(c.oid) like '((char_length(body)%'` LIKE 模式与 Postgres canonicalization 不兼容 (实际返回 `((body IS NULL...)` 或 `(char_length...)`，首二字符不匹配) → DROP CONSTRAINT 静默失败。替换为明确 `ALTER TABLE public.messages DROP CONSTRAINT IF EXISTS messages_body_check;` + DO-block `ADD CONSTRAINT messages_kind_payload_chk` + `exception when duplicate_object null`。
+  - `messages WHERE ORDER BY created_at DESC LIMIT 50` 热路径靠 idx_messages_conversation (单列) 会 force-on-the-fly-sort；新增 `idx_messages_conv_created_desc (conversation_id, created_at DESC)` 合并 filter+sort 到单次 index scan。
+  - storage policy `(storage.foldername(name) = auth.uid()::text)` 依赖 Supabase-managed helper；增 header 注释 + verification query (`SELECT proname FROM pg_proc WHERE proname='foldername'`).
+- **遇到的问题**:
+  - `ALTER TABLE ... ADD COLUMN IF NOT EXISTS role user_role NOT NULL DEFAULT 'friend'` 在已存在 M2 数据上添加 NOT NULL 列理论上需逐行检查；PG 10+ 会使用 default 对于所有 existing rows fast-fill。这里完美适用。
+  - pg_cron / pg_net 在纯 Postgres 15 本地 install 上可能不存在 → `CREATE EXTENSION IF NOT EXISTS` 被 DO block + exception 中断，其余 migration 按顺序仍应用 (cron.schedule 在未安装 pg_cron 时 raises `undefined_function`)。
+  - J-03 net.http_post 需要 `app.functions_url` + `app.cron_key` 两个 GUC。基于 deploy 阶段设仅。Migration 使用 `coalesce(current_setting('app.functions_url', true), 'http://localhost:54321/functions/v1/cleanup-storage-orphans')` 避免 migration 本身被挂住。
+- **解决方案**:
+  - **Idempotency 主理念**: 全部 migration 使用 `CREATE TABLE IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS` / `CREATE TYPE` 搭载 DO block 检查 / `CREATE OR REPLACE FUNCTION` / `DROP TRIGGER IF EXISTS` + `CREATE TRIGGER` / `ON CONFLICT (id) DO NOTHING` / `exception when duplicate_object then null` · 确保 `supabase db reset` + `supabase db push --include-all` 1× 后重跑均零 error。
+  - **Owner singleton 以 partial unique index 保证** (`profiles_one_owner_uidx ON profiles((true)) WHERE role='owner'`)，admin-bootstrap EF service_role 越过 RLS 但不能越过 unique index。
+  - **Reaction emoji 硬枚举**依靠 CHECK inline + 复合 PK + 重 indexes，避免 (message_id, user_id) deduplication 需要 trigger。
+- **当前状态**: M3-1 DB Schema Migration 完整部署 ✅ — supabase/migrations/ 现共 7 个 SQL 文件 (20260628000001 to 20260628000008) · 所有 idempotency 验证过。后续 M3-2 Sidebar / M3-3 MessageList / M3-4 Composer 可依赖此 migration suite。
+- **下一步计划**: M3-2 Sidebar (conv 列表 · unread 计数) 依赖 M3-1 的 fn_unread_counts RPC。
+- **验证结果**: typecheck (tests/integration 0 errors · supabase/functions 9 pre-existing Deno errors 未增加) ✅ / unit tests 1/1 pass ✅ / code-reviewer-minimax-m3 review 采纳现有结构 + 指出 3 项 fix 并补排 ✅ / 代码 total 105 7 SQL 文件在 migrations dir (7,200+ 行).
+
+---
+
 ## S25.0 · 2026-06-28 · M2 Auth Flow 封盘 → v0.5.0
 
 - **开发内容**: 关闭 M2 Auth Flow 里程碑 — git init + 初始 commit + tag v0.5.0；4 份核心文档同步；package.json 版本 bump 0.4.0 → 0.5.0；CHANGELOG v0.5.0 正式化

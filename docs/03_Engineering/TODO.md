@@ -60,7 +60,7 @@
 
 | # | 任务 | 关联 F-ID | 状态 |
 |---|---|---|---|
-| M3-1 | DB migration 6 个 SQL（init/rls/triggers/pg_cron/storage/seed） | § 4 ARCH-DESIGN | ⏳ 待开发 |
+| M3-1 | DB migration 6 个 SQL（init/rls/triggers/pg_cron/storage/seed） | § 4 ARCH-DESIGN | ✅ 已完成 — 5 NEW migration 文件 (0003..0008) 扩展 M2 init (0001/0002) · 9 表 + 7 表 RLS (20 policies) + 3 trigger (T-01/T-02/T-03) + 3 pg_cron job (J-01/J-02/J-03) + 2 storage bucket + 2 RPC fn (fn_unread_counts/fn_mark_conversation_read) + 1 dev seed marker · S26.0 Session |
 | M3-2 | Sidebar 列出 1:1 + 群（按 MAX(messages.created_at) DESC） | F-CONV-01 | ⏳ 待开发 |
 | M3-3 | MessageList + MessageItem 渲染（text / image / file） | F-CONV-03 / F-MSG-01/02/03 | ⏳ 待开发 |
 | M3-4 | Composer floating island（DESIGN § 7 视觉） | F-MSG-01 | ⏳ 待开发 |
@@ -100,7 +100,7 @@
 | M5-5 | EXIF strip（不依赖库；读元数据但不写回） | F-MSG-02 · NF-SEC-N05 | ⏳ 待开发 |
 | M5-6 | 头像上传 + 直传 Supabase Storage + profiles.avatar_url | F-AUTH-09 / AC.13 | ⏳ 待开发 |
 | M5-7 | 直传 50MB 文件（Supabase Storage signed URL） | F-MSG-03 | ⏳ 待开发 |
-| M5-8 | Storage RLS bucket policy（仅 conv 成员） | § 5.6 ARCH-DESIGN | ⏳ 待开发 |
+| M5-8 | Storage RLS bucket policy（仅 conv 成员） | § 5.6 ARCH-DESIGN | ✅ 已完成 — M3-1 migration 0007 落地 avatars (public read · self write) + attachments (same-conv read via msg FK · self insert/delete) 2 bucket + 5 storage.objects policies · S26.0 |
 | M5-9 | Service Worker 离线浏览历史 | NF-STAB-N04 | ⏳ 待开发 |
 
 ---
@@ -132,7 +132,7 @@
 | M7-3 | 触达目标 ≥ 44 × 44 px | F-UI-02 / NF-A11Y-N01 | ⏳ 待开发 |
 | M7-4 | PC / Mobile 流式适配（≥ 1024 / < 1024 drawer） | F-UI-01 / NF-RESP-N01 | ⏳ 待开发 |
 | M7-5 | 应用内未读小红点（accent-soft-bg chip · > 9 显示 "9+"） | F-NOTIF-01 / AC.12 | ⏳ 待开发 |
-| M7-6 | fn_unread_counts RPC + fn_mark_conversation_read | CAP-21/21b | ⏳ 待开发 |
+| M7-6 | fn_unread_counts RPC + fn_mark_conversation_read | CAP-21/21b | ✅ 已完成 — M3-1 migration 0005 创建 2 RPC fn (security invoker · take auth.uid()) · S26.0 |
 | M7-7 | Tab title `[N] Nook_v1.0` | F-ST-02 | ⏳ 待开发 |
 | M7-8 | AC 表全过（AC.11 ambient · AC.12 unread · AC.AC.perf LCP · AC.AC.responsive · AC.AC.dark） | 全表 | ⏳ 待开发 |
 | M7-9 | 无业务代码 0 处写裸 hex 校验（grep `src/`） | AC.AC.naming | ⏳ 待开发 |
@@ -158,7 +158,7 @@
 
 | 编号 | 限制状态 | 问题描述 | 临时现状 | Staging 上预期 |
 |---|---|---|---|---|
-| **FU-LOC-01** | ⚠️ 已知 | **Deno 缺失，未安装** → `supabase functions serve` 无法启动 → friend-signup EF 提交场景（test #1, #2, #4~9b）在本地仅能 desk-check（验证 RPC 与 UI），无法走完整 HTTP | 本地不起 EF，CI 必须起 EF 才能跑过完整 | 云 EF无 Deno 需求；staging `supabase deploy` 后直接走 EF |
+| **FU-LOC-01** | ⚠️ 已知（**Docker Desktop 未启动 + Deno PATH 未带起**） | 本机目前 `dockerDesktopLinuxEngine` 命名管道不通（tasklist 未见 Docker Desktop 进程） → `supabase start` 无法启动容器 → `supabase db reset` 不能走 → **M3-1 后 7 个 SQL 迁移本地仅结构 静态验证**（已过 code-reviewer round 1+2 + typecheck 0 errors + unit tests 1/1），不走 live execution 。Deno 另一面 winget 已成功安装，但本 shell 未带起 (需重启 shell 以生效)。 | 本地只能走静态 验收 (手动 code-review + typecheck + unit tests)；完整 live verification 需 (a) 手动启动 Docker Desktop 守护进程 + (b) 重起 shell 使 Deno 加入 PATH · CI 可能同样走同样静态路径 | 云 Supabase staging/prod 不依赖 Docker Desktop：CI via `supabase db push --include-all` + Cloud EF 后 `supabase functions deploy` 即可走实体 live verification（详 FU-STG-01..04） |
 | **FU-LOC-02** | ⚠️ 已知 | **PostgREST schema cache reload 有 TTL漂移** — 仅有 dp 该模已刷新 curl 走道了 /rest/v1/ 走道是另一个 cache命中 | 本地以 `docker exec ... NOTIFY pgrst, 'reload schema'` 手动刷；有时需 `docker restart supabase_rest_nook` | 云 Supabase CI/CD 走 `supabase db push` 会自动 routes flush cache |
 | **FU-LOC-03** | ⚠️ 已知 | **Vite PWA workbox `runtimeCaching` 缓存 `/rest/v1/`**（`NetworkFirst` 策略）会缓存失败的 "schema cache" 错误响应 | 本地 UI 验证需重启 vite + 换 origin port + 验证 vite.config `handler: 'NetworkOnly'` | 云部署走 Production build，SW 中 NetworkFirst 下加 "修正驻留" 策略后会补偿 |
 | **FU-LOC-04** | ⚠️ 已知 | `.env` 项目根存**云服务凭据**（不属本地），Vitest 会自动加载 · 本地跑集成测试需用 `.env.local` 覆盖 | 集成测试现在走 `npx supabase status -o env` 动态拉，绕过 `.env` | 云凭据在 CI secret 中，不会被本地测试误用 |

@@ -406,13 +406,52 @@
 
 ---
 
-## Unreleased / 未来预备
+## Unreleased
 
-### ~~[0.3.0] · Stage 9+ · Database Design 实施（已合并入正式 0.3.0 历史）~~
-~~`supabase/migrations/0001_init.sql` 等 6 个 SQL 交付~~
-~~实际执行 `supabase init` + `supabase db push`~~
+### [M3.1.0] · 2026-06-28 · DB Schema Migration 完整部署（mid-M3 task · 不 bump version）
 
-> **说明**：Stage 9 是**纯业务建模**（不输出 SQL），已完成并合并到上面 [0.3.0]。Schema 真正落地与 SQL migration 走 Stage 10（API Design）之后的 Database Schema Design 阶段。
+#### Added
+- `supabase/migrations/20260628000003_extend_schema_and_enums.sql` — 扩 M2 init 加 `user_role` enum + `profiles.role` (DEFAULT 'friend' backfill) + `profiles_one_owner_uidx` partial unique · 3 表 `reactions` (PK复合) / `attachments` (≤ 50 MB + width/height) / `schema_version` (单行) · FK `messages.attachment_id→attachments.id` ON DELETE SET NULL · 热路径索引 `idx_messages_conv_created_desc (conversation_id, created_at DESC)`
+- `supabase/migrations/20260628000004_rls_policies_full.sql` — 7 表 RLS 穷举: profiles (3) / invites (3) / conversations (3) / conversation_members (3) / messages (3 + 列级 GRANT `body, deleted_by_sender_at`) / attachments (3) / reactions (3) = 20 policies，全 enveloped in DO blocks + `pg_policies` idempotency check
+- `supabase/migrations/20260628000005_triggers_and_rpc.sql` — T-01 4-group cap + T-02 8-active-member cap (left_at IS NULL filter) + T-03 2-min edit window (auto-set edited_at). RPC: `fn_unread_counts()` security invoker + `fn_mark_conversation_read(p_conv uuid)`
+- `supabase/migrations/20260628000006_pg_cron_jobs.sql` — `pg_cron`+`pg_net` extension enable (DO block graceful skip on local) + J-01 messages_ttl `0 3 * * *` (CTE RETURNING pattern) + J-02 invites_ttl `0 4 * * *` (expired OR used>1d) + J-03 cleanup_orphans `30 4 * * *` (`net.http_post` with GUC coalesce)
+- `supabase/migrations/20260628000007_storage_buckets_and_rls.sql` — `avatars` bucket (public · 5 MB · image/* whitelist) + `attachments` bucket (private · 50 MB · image/pdf/text/zip/docx whitelist) + 5 `storage.objects` RLS policies (avatars self-folder；attachments read via conversation_members active)
+- `supabase/migrations/20260628000008_dev_seed.sql` — 空 marker · `schema_version` 推进为 `m3.1.0-complete` · Owner 创建 走 `admin-bootstrap` EF (避免被 profiles_one_owner_uidx 拒绝)
+
+#### Changed
+- 现有 M2 init / invite_rpc 两个 migration **未修改** (向后兼容)
+- AD + 治理 同步更新: `TODO.md` (M3-1 / M5-8 / M7-6 promote Done) · `DEVELOPMENT_LOG.md` (S26.0) · `AI_HANDOVER.md` (阶段表 M3-1 row Done) · 本 CHANGELOG
+
+#### Fixed
+- M3-1 首次发版后 review 指出 3 项 fix 并补排:
+  1. `pg_get_constraintdef LIKE pattern` 在不同 PG 版本上不可靠 → 换为明确 `DROP CONSTRAINT IF EXISTS messages_body_check` (migration 0003)
+  2. `messages ORDER BY created_at DESC LIMIT 50` 热路径缺复合索引 → 加 `idx_messages_conv_created_desc` per ARCH § 4.4 (migration 0003)
+  3. storage policies 依赖 `storage.foldername()`(Supabase helper)信息不透明 → header comment + verification query (migration 0007)
+
+#### Verification
+- typecheck (tests/integration 0 errors · 9 pre-existing Deno EF errors unchanged) ✅
+- unit tests 1/1 pass ✅
+- 全部 6 NEW SQL migration 文件都被 code-reviewer-minimax-m3 评审并采纳 (含 3 项 fix 轮) ✅
+- 待本地 `supabase db reset` + staging push (FU-LOC-01+02+Deno install) 执 行后 才能走 30+ days uptime 验证
+
+#### AC Coverage（M3-1 提供能力 · 为后续阶段铺路）
+| AC / F-ID | M3-1 贡献 | 验证路径 |
+|---|---|---|
+| F-SEC-03 (7 表 RLS) | ✅ migration 0004 提供 20 policy | 需写 smoke test (v1.0 末) |
+| F-MSG-05 (2 分钟编辑 window) | ✅ T-03 trigger | 需 UI 走 PATCH + trigger `EDIT_WINDOW_EXPIRED` 验证 (M4) |
+| F-MSG-10 (30 天 TTL) | ✅ T-01 + J-01 pg_cron | 需手动改 created_at -31d 然后等次日 03:00 UTC (M5) |
+| F-CAP-21 (unread 计数) | ✅ fn_unread_counts RPC + fn_mark_conversation_read RPC | 需 /home 首次 hydrate 后调 (M7) |
+| F-CONV-02 (4 群 硬上限) | ✅ T-01 trigger raises `CONV_HARD_CAP` errcode P0001 | 需 UI 走 POST conversations kind='group' 第 5 次 (M3-2) |
+| F-CONV-05 (8 成员 硬上限) | ✅ T-02 trigger raises `MEMBER_HARD_CAP` errcode P0001 | 需 integration test 加 8-cap 场景验证 (S26.0 后续) |
+| F-FILE-01..04 (附件 上传/下载) | ✅ attachments table + 50 MB check + storage.objects RLS | 需 UI 走 Storage 直传 (M5) |
+| F-MSG-09 (reaction 6 emoji) | ✅ reactions 复合 PK + CHECK emoji 6 enum | 需 UI 走表情选择 (M4) |
+| AC.AC.rls (跨 conv 读 0 行) | ✅ RLS 20 policies 各表 masterpiece | 需 Playwright smoke (M7) |
+
+未在本 Session 走通的能力需后继 M3-2..M7 走 Round-Trip Coding 补充。记录于此避免 future Reader 认为 M3-1 = chat MVP可发。
+
+---
+
+## [0.5.0] · 2026-06-28 · M2 Auth Flow Complete (M2-3 EF + M2-4 UI + S23/S24 修复)
 
 
 ---

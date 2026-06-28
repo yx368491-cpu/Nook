@@ -25,13 +25,13 @@
 |---|---|
 | **产品名称** | `Nook v1.0` |
 | **项目描述** | 「深夜书房」一词为一间好友小房子，屏蔽互联网社交噪音的私人聊天网站（A Digital Sanctuary）|
-| **当前阶段** | M2 · Auth Flow ✅ Done (v0.5.0 tagged 2026-06-28) — M3 · Chat Core 待启动 |
+| **当前阶段** | M2 · Auth Flow ✅ Done (v0.5.0 tagged 2026-06-28) → **M3-1 DB Schema Migration ✅ Done (S26.0)** — M3-2 Sidebar 待启动 |
 | **当前文档版本** | `v1.0.1`（2026-06-27）— 含 docs-only patch Sync + 全部 15 设计阶段冻结 |
-| **代码版本** | `v0.5.0`（M2 Auth Flow M2-1~4 完成 · 待 git commit + push） |
+| **代码版本** | `v0.5.0 + M3-1 delta`（M2 Auth Flow M2-1~4 完成 · M3-1 7 SQL migration suite 已就位 · 本地待 git commit + 后续 push） |
 | **目标用户** | Owner（1）+ Friend（≤ 20 社交目标）|
 | **MVP 节拍** | 4-6 周个人工作量 |
 | **产品定位** | "少数密友的数字避难所"（不商业化 / 不规模化）|
-| **Next session** | M3 · Chat Core — T-M3-01 DB migration (6 SQL) + T-M3-02 Supabase client init |
+| **Next session** | M3-2 Sidebar (T-M3-02 conv 列表 · unread 计数) — 依赖 M3-1 fn_unread_counts RPC |
 
 ---
 
@@ -103,7 +103,8 @@
 |---|---|---|
 | ✅ 已完成 | M1 · Foundation | Vite 脚手架 + 13 路由占位页 + 4 原子组件 + CI (v0.4.0, S20.0) |
 | ✅ 已完成 | M2 · Auth Flow | 注册/登录/邀请系统 — friend-signup EF + InviteLanding UI + 集成测试 (v0.5.0, S25.0) |
-| 🟢 下一步 | M3 · Chat Core | T-M3-01 6 SQL migration + 9 业务表 + 7 RLS + 3 trigger + 3 pg_cron |
+| ✅ 已完成 | **M3-1 · DB Schema Migration** | **5 NEW migration (0003..0008) + 2 existing (0001/0002) = 7 SQL files · 9 表 + 7 RLS + 3 trigger + 3 pg_cron + 2 storage bucket + 2 RPC fn · S26.0** |
+| 🟢 下一步 | M3-2 · Sidebar | T-M3-02 conv 列表 · unread 计数 · 依赖 M3-1 fn_unread_counts RPC |
 
 ### 本阶段（S21.0–S22.0）目标 · M2-3 集成测试 + M2-4 邀请落页 ✅ 已完成
 
@@ -255,7 +256,7 @@
 
 | M1 · Foundation (Bootstrap Execution) | ✅ 已完成 (v0.4.0) |
 | M2 · Auth Flow (M2-1~4) | ✅ 已完成 (v0.5.0) — tagged 2026-06-28 |
-| M3-1 · DB Schema Migration | ⏳ 待启动 — 下次 Session |
+| M3-1 · DB Schema Migration | ✅ 已完成 (S26.0) — 7 SQL migration files (0001..0008) · 9 表 + 7 RLS + 3 trigger + 3 pg_cron + 2 storage bucket + 2 RPC |
 
 ---
 
