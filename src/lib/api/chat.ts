@@ -1410,7 +1410,7 @@ export class MessageReactionError extends Error {
 function mapReactionErrorCode(message: string): MessageReactionError['code'] {
   if (/not[_\\s-]?authent/i.test(message)) return 'NOT_AUTHENTICATED';
   if (/not[_\\s-]?found|missing/i.test(message)) return 'NOT_FOUND';
-  if (/(?:^|[_\\s-])(?:bad|invalid)[_\\s-]?(?:kind|system)/i.test(message))
+  if (/bad_(kind|emoji)/i.test(message))
     return 'BAD_KIND';
   if (/not[_\\s-]?member/i.test(message)) return 'NOT_MEMBER';
   return 'DB_ERROR';
