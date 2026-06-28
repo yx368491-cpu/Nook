@@ -30,7 +30,13 @@ export function useSendReplyMessage(
   currentUserId: string,
 ) {
   const textMut = useSendTextMessage(conversationId, currentUserId);
-  const replyingTo = useChat((s) => s.replyingTo);
+  // We intentionally do NOT subscribe to `replyingTo` via `useChat((s) => ...)`
+  // here: the value is read fresh inside `mutateAsync` via `useChat.getState()`
+  // because the user can call `setReplyingTo(...)` between the last
+  // component render and the submit click (e.g. via a hover handler that
+  // triggers outside React's render cycle). Reading via closure can lag in
+  // that gap, which would silently mis-route a reply send to plain-text
+  // REST and bypass the M4-6 RPC contract (R-14 + R-15 server-side).
   const clearComposer = useChat((s) => s.clearComposer);
 
   return {
@@ -39,7 +45,7 @@ export function useSendReplyMessage(
       body: string;
       clientMsgId: string;
     }): Promise<{ id: string; createdAt: string; clientMsgId: string }> => {
-      const replyToId = replyingTo?.id ?? null;
+      const replyToId = useChat.getState().replyingTo?.id ?? null;
       // The `mutateAsync` from `useSendTextMessage` is the React-Query
       // wrapped version — it returns the same shape we assemble here.
       // We `await` it inside try/catch so we can clear Zustand on success

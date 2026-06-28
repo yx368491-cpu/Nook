@@ -834,7 +834,7 @@ function mapReplyErrorCode(message: string): MessageReplyError['code'] {
     return 'NOT_FOUND';
   if (/wrong[_\s-]?conver|cross[_\s-]?conv/i.test(message))
     return 'WRONG_CONVERSATION';
-  if (/sender_not_member|not[_\s-]?member|forbid/i.test(message))
+  if (/sender_not_member|not[_\s-]?member/i.test(message))
     return 'NOT_MEMBER';
   if (/(?:^|[_\s-])(?:bad|invalid)[_\s-]?(?:kind|system)/i.test(message))
     return 'BAD_KIND';

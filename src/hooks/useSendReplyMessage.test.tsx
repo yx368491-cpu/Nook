@@ -35,11 +35,27 @@ import {
 // The helpers below set up each surface independently so the assertion
 // shape can branch on a single clear variable per test.
 vi.mock('@/lib/supabase', () => {
-  const rpc = vi.fn();
+  // Default safe-impl: every call resolves a valid row shape with
+  // `error: null`, so destructuring at call sites never throws and the
+  // useSendTextMessage.onSettled → invalidateQueries → listMessages
+  // refetch path (which itself calls supabase.from('messages')) doesn't
+  // surface a confusing spurious error. Tests use helper functions to
+  // override per-call with mockReturnValueOnce.
+  const rpc = vi.fn(() =>
+    Promise.resolve({
+      data: { id: 'rpc-default', created_at: '2026-06-28T00:00:00.000Z' },
+      error: null,
+    }),
+  );
   const from = vi.fn(() => ({
     insert: vi.fn(() => ({
       select: vi.fn(() => ({
-        single: vi.fn(),
+        single: vi.fn(() =>
+          Promise.resolve({
+            data: { id: 'from-default', created_at: '2026-06-28T00:00:00.000Z' },
+            error: null,
+          }),
+        ),
       })),
     })),
   }));
@@ -198,7 +214,31 @@ function seedReplyTarget(replyToId: string, senderName = 'Bob') {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  // `vi.resetAllMocks()` clears both call records AND queued return values
+  // so per-test queues don't bleed across the sequential test list. We
+  // re-establish the safe default factory implementations so any
+  // unmocked call still resolves a valid `{ data, error }` shape
+  // (mutationFn + onSettled refetch both go through the same mocks).
+  vi.resetAllMocks();
+  (supabase.rpc as Mock).mockImplementation(() =>
+    Promise.resolve({
+      data: { id: 'rpc-default', created_at: '2026-06-28T00:00:00.000Z' },
+      error: null,
+    }),
+  );
+  (supabase.from as Mock).mockImplementation(() => ({
+    insert: vi.fn(() => ({
+      select: vi.fn(() => ({
+        single: vi.fn(() =>
+          Promise.resolve({
+            data: { id: 'from-default', created_at: '2026-06-28T00:00:00.000Z' },
+            error: null,
+          }),
+        ),
+      })),
+    })),
+  }));
+
   useAuth.setState({
     session: null,
     profile: null,
