@@ -1,0 +1,277 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "$description": "Nook · Design Tokens v1.0. Single source of truth for all visual attributes. Mirrors ../01_Product/Nook-DESIGN.md exactly. Generated for both runtime and tooling consumption.",
+  "$metadata": {
+    "version": "1.0.0",
+    "sourceDoc": "../01_Product/Nook-DESIGN.md",
+    "spec": [
+      { "format": "css-variables", "file": "Nook-DESIGN-TOKENS.css" },
+      { "format": "typescript",    "file": "Nook-DESIGN-TOKENS.ts"  },
+      { "format": "w3c-dt-json",   "file": "Nook-DESIGN-TOKENS.json"}
+    ]
+  },
+
+  "color": {
+    "canvas": {
+      "default": { "$value": "#0F1115", "$type": "color", "$description": "Default deep canvas — slightly warm & lighter than pure black." },
+      "deep":    { "$value": "#08090C", "$type": "color", "$description": "Deeper variant for sidebar / modal backdrop." },
+      "soft":    { "$value": "#14171D", "$type": "color", "$description": "Tertiary canvas — barely warmer than default." }
+    },
+    "surface": {
+      "1": { "$value": "#181B22", "$type": "color", "$description": "Tier-1 lift — list cards, friend bubble bg." },
+      "2": { "$value": "#20242C", "$type": "color", "$description": "Tier-2 lift — composer island, focused states." },
+      "3": { "$value": "#262B35", "$type": "color", "$description": "Tier-3 lift — modal, drawer surface." },
+      "4": { "$value": "#2E3440", "$type": "color", "$description": "Tier-4 lift — rare; max floating surface." }
+    },
+    "ink": {
+      "default":     { "$value": "#F2F4F8", "$type": "color", "$description": "Primary text on dark." },
+      "muted":       { "$value": "#B7BDC8", "$type": "color", "$description": "Secondary text — timestamp, meta." },
+      "subtle":      { "$value": "#7A8290", "$type": "color", "$description": "Tertiary text — placeholder, disabled." },
+      "faint":       { "$value": "#525864", "$type": "color", "$description": "Quaternary — low-emphasis hint, divider-text." },
+      "placeholder": { "$value": "{color.ink.subtle}", "$type": "color", "$description": "Alias. Placeholder text." }
+    },
+    "accent": {
+      "default":  { "$value": "#7B85F0", "$type": "color", "$description": "Single brand accent — own bubble bg, primary CTA, online dot." },
+      "hover":    { "$value": "#919BFF", "$type": "color", "$description": "Primary CTA hover." },
+      "press":    { "$value": "#5E68D2", "$type": "color", "$description": "Primary CTA pressed." },
+      "softBg":   { "$value": "rgba(123, 133, 240, 0.16)", "$type": "color", "$description": "Selected / active item background tint." },
+      "softRing": { "$value": "rgba(123, 133, 240, 0.35)", "$type": "color", "$description": "Focus ring tint." },
+      "on":       { "$value": "#FFFFFF", "$type": "color", "$description": "Text/icon color when on accent." }
+    },
+    "hairline": {
+      "default": { "$value": "rgba(255, 255, 255, 0.06)", "$type": "color", "$description": "Faint 1px divider." },
+      "soft":    { "$value": "rgba(255, 255, 255, 0.10)", "$type": "color", "$description": "Subtle 1px focus border." },
+      "strong":  { "$value": "rgba(255, 255, 255, 0.16)", "$type": "color", "$description": "Strong 1px border — rarely used." }
+    },
+    "signal": {
+      "success":      { "$value": "#34D399", "$type": "color", "$description": "Read receipt / delivered indicator." },
+      "successSoft":  { "$value": "rgba(52, 211, 153, 0.18)", "$type": "color", "$description": "Read receipt badge background." },
+      "warning":      { "$value": "#F0B45A", "$type": "color", "$description": "Network jitter / pending warning." },
+      "warningSoft":  { "$value": "rgba(240, 180, 90, 0.18)", "$type": "color", "$description": "Warning badge background." },
+      "error":        { "$value": "#F06F7B", "$type": "color", "$description": "Send-failed message." },
+      "errorSoft":    { "$value": "rgba(240, 111, 123, 0.18)", "$type": "color", "$description": "Error badge background." },
+      "info":         { "$value": "#7AB8F0", "$type": "color", "$description": "System messages only." },
+      "infoSoft":     { "$value": "rgba(122, 184, 240, 0.18)", "$type": "color", "$description": "Info badge background." }
+    },
+    "chat": {
+      "selfBg":          { "$value": "{color.accent.default}",  "$type": "color", "$description": "Own message bubble background." },
+      "selfText":        { "$value": "{color.accent.on}",       "$type": "color", "$description": "Own message bubble text." },
+      "friendBg":        { "$value": "{color.surface.1}",       "$type": "color", "$description": "Incoming message bubble background." },
+      "friendText":      { "$value": "{color.ink.default}",     "$type": "color", "$description": "Incoming message bubble text." },
+      "statusOnline":    { "$value": "{color.accent.default}",  "$type": "color", "$description": "Online status dot." },
+      "statusOffline":   { "$value": "{color.ink.faint}",       "$type": "color", "$description": "Offline indicator." },
+      "typingIndicator": { "$value": "{color.ink.muted}",       "$type": "color", "$description": "Three-dot typing animation color." },
+      "codeBg":          { "$value": "{color.surface.3}",       "$type": "color", "$description": "Inline code / code block background." },
+      "codeFg":          { "$value": "{color.ink.default}",     "$type": "color", "$description": "Inline code / code block foreground." }
+    },
+    "overlay": {
+      "drawerBack": { "$value": "rgba(0, 0, 0, 0.50)", "$type": "color", "$description": "Drawer / sheet backdrop scrim." }
+    }
+  },
+
+  "typography": {
+    "family": {
+      "sans": { "$value": "\"Inter\", \"SF Pro Display\", -apple-system, BlinkMacSystemFont, system-ui, sans-serif", "$type": "fontFamily" },
+      "mono": { "$value": "\"JetBrains Mono\", ui-monospace, monospace", "$type": "fontFamily" }
+    },
+    "feature": {
+      "default": { "$value": "\"calt\", \"kern\", \"liga\", \"ss03\"", "$type": "fontFeatureSettings", "$description": "Required — ss03 is the discipline switch." },
+      "numeric": { "$value": "tabular-nums", "$type": "fontFeatureSettings" }
+    },
+    "size": {
+      "display": { "$value": "32px", "$type": "dimension" },
+      "h1":      { "$value": "24px", "$type": "dimension" },
+      "h2":      { "$value": "20px", "$type": "dimension" },
+      "h3":      { "$value": "17px", "$type": "dimension" },
+      "bodyLg":  { "$value": "16px", "$type": "dimension", "$description": "Main chat message size." },
+      "body":    { "$value": "14px", "$type": "dimension" },
+      "meta":    { "$value": "13px", "$type": "dimension" },
+      "caption": { "$value": "12px", "$type": "dimension" },
+      "micro":   { "$value": "11px", "$type": "dimension" }
+    },
+    "weight": {
+      "regular":  { "$value": 400, "$type": "fontWeight" },
+      "medium":   { "$value": 500, "$type": "fontWeight" },
+      "semibold": { "$value": 600, "$type": "fontWeight", "$description": "Max weight allowed in chat UI. No 700+." }
+    },
+    "leading": {
+      "tight":   { "$value": 1.15, "$type": "lineHeight", "$description": "Used for display sizes." },
+      "compact": { "$value": 1.25, "$type": "lineHeight" },
+      "base":    { "$value": 1.40, "$type": "lineHeight" },
+      "relaxed": { "$value": 1.50, "$type": "lineHeight" },
+      "chill":   { "$value": 1.55, "$type": "lineHeight", "$description": "Default for chat messaging — slight breathing." },
+      "loose":   { "$value": 1.60, "$type": "lineHeight" }
+    },
+    "tracking": {
+      "display": { "$value": "-0.8px", "$type": "dimension" },
+      "h1":      { "$value": "-0.5px", "$type": "dimension" },
+      "h2":      { "$value": "-0.3px", "$type": "dimension" },
+      "h3":      { "$value": "-0.2px", "$type": "dimension" },
+      "normal":  { "$value": "0",     "$type": "dimension" },
+      "button":  { "$value": "0.2px", "$type": "dimension" }
+    },
+    "preset": {
+      "display":     { "$value": { "size": "32px", "weight": 600, "lineHeight": 1.15, "letterSpacing": "-0.8px", "family": "{typography.family.sans}" }, "$type": "typography" },
+      "h1":          { "$value": { "size": "24px", "weight": 600, "lineHeight": 1.25, "letterSpacing": "-0.5px", "family": "{typography.family.sans}" }, "$type": "typography" },
+      "h2":          { "$value": { "size": "20px", "weight": 600, "lineHeight": 1.30, "letterSpacing": "-0.3px", "family": "{typography.family.sans}" }, "$type": "typography" },
+      "h3":          { "$value": { "size": "17px", "weight": 600, "lineHeight": 1.35, "letterSpacing": "-0.2px", "family": "{typography.family.sans}" }, "$type": "typography" },
+      "bodyLg":      { "$value": { "size": "16px", "weight": 400, "lineHeight": 1.55, "letterSpacing": "0",       "family": "{typography.family.sans}" }, "$type": "typography", "$description": "Main chat body." },
+      "body":        { "$value": { "size": "14px", "weight": 400, "lineHeight": 1.50, "letterSpacing": "0",       "family": "{typography.family.sans}" }, "$type": "typography" },
+      "meta":        { "$value": { "size": "13px", "weight": 500, "lineHeight": 1.40, "letterSpacing": "0",       "family": "{typography.family.sans}" }, "$type": "typography" },
+      "caption":     { "$value": { "size": "12px", "weight": 500, "lineHeight": 1.40, "letterSpacing": "0",       "family": "{typography.family.sans}" }, "$type": "typography" },
+      "micro":       { "$value": { "size": "11px", "weight": 600, "lineHeight": 1.30, "letterSpacing": "0",       "family": "{typography.family.sans}" }, "$type": "typography" },
+      "button":      { "$value": { "size": "14px", "weight": 500, "lineHeight": 1.00, "letterSpacing": "0.2px",   "family": "{typography.family.sans}" }, "$type": "typography" },
+      "code":        { "$value": { "size": "14px", "weight": 400, "lineHeight": 1.60, "letterSpacing": "0",       "family": "{typography.family.mono}" }, "$type": "typography" },
+      "chatMessage": { "$value": { "size": "16px", "weight": 400, "lineHeight": 1.55, "letterSpacing": "0",       "family": "{typography.family.sans}" }, "$type": "typography", "$description": "Alias of bodyLg; semantic for chat body." }
+    }
+  },
+
+  "spacing": {
+    "2xs":    { "$value": "4px",  "$type": "dimension" },
+    "xs":     { "$value": "8px",  "$type": "dimension" },
+    "sm":     { "$value": "12px", "$type": "dimension" },
+    "md":     { "$value": "16px", "$type": "dimension" },
+    "lg":     { "$value": "20px", "$type": "dimension" },
+    "xl":     { "$value": "24px", "$type": "dimension" },
+    "2xl":    { "$value": "32px", "$type": "dimension" },
+    "3xl":    { "$value": "40px", "$type": "dimension" },
+    "4xl":    { "$value": "64px", "$type": "dimension" },
+    "section":{ "$value": "96px", "$type": "dimension" }
+  },
+
+  "radius": {
+    "xs":     { "$value": "4px",   "$type": "dimension" },
+    "sm":     { "$value": "6px",   "$type": "dimension" },
+    "md":     { "$value": "8px",   "$type": "dimension" },
+    "lg":     { "$value": "12px",  "$type": "dimension", "$description": "Primary radius — cards, buttons." },
+    "xl":     { "$value": "16px",  "$type": "dimension", "$description": "Composer / large radius." },
+    "pill":   { "$value": "9999px","$type": "dimension" },
+    "circle": { "$value": "50%",   "$type": "dimension", "$description": "Avatar / icon button." }
+  },
+
+  "chatBubble": {
+    "self":   { "$value": "16px 16px 16px 12px", "$type": "dimension", "$description": "Own bubble border-radius (TL TR BR BL)." },
+    "friend": { "$value": "16px 16px 12px 16px", "$type": "dimension", "$description": "Friend bubble border-radius (TL TR BR BL)." }
+  },
+
+  "shadow": {
+    "1": { "$value": "0 1px 2px rgba(0, 0, 0, 0.20)", "$type": "boxShadow", "$description": "Card subtle lift (rare)." },
+    "2": { "$value": "0 4px 12px rgba(0, 0, 0, 0.32)", "$type": "boxShadow", "$description": "Popover / composer / emoji picker." },
+    "3": { "$value": "0 8px 24px rgba(0, 0, 0, 0.50)", "$type": "boxShadow", "$description": "Drawer / modal." },
+    "4": { "$value": "0 16px 48px rgba(0, 0, 0, 0.60)", "$type": "boxShadow", "$description": "Largest dialog." }
+  },
+
+  "border": {
+    "width": {
+      "hairline":  { "$value": "1px", "$type": "borderWidth" },
+      "thick":     { "$value": "2px", "$type": "borderWidth" },
+      "focusRing": { "$value": "2px", "$type": "borderWidth" }
+    },
+    "style": {
+      "default": { "$value": "solid", "$type": "borderStyle" }
+    },
+    "color": {
+      "default": { "$value": "{color.hairline.default}", "$type": "color" },
+      "strong":  { "$value": "{color.hairline.strong}",  "$type": "color" }
+    }
+  },
+
+  "motion": {
+    "duration": {
+      "instant": { "$value": "60ms",   "$type": "duration" },
+      "fast":    { "$value": "120ms",  "$type": "duration", "$description": "Hover / focus." },
+      "base":    { "$value": "180ms",  "$type": "duration", "$description": "Message enter / drawer slide-in." },
+      "slow":    { "$value": "280ms",  "$type": "duration" },
+      "ambient": { "$value": "1200ms", "$type": "duration", "$description": "Typing dots / breathing." }
+    },
+    "easing": {
+      "default": { "$value": "cubic-bezier(0.20, 0.80, 0.40, 1.00)", "$type": "cubicBezier", "$description": "Default gentle ease-out-expo." },
+      "out":     { "$value": "cubic-bezier(0.00, 0.00, 0.20, 1.00)", "$type": "cubicBezier" },
+      "in":      { "$value": "cubic-bezier(0.40, 0.00, 0.80, 0.20)", "$type": "cubicBezier" },
+      "inOut":   { "$value": "cubic-bezier(0.40, 0.00, 0.20, 1.00)", "$type": "cubicBezier" }
+    },
+    "transition": {
+      "hover":           { "$value": "120ms cubic-bezier(0.00, 0.00, 0.20, 1.00)", "$type": "transition" },
+      "click":           { "$value": "120ms cubic-bezier(0.40, 0.00, 0.80, 0.20)", "$type": "transition" },
+      "modal":           { "$value": "180ms cubic-bezier(0.00, 0.00, 0.20, 1.00)", "$type": "transition" },
+      "toast":           { "$value": "180ms cubic-bezier(0.00, 0.00, 0.20, 1.00)", "$type": "transition" },
+      "chatBubbleEnter": { "$value": "180ms cubic-bezier(0.00, 0.00, 0.20, 1.00)", "$type": "transition" },
+      "pageTransition":  { "$value": "180ms cubic-bezier(0.00, 0.00, 0.20, 1.00)", "$type": "transition" }
+    }
+  },
+
+  "opacity": {
+    "disabled": { "$value": 0.5,  "$type": "number" },
+    "overlay":  { "$value": 0.5,  "$type": "number" },
+    "hover":    { "$value": 0.08, "$type": "number" },
+    "pressed":  { "$value": 0.16, "$type": "number" },
+    "loading":  { "$value": 0.6,  "$type": "number" }
+  },
+
+  "zIndex": {
+    "base":     { "$value": 0,   "$type": "number" },
+    "raised":   { "$value": 1,   "$type": "number" },
+    "sticky":   { "$value": 10,  "$type": "number" },
+    "dropdown": { "$value": 100, "$type": "number" },
+    "overlay":  { "$value": 200, "$type": "number" },
+    "modal":    { "$value": 300, "$type": "number" },
+    "toast":    { "$value": 400, "$type": "number" },
+    "tooltip":  { "$value": 500, "$type": "number" },
+    "loading":  { "$value": 600, "$type": "number" }
+  },
+
+  "breakpoint": {
+    "mobile":        { "$value": "480px", "$type": "dimension" },
+    "tablet":        { "$value": "768px", "$type": "dimension" },
+    "laptop":        { "$value": "1024px","$type": "dimension" },
+    "desktop":       { "$value": "1280px","$type": "dimension" },
+    "largeDesktop":  { "$value": "1440px","$type": "dimension" }
+  },
+
+  "size": {
+    "button": {
+      "sm": { "$value": "32px", "$type": "dimension" },
+      "md": { "$value": "36px", "$type": "dimension" },
+      "lg": { "$value": "44px", "$type": "dimension" }
+    },
+    "input": {
+      "sm": { "$value": "32px", "$type": "dimension" },
+      "md": { "$value": "40px", "$type": "dimension" },
+      "lg": { "$value": "44px", "$type": "dimension" }
+    },
+    "avatar": {
+      "sm": { "$value": "24px", "$type": "dimension" },
+      "md": { "$value": "32px", "$type": "dimension", "$description": "Default chat avatar." },
+      "lg": { "$value": "48px", "$type": "dimension" }
+    },
+    "icon": {
+      "sm": { "$value": "16px", "$type": "dimension" },
+      "md": { "$value": "20px", "$type": "dimension" },
+      "lg": { "$value": "24px", "$type": "dimension" }
+    },
+    "navbarHeight":     { "$value": "56px",  "$type": "dimension" },
+    "sidebarWidth":     { "$value": "320px", "$type": "dimension" },
+    "chatContentWidth": { "$value": "960px", "$type": "dimension" },
+    "imageMaxWidth":    { "$value": "480px", "$type": "dimension" }
+  },
+
+  "layout": {
+    "pageMaxWidth":     { "$value": "1440px", "$type": "dimension" },
+    "sidebarWidth":     { "$value": "{size.sidebarWidth}",     "$type": "dimension" },
+    "chatWidth":        { "$value": "{size.chatContentWidth}", "$type": "dimension" },
+    "containerPadding": { "$value": "{spacing.xl}",            "$type": "dimension" },
+    "gridColumns":      { "$value": 12, "$type": "number" },
+    "gridGap":          { "$value": "{spacing.xl}", "$type": "dimension" },
+    "sectionGap":       { "$value": "{spacing.section}", "$type": "dimension" }
+  },
+
+  "icon": {
+    "size": {
+      "default": { "$value": "20px", "$type": "dimension" },
+      "sm":      { "$value": "16px", "$type": "dimension" },
+      "lg":      { "$value": "24px", "$type": "dimension" }
+    },
+    "strokeWidth": { "$value": "1.5px", "$type": "borderWidth" },
+    "radius":      { "$value": "2px",   "$type": "borderRadius" }
+  }
+}

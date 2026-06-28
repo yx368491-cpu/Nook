@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.wrangler/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Editor/IDE
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Supabase local
+supabase/.temp/
+supabase/.branches/
+
+# Test coverage
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# TypeScript build info
+*.tsbuildinfo

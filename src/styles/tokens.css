@@ -1,0 +1,162 @@
+/* ===========================================================
+ * Nook · Design Tokens CSS Variables
+ * Auto-generated from Nook-DESIGN-TOKENS.ts
+ * =========================================================== */
+
+:root {
+  /* Canvas */
+  --color-canvas-default: #0F1115;
+  --color-canvas-deep:    #08090C;
+  --color-canvas-soft:    #14171D;
+
+  /* Surface */
+  --color-surface-1: #181B22;
+  --color-surface-2: #20242C;
+  --color-surface-3: #262B35;
+  --color-surface-4: #2E3440;
+
+  /* Ink */
+  --color-ink-default: #F2F4F8;
+  --color-ink-muted:   #B7BDC8;
+  --color-ink-subtle:  #7A8290;
+  --color-ink-faint:   #525864;
+
+  /* Accent */
+  --color-accent-default:  #7B85F0;
+  --color-accent-hover:    #919BFF;
+  --color-accent-press:    #5E68D2;
+  --color-accent-soft-bg:  rgba(123, 133, 240, 0.16);
+  --color-accent-soft-ring: rgba(123, 133, 240, 0.35);
+  --color-accent-on:       #FFFFFF;
+
+  /* Hairline */
+  --color-hairline-default: rgba(255, 255, 255, 0.06);
+  --color-hairline-soft:    rgba(255, 255, 255, 0.10);
+  --color-hairline-strong:  rgba(255, 255, 255, 0.16);
+
+  /* Signal */
+  --color-signal-success:     #34D399;
+  --color-signal-success-soft: rgba(52, 211, 153, 0.18);
+  --color-signal-warning:     #F0B45A;
+  --color-signal-warning-soft: rgba(240, 180, 90, 0.18);
+  --color-signal-error:       #F06F7B;
+  --color-signal-error-soft:  rgba(240, 111, 123, 0.18);
+  --color-signal-info:        #7AB8F0;
+  --color-signal-info-soft:   rgba(122, 184, 240, 0.18);
+
+  /* Chat-specific */
+  --color-chat-self-bg:       #7B85F0;
+  --color-chat-self-text:     #FFFFFF;
+  --color-chat-friend-bg:     #181B22;
+  --color-chat-friend-text:   #F2F4F8;
+  --color-chat-status-online: #7B85F0;
+  --color-chat-status-offline: #525864;
+  --color-chat-typing-indicator: #B7BDC8;
+  --color-chat-code-bg:       #262B35;
+  --color-chat-code-fg:       #F2F4F8;
+
+  /* Overlay */
+  --color-overlay-drawer-back: rgba(0, 0, 0, 0.50);
+
+  /* Typography */
+  --font-family-sans: 'Inter', system-ui, sans-serif;
+  --font-family-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-size-display: 32px;
+  --font-size-h1: 24px;
+  --font-size-h2: 20px;
+  --font-size-h3: 17px;
+  --font-size-body-lg: 16px;
+  --font-size-body: 14px;
+  --font-size-meta: 13px;
+  --font-size-caption: 12px;
+  --font-size-micro: 11px;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --leading-tight: 1.15;
+  --leading-compact: 1.25;
+  --leading-base: 1.40;
+  --leading-relaxed: 1.50;
+  --leading-chill: 1.55;
+  --leading-loose: 1.60;
+
+  /* Spacing (4px base) */
+  --space-2xs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 20px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+  --space-3xl: 40px;
+  --space-4xl: 64px;
+
+  /* Radius */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 9999px;
+  --radius-circle: 50%;
+
+  /* Chat bubble radius */
+  --chat-bubble-self-radius: 16px 16px 16px 12px;
+  --chat-bubble-friend-radius: 16px 16px 12px 16px;
+
+  /* Shadow */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.20);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.32);
+  --shadow-3: 0 8px 24px rgba(0, 0, 0, 0.50);
+  --shadow-4: 0 16px 48px rgba(0, 0, 0, 0.60);
+
+  /* Motion */
+  --duration-instant: 60ms;
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 280ms;
+  --duration-ambient: 1200ms;
+  --easing-default: cubic-bezier(0.20, 0.80, 0.40, 1.00);
+  --easing-out: cubic-bezier(0.00, 0.00, 0.20, 1.00);
+  --easing-in: cubic-bezier(0.40, 0.00, 0.80, 0.20);
+  --easing-in-out: cubic-bezier(0.40, 0.00, 0.20, 1.00);
+  --transition-hover: 120ms cubic-bezier(0.00, 0.00, 0.20, 1.00);
+  --transition-click: 120ms cubic-bezier(0.40, 0.00, 0.80, 0.20);
+  --transition-modal: 180ms cubic-bezier(0.00, 0.00, 0.20, 1.00);
+  --transition-toast: 180ms cubic-bezier(0.00, 0.00, 0.20, 1.00);
+  --transition-chat-bubble-enter: 180ms cubic-bezier(0.00, 0.00, 0.20, 1.00);
+  --transition-page: 180ms cubic-bezier(0.00, 0.00, 0.20, 1.00);
+
+  /* Z-index */
+  --z-base: 0;
+  --z-raised: 1;
+  --z-sticky: 10;
+  --z-dropdown: 100;
+  --z-overlay: 200;
+  --z-modal: 300;
+  --z-toast: 400;
+  --z-tooltip: 500;
+  --z-loading: 600;
+
+  /* Opacity */
+  --opacity-disabled: 0.5;
+  --opacity-overlay: 0.5;
+
+  /* Sizes */
+  --size-button-sm: 32px;
+  --size-button-md: 36px;
+  --size-button-lg: 44px;
+  --size-input-sm: 32px;
+  --size-input-md: 40px;
+  --size-input-lg: 44px;
+  --size-avatar-sm: 24px;
+  --size-avatar-md: 32px;
+  --size-avatar-lg: 48px;
+  --size-icon-sm: 16px;
+  --size-icon-md: 20px;
+  --size-icon-lg: 24px;
+  --navbar-height: 56px;
+  --sidebar-width: 320px;
+  --chat-content-max-width: 960px;
+  --image-max-width: 480px;
+}

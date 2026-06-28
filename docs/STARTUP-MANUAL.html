@@ -1,0 +1,3386 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc 3.10" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Nook v1.0 · Project Startup Manual</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="data:text/css,body%7Bfont-family%3A-Apple-System%2CBlinkMacSystemFont%2CArial%2Csans-serif%3Bmax-width%3A900px%3Bmargin%3A40px+auto%3Bpadding%3A0+20px%3Bline-height%3A1.6%3Bcolor%3A%23222%7Dh1%7Bcolor%3A%23111827%3Bborder-bottom%3A2px+solid+%233b82f6%3Bpadding-bottom%3A8px%7Dh2%7Bcolor%3A%231e40af%3Bmargin-top%3A32px%7Dtable%7Bborder-collapse%3Acollapse%3Bwidth%3A100%25%3Bmargin%3A16px+0%7Dth%2Ctd%7Bborder%3A1px+solid+%23d1d5db%3Bpadding%3A8px+12px%3Btext-align%3Aleft%7Dth%7Bbackground%3A%23f3f4f6%3Bfont-weight%3A600%7Dtr%3Anth-child%28even%29%7Bbackground%3A%23fafafa%7Dcode%7Bbackground%3A%23f3f4f6%3Bpadding%3A2px+6px%3Bborder-radius%3A4px%3Bfont-size%3A14px%7Dblockquote%7Bborder-left%3A4px+solid+%236b7280%3Bpadding-left%3A16px%3Bmargin-left%3A0%3Bcolor%3A%234b5563%7D+%2A%7Bbox-sizing%3Aborder-box%7D" />
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Nook v1.0 · Project Startup Manual</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#nook-v10--project-startup-manual"
+id="toc-nook-v10--project-startup-manual">Nook v1.0 · Project Startup
+Manual</a>
+<ul>
+<li><a href="#table-of-contents" id="toc-table-of-contents">Table of
+Contents</a></li>
+<li><a href="#一项目总览project-overview"
+id="toc-一项目总览project-overview">一、项目总览（Project Overview）</a>
+<ul>
+<li><a href="#11-产品定位" id="toc-11-产品定位">1.1 产品定位</a></li>
+<li><a href="#12-关键-mvp-节拍" id="toc-12-关键-mvp-节拍">1.2 关键 MVP
+节拍</a></li>
+</ul></li>
+<li><a href="#二技术栈速览tech-stack-at-a-glance"
+id="toc-二技术栈速览tech-stack-at-a-glance">二、技术栈速览（Tech Stack
+at a Glance）</a>
+<ul>
+<li><a href="#21-前端fe" id="toc-21-前端fe">2.1 前端（FE）</a></li>
+<li><a href="#22-后端be" id="toc-22-后端be">2.2 后端（BE）</a></li>
+<li><a href="#23-部署--监控--字体" id="toc-23-部署--监控--字体">2.3 部署
+/ 监控 / 字体</a></li>
+</ul></li>
+<li><a href="#三16-个设计阶段交付物清单deliverables-index"
+id="toc-三16-个设计阶段交付物清单deliverables-index">三、16
+个设计阶段交付物清单（Deliverables Index）</a>
+<ul>
+<li><a href="#31-交付物分类统计" id="toc-31-交付物分类统计">3.1
+交付物分类统计</a></li>
+</ul></li>
+<li><a href="#四架构基因-7-原则architecture-dna"
+id="toc-四架构基因-7-原则architecture-dna">四、架构基因 7
+原则（Architecture DNA）</a>
+<ul>
+<li><a href="#黑名单任何提议需先被否决"
+id="toc-黑名单任何提议需先被否决">黑名单（任何提议需先被否决）</a></li>
+</ul></li>
+<li><a href="#五22-项-adr-一览decisions-summary"
+id="toc-五22-项-adr-一览decisions-summary">五、22 项 ADR 一览（Decisions
+Summary）</a></li>
+<li><a href="#六数据模型摘要data-model-summary"
+id="toc-六数据模型摘要data-model-summary">六、数据模型摘要（Data Model
+Summary）</a>
+<ul>
+<li><a href="#61-13-个业务实体" id="toc-61-13-个业务实体">6.1 13
+个业务实体</a></li>
+<li><a href="#62-35-条业务规则r-1r-35"
+id="toc-62-35-条业务规则r-1r-35">6.2 35 条业务规则（R-1..R-35）</a></li>
+<li><a href="#63-5-级隐私分类" id="toc-63-5-级隐私分类">6.3 5
+级隐私分类</a></li>
+<li><a href="#64-30-天-ttl-编排" id="toc-64-30-天-ttl-编排">6.4 30 天
+TTL 编排</a></li>
+</ul></li>
+<li><a href="#七api-契约摘要api-contract-summary"
+id="toc-七api-契约摘要api-contract-summary">七、API 契约摘要（API
+Contract Summary）</a>
+<ul>
+<li><a href="#71-端点分类" id="toc-71-端点分类">7.1 端点分类</a></li>
+<li><a href="#72-4-类错误码统一格式" id="toc-72-4-类错误码统一格式">7.2
+4 类错误码（统一格式）</a></li>
+<li><a href="#73-edge-functions" id="toc-73-edge-functions">7.3 Edge
+Functions</a></li>
+<li><a href="#74-realtime-通道" id="toc-74-realtime-通道">7.4 Realtime
+通道</a></li>
+</ul></li>
+<li><a href="#八项目目录结构project-structure"
+id="toc-八项目目录结构project-structure">八、项目目录结构（Project
+Structure）</a>
+<ul>
+<li><a href="#81-import-rules6-条禁止"
+id="toc-81-import-rules6-条禁止">8.1 Import Rules（6 条禁止）</a></li>
+</ul></li>
+<li><a href="#九编码规范要点coding-standards"
+id="toc-九编码规范要点coding-standards">九、编码规范要点（Coding
+Standards）</a>
+<ul>
+<li><a href="#91-8-条总体原则" id="toc-91-8-条总体原则">9.1 8
+条总体原则</a></li>
+<li><a href="#92-22-项-anti-patterns硬禁"
+id="toc-92-22-项-anti-patterns硬禁">9.2 22 项
+Anti-patterns（硬禁）</a></li>
+<li><a href="#93-3-级-quality-gate" id="toc-93-3-级-quality-gate">9.3 3
+级 Quality Gate</a></li>
+</ul></li>
+<li><a href="#十git-工作流要点git-workflow"
+id="toc-十git-工作流要点git-workflow">十、Git 工作流要点（Git
+Workflow）</a>
+<ul>
+<li><a href="#101-分支策略" id="toc-101-分支策略">10.1 分支策略</a></li>
+<li><a href="#102-conventional-commits"
+id="toc-102-conventional-commits">10.2 Conventional Commits</a></li>
+<li><a href="#103-版本节奏semver" id="toc-103-版本节奏semver">10.3
+版本节奏（SemVer）</a></li>
+</ul></li>
+<li><a href="#十一55-task-工作拆分速览work-breakdown"
+id="toc-十一55-task-工作拆分速览work-breakdown">十一、55 Task
+工作拆分速览（Work Breakdown）</a>
+<ul>
+<li><a href="#111-8-epic--m-映射" id="toc-111-8-epic--m-映射">11.1 8
+Epic ↔︎ M 映射</a></li>
+<li><a href="#112-m1--foundation6-tasks"
+id="toc-112-m1--foundation6-tasks">11.2 M1 · Foundation（6
+Tasks）</a></li>
+<li><a href="#113-m2--auth-flow7-tasks"
+id="toc-113-m2--auth-flow7-tasks">11.3 M2 · Auth Flow（7
+Tasks）</a></li>
+<li><a href="#114-m3--chat-core8-tasks"
+id="toc-114-m3--chat-core8-tasks">11.4 M3 · Chat Core（8
+Tasks）</a></li>
+<li><a href="#115-m4--realtime-polish8-tasks"
+id="toc-115-m4--realtime-polish8-tasks">11.5 M4 · Realtime Polish（8
+Tasks）</a></li>
+<li><a href="#116-m5--edge-cases9-tasks"
+id="toc-116-m5--edge-cases9-tasks">11.6 M5 · Edge Cases（9
+Tasks）</a></li>
+<li><a href="#117-m6--admin7-tasks" id="toc-117-m6--admin7-tasks">11.7
+M6 · Admin（7 Tasks）</a></li>
+<li><a href="#118-m7--polish--a11y10-tasks"
+id="toc-118-m7--polish--a11y10-tasks">11.8 M7 · Polish &amp; A11y（10
+Tasks）</a></li>
+<li><a href="#119-串行依赖图mermaid" id="toc-119-串行依赖图mermaid">11.9
+串行依赖图（Mermaid）</a></li>
+</ul></li>
+<li><a href="#十二ai-12-步开发流水线ai-workflow"
+id="toc-十二ai-12-步开发流水线ai-workflow">十二、AI 12 步开发流水线（AI
+Workflow）</a>
+<ul>
+<li><a href="#121-ai-11-项禁止" id="toc-121-ai-11-项禁止">12.1 AI 11
+项禁止</a></li>
+<li><a href="#122-ai-self-review-10-项"
+id="toc-122-ai-self-review-10-项">12.2 AI Self Review 10 项</a></li>
+</ul></li>
+<li><a href="#十三bootstrap-plan-10-步流程"
+id="toc-十三bootstrap-plan-10-步流程">十三、Bootstrap Plan 10 步流程</a>
+<ul>
+<li><a href="#131-step-1--平台预创建project-lead-必做"
+id="toc-131-step-1--平台预创建project-lead-必做">13.1 Step 1 ·
+平台预创建（Project Lead 必做）</a></li>
+<li><a href="#132-step-3--首次-commit-内容"
+id="toc-132-step-3--首次-commit-内容">13.2 Step 3 · 首次 Commit
+内容</a></li>
+<li><a href="#133-step-4--11-必需--4-推荐配置"
+id="toc-133-step-4--11-必需--4-推荐配置">13.3 Step 4 · 11 必需 + 4
+推荐配置</a></li>
+<li><a href="#134-33-项依赖4-组" id="toc-134-33-项依赖4-组">13.4 33
+项依赖（4 组）</a></li>
+<li><a href="#135-step-10--8-项最终验证"
+id="toc-135-step-10--8-项最终验证">13.5 Step 10 · 8 项最终验证</a></li>
+</ul></li>
+<li><a href="#十四30-项-bootstrap-checklist"
+id="toc-十四30-项-bootstrap-checklist">十四、30 项 Bootstrap
+Checklist</a>
+<ul>
+<li><a href="#141-step-1--platform-pre-requisite4-项"
+id="toc-141-step-1--platform-pre-requisite4-项">14.1 Step 1 · Platform
+Pre-requisite（4 项）</a></li>
+<li><a href="#142-step-2-3--vite--initial-commit6-项"
+id="toc-142-step-2-3--vite--initial-commit6-项">14.2 Step 2-3 · Vite +
+Initial Commit（6 项）</a></li>
+<li><a href="#143-step-4--11-必需--4-推荐配置15-项"
+id="toc-143-step-4--11-必需--4-推荐配置15-项">14.3 Step 4 · 11 必需 + 4
+推荐配置（15 项）</a></li>
+<li><a href="#144-step-5--33-项依赖4-项"
+id="toc-144-step-5--33-项依赖4-项">14.4 Step 5 · 33 项依赖（4
+项）</a></li>
+<li><a href="#145-step-6-9--4-原子组件--i18n--routes5-项"
+id="toc-145-step-6-9--4-原子组件--i18n--routes5-项">14.5 Step 6-9 · 4
+原子组件 + i18n + Routes（5 项）</a></li>
+<li><a href="#146-final-verification10-项"
+id="toc-146-final-verification10-项">14.6 Final Verification（10
+项）</a></li>
+<li><a href="#147-总计30-项含-13-项硬性--4-项推荐"
+id="toc-147-总计30-项含-13-项硬性--4-项推荐">14.7 总计：<strong>30
+项</strong>（含 13 项硬性 + 4 项推荐）</a></li>
+</ul></li>
+<li><a href="#十五6-类-bootstrap-risks"
+id="toc-十五6-类-bootstrap-risks">十五、6 类 Bootstrap Risks</a>
+<ul>
+<li><a href="#风险矩阵rag-heat-map"
+id="toc-风险矩阵rag-heat-map">风险矩阵（RAG Heat Map）</a></li>
+<li><a href="#151-critical-2-项必检" id="toc-151-critical-2-项必检">15.1
+Critical 2 项（必检）</a></li>
+<li><a href="#152-验证矩阵完整" id="toc-152-验证矩阵完整">15.2
+验证矩阵（完整）</a></li>
+</ul></li>
+<li><a href="#十六路线图roadmap"
+id="toc-十六路线图roadmap">十六、路线图（Roadmap）</a>
+<ul>
+<li><a href="#161-版本节拍" id="toc-161-版本节拍">16.1 版本节拍</a></li>
+<li><a href="#162-v10-阶段任务清单m1-m7--55-task"
+id="toc-162-v10-阶段任务清单m1-m7--55-task">16.2 v1.0
+阶段任务清单（M1-M7 · 55 Task）</a></li>
+</ul></li>
+<li><a href="#十七已知问题known-issues"
+id="toc-十七已知问题known-issues">十七、已知问题（Known Issues）</a>
+<ul>
+<li><a href="#171-7-ki" id="toc-171-7-ki">17.1 7 KI</a></li>
+<li><a href="#172-4-fu-deferredv11-决策"
+id="toc-172-4-fu-deferredv11-决策">17.2 4 FU Deferred（v1.1+
+决策）</a></li>
+</ul></li>
+<li><a href="#十八附录appendix"
+id="toc-十八附录appendix">十八、附录（Appendix）</a>
+<ul>
+<li><a href="#181-f-id-索引41-个--9-大域"
+id="toc-181-f-id-索引41-个--9-大域">18.1 F-ID 索引（41 个 · 9
+大域）</a></li>
+<li><a href="#182-ac-验收标准28-条" id="toc-182-ac-验收标准28-条">18.2
+AC 验收标准（28 条）</a></li>
+<li><a href="#183-术语表glossary" id="toc-183-术语表glossary">18.3
+术语表（Glossary）</a></li>
+<li><a href="#184-文档索引22-文件--23-specadr"
+id="toc-184-文档索引22-文件--23-specadr">18.4 文档索引（22 文件 · 23
+spec/adr）</a></li>
+<li><a href="#185-关键数字一览" id="toc-185-关键数字一览">18.5
+关键数字一览</a></li>
+<li><a href="#186-never-do-硬边界产品决策--永不延期"
+id="toc-186-never-do-硬边界产品决策--永不延期">18.6 Never-Do
+硬边界（产品决策 · 永不延期）</a></li>
+</ul></li>
+<li><a href="#19--1-页速查卡one-page-cheat-sheet"
+id="toc-19--1-页速查卡one-page-cheat-sheet">19 · 1 页速查卡（One-Page
+Cheat Sheet）</a>
+<ul>
+<li><a href="#191-nook-v10-一页速查" id="toc-191-nook-v10-一页速查">19.1
+Nook v1.0 一页速查</a></li>
+</ul></li>
+<li><a href="#结束语" id="toc-结束语">结束语</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="nook-v10--project-startup-manual">Nook v1.0 · Project Startup
+Manual</h1>
+<blockquote>
+<p><strong>完整项目启动手册</strong> — 把全部 16 个设计/文档阶段 + 55
+Task + 30 项 Bootstrap Checklist + 6 类 Bootstrap Risks + AI 12
+步执行流程，整合到一份<strong>自包含、可独立阅读、可直接转 PDF</strong>
+的统一文档。 <strong>生成日</strong>：2026-06-27 · <strong>Nook
+版本</strong>：v1.0.1（SoT）/ <code>v0.3.7</code>（文档版）/ 代码首次
+commit 待定 · <strong>下一里程碑</strong>：M1
+Foundation（<code>v0.4.0</code>）</p>
+</blockquote>
+<hr />
+<h2 id="table-of-contents">Table of Contents</h2>
+<ol type="1">
+<li><a href="#一-项目总览project-overview">项目总览（Project
+Overview）</a></li>
+<li><a href="#二-技术栈速览tech-stack-at-a-glance">技术栈速览（Tech
+Stack at a Glance）</a></li>
+<li><a href="#三-16-个设计阶段交付物清单deliverables-index">16
+个设计阶段交付物清单（Deliverables Index）</a></li>
+<li><a href="#四-架构基因-7-原则architecture-dna">架构基因 7
+原则（Architecture DNA）</a></li>
+<li><a href="#五-22-项-adr-一览decisions-summary">22 项 ADR
+一览（Decisions Summary）</a></li>
+<li><a href="#六-数据模型摘要data-model-summary">数据模型摘要（Data
+Model Summary）</a></li>
+<li><a href="#七-api-契约摘要api-contract-summary">API 契约摘要（API
+Contract Summary）</a></li>
+<li><a href="#八-项目目录结构project-structure">项目目录结构（Project
+Structure）</a></li>
+<li><a href="#九-编码规范要点coding-standards">编码规范要点（Coding
+Standards）</a></li>
+<li><a href="#十-git-工作流要点git-workflow">Git 工作流要点（Git
+Workflow）</a></li>
+<li><a href="#十一-55-task-工作拆分速览work-breakdown">55 Task
+工作拆分速览（Work Breakdown）</a></li>
+<li><a href="#十二-ai-12-步开发流水线ai-workflow">AI 12 步开发流水线（AI
+Workflow）</a></li>
+<li><strong>Bootstrap Plan 10 步流程</strong></li>
+<li><strong>30 项 Bootstrap Checklist</strong></li>
+<li><strong>6 类 Bootstrap Risks</strong></li>
+<li><strong>路线图（Roadmap）</strong></li>
+<li><strong>已知问题（Known Issues）</strong></li>
+<li><strong>附录（Appendix）</strong></li>
+</ol>
+<hr />
+<h2 id="一项目总览project-overview">一、项目总览（Project
+Overview）</h2>
+<h3 id="11-产品定位">1.1 产品定位</h3>
+<blockquote>
+<p><strong>"少数密友的数字避难所"（A Digital Sanctuary）</strong></p>
+<p>不是产品，不是工具，不是社区，不是另一个微信。是「深夜书房」——屏蔽整个互联网社交噪音、与外界隔绝的一间小房间。</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>正式产品名称</strong></td>
+<td>Nook v1.0</td>
+</tr>
+<tr>
+<td><strong>核心价值</strong></td>
+<td>"零噪音的信息获取权"——100% 信噪比</td>
+</tr>
+<tr>
+<td><strong>目标用户</strong></td>
+<td>1 Owner + ≤ 20 个密友（5–15 健康区间）</td>
+</tr>
+<tr>
+<td><strong>核心场景</strong></td>
+<td>UC-A 深夜无感灌水 · UC-B 高清原图流 · UC-C
+<strong>赛博陪伴</strong></td>
+</tr>
+<tr>
+<td><strong>不做什么</strong></td>
+<td>已读 / 语音 / 视频 / 朋友圈 / 群公告 / 红包 / 多设备 / Web Push /
+light mode / 隐身</td>
+</tr>
+<tr>
+<td><strong>使用场景</strong></td>
+<td>私人聊天网站；跨端 PC + 移动 PWA；不商业化 / 不规模化 / 不上市</td>
+</tr>
+<tr>
+<td><strong>当前版本</strong></td>
+<td><strong>v1.0.1</strong>（docs-only patch + 16
+个设计阶段全部冻结）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="12-关键-mvp-节拍">1.2 关键 MVP 节拍</h3>
+<table>
+<thead>
+<tr>
+<th>节奏</th>
+<th>时长</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>MVP（V1.0 · M1-M7）</strong></td>
+<td><strong>4–6 周</strong> 个人工作量</td>
+<td>5 个朋友「进得来、发得出、看得见」</td>
+</tr>
+<tr>
+<td><strong>V1.1</strong> 灵魂打磨</td>
+<td>2–3 周</td>
+<td>Ambient · 6 emoji 反应 · Typing 精修 · Sentry 收口</td>
+</tr>
+<tr>
+<td><strong>V1.2</strong> 容器升级</td>
+<td>2–3 周</td>
+<td><code>(edited)</code> 印记 · 时间分组 · 断网重连</td>
+</tr>
+<tr>
+<td><strong>V2.0</strong> 体验纵深</td>
+<td>视需求</td>
+<td>E2EE + 自托管 + 原生 App 壳（不绑死承诺）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="二技术栈速览tech-stack-at-a-glance">二、技术栈速览（Tech Stack
+at a Glance）</h2>
+<h3 id="21-前端fe">2.1 前端（FE）</h3>
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>选型</th>
+<th>不可替代理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>框架</td>
+<td><strong>React 18.3</strong></td>
+<td>chat SPA 不需 SSR</td>
+</tr>
+<tr>
+<td>构建</td>
+<td><strong>Vite 5</strong></td>
+<td>dev/HMR/产物体积最佳</td>
+</tr>
+<tr>
+<td>语言</td>
+<td><strong>TypeScript 5</strong> strict</td>
+<td>类型安全</td>
+</tr>
+<tr>
+<td>路由</td>
+<td><strong>React Router 6</strong></td>
+<td>生态稳定</td>
+</tr>
+<tr>
+<td>Client State</td>
+<td><strong>Zustand</strong></td>
+<td>chat 体量不需要 Redux</td>
+</tr>
+<tr>
+<td>Server State</td>
+<td><strong>TanStack Query 5</strong></td>
+<td>cache/revalidate/devtools 一体</td>
+</tr>
+<tr>
+<td>Form</td>
+<td><strong>React Hook Form + Zod</strong></td>
+<td>Zod 顺便给 API 边界做运行时校验</td>
+</tr>
+<tr>
+<td>本地缓存</td>
+<td><strong>Dexie 4</strong>（IndexedDB）</td>
+<td>比 raw IDB 简单 10×</td>
+</tr>
+<tr>
+<td>样式</td>
+<td><strong>Tailwind v3 + Design Tokens</strong></td>
+<td>业务代码 0 写 hex</td>
+</tr>
+<tr>
+<td>i18n</td>
+<td><strong>i18next + react-i18next</strong>（ICU）</td>
+<td>F-I18N-01/02</td>
+</tr>
+<tr>
+<td>PWA</td>
+<td><strong>Vite-plugin-pwa + Workbox</strong></td>
+<td>manifest + SW</td>
+</tr>
+<tr>
+<td>测试</td>
+<td><strong>Vitest + Testing Library + Playwright</strong></td>
+<td>ADR-020</td>
+</tr>
+</tbody>
+</table>
+<h3 id="22-后端be">2.2 后端（BE）</h3>
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>选型</th>
+<th>不可替代理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>运行时</td>
+<td><strong>Deno</strong>（Supabase Edge Functions）</td>
+<td>TS-native · 无 Docker</td>
+</tr>
+<tr>
+<td>数据库</td>
+<td><strong>Postgres 15 + RLS 全表</strong></td>
+<td>多对多关系天然</td>
+</tr>
+<tr>
+<td>实时</td>
+<td><strong>Supabase Realtime</strong> + Presence</td>
+<td>含在 free tier；零自写 WS</td>
+</tr>
+<tr>
+<td>认证</td>
+<td><strong>Supabase Auth + invite-token</strong></td>
+<td>magic-link 国内不稳；Oauth 稀释 invite 唯一性</td>
+</tr>
+<tr>
+<td>对象存储</td>
+<td><strong>Supabase Storage + R2 fallback</strong></td>
+<td>R2 无 egress；50MB 单文件</td>
+</tr>
+<tr>
+<td>调度</td>
+<td><strong>pg_cron</strong></td>
+<td>30 天消息清 · 邀请过期 · orphan 清理</td>
+</tr>
+</tbody>
+</table>
+<h3 id="23-部署--监控--字体">2.3 部署 / 监控 / 字体</h3>
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>选型</th>
+<th>免费额度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FE 部署</td>
+<td><strong>Cloudflare Pages</strong></td>
+<td>无带宽</td>
+</tr>
+<tr>
+<td>BE</td>
+<td><strong>Supabase Cloud free</strong></td>
+<td>500MB DB / 1GB Storage / 2GB/mo 流量</td>
+</tr>
+<tr>
+<td>兜底存储</td>
+<td><strong>Cloudflare R2</strong></td>
+<td>10GB / 1M ops/月</td>
+</tr>
+<tr>
+<td>CI/CD</td>
+<td><strong>GitHub Actions</strong></td>
+<td>2000 min/月</td>
+</tr>
+<tr>
+<td>监控</td>
+<td><strong>Sentry free</strong>（5k err/月 · 关 PII）</td>
+<td>PII 默认 off</td>
+</tr>
+<tr>
+<td>事件</td>
+<td><strong>LogSnag free</strong>（1k ev/月）</td>
+<td>不含 message body</td>
+</tr>
+<tr>
+<td>字体</td>
+<td><strong>自托管 Inter + JetBrains Mono WOFF2</strong></td>
+<td>永不复用 Google Fonts CDN</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="三16-个设计阶段交付物清单deliverables-index">三、16
+个设计阶段交付物清单（Deliverables Index）</h2>
+<blockquote>
+<p>全部 16 个 Stage 的交付物 + 状态 + 关键产出。详细依赖见
+<code>Nook-WORK-BREAKDOWN.md § 11</code>。</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Stage</th>
+<th>交付物</th>
+<th>行数</th>
+<th>状态</th>
+<th>Session</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Spec Freeze</td>
+<td><code>Nook-SPEC.md</code> v1.0.1</td>
+<td>~1400</td>
+<td>✅ Frozen</td>
+<td>S6.0</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Architecture</td>
+<td><code>Nook-ARCH-DESIGN-v1.0.md</code> ·
+<code>Nook-SPEC-FREEZE.md</code></td>
+<td>~1700</td>
+<td>✅ Frozen</td>
+<td>S7.0</td>
+</tr>
+<tr>
+<td>3</td>
+<td>v1.0.1 Patch</td>
+<td><code>Nook-SPEC-FREEZE-v1.0.1.md</code> ·
+<code>Nook-PRODUCT.md</code> (patch) · <code>Nook-ARCHITECTURE.md</code>
+(patch)</td>
+<td>~600</td>
+<td>✅ Frozen</td>
+<td>S8.0</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Workflow</td>
+<td><code>docs/AI_HANDOVER.md</code> ·
+<code>docs/DEVELOPMENT_LOG.md</code> · <code>docs/CHANGELOG.md</code> ·
+<code>docs/TODO.md</code> · <code>docs/KNOWN_ISSUES.md</code> ·
+<code>docs/DECISIONS.md</code> · <code>docs/ROADMAP.md</code></td>
+<td>~2500</td>
+<td>✅ Frozen</td>
+<td>S8.1</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Database Design</td>
+<td><code>Nook-DATA-MODEL.md</code> v1.0.1</td>
+<td>~800</td>
+<td>✅ Frozen</td>
+<td>S9.0</td>
+</tr>
+<tr>
+<td>6</td>
+<td>API Design</td>
+<td><code>Nook-API-DESIGN-v1.0.md</code></td>
+<td>~650</td>
+<td>✅ Frozen</td>
+<td>S10.0</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Project Structure</td>
+<td><code>Nook-PROJECT-STRUCTURE.md</code> v1.0</td>
+<td>~450</td>
+<td>✅ Frozen</td>
+<td>S11.0</td>
+</tr>
+<tr>
+<td>8</td>
+<td>ADR</td>
+<td><code>docs/adr/ADR-001.md</code> ~ <code>ADR-020.md</code> ·
+<code>docs/adr/README.md</code></td>
+<td>~20 files</td>
+<td>✅ Frozen</td>
+<td>S12.0</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Coding Standards</td>
+<td><code>Nook-CODING-STANDARDS.md</code> v1.0</td>
+<td>~500</td>
+<td>✅ Frozen</td>
+<td>S13.0</td>
+</tr>
+<tr>
+<td>10</td>
+<td>Git Workflow</td>
+<td><code>Nook-GIT-WORKFLOW.md</code> v1.0</td>
+<td>~350</td>
+<td>✅ Frozen</td>
+<td>S14.0</td>
+</tr>
+<tr>
+<td>11</td>
+<td>Work Breakdown</td>
+<td><code>Nook-WORK-BREAKDOWN.md</code> v1.0</td>
+<td>~800</td>
+<td>✅ Frozen</td>
+<td>S15.0</td>
+</tr>
+<tr>
+<td>12</td>
+<td>Bootstrap Plan</td>
+<td><code>Nook-PROJECT-BOOTSTRAP-PLAN.md</code> v1.0</td>
+<td>~900</td>
+<td>✅ Frozen</td>
+<td>S16.0</td>
+</tr>
+<tr>
+<td>13</td>
+<td><strong>Startup Manual</strong></td>
+<td><code>Nook-PROJECT-STARTUP-MANUAL.md</code>（本文 · 集成手册）</td>
+<td>本文件</td>
+<td>✅ Frozen</td>
+<td>当前</td>
+</tr>
+<tr>
+<td><strong>总计</strong></td>
+<td>16</td>
+<td><strong>22 文件</strong></td>
+<td><strong>~10000+ 行</strong></td>
+<td></td>
+<td>S6-S16</td>
+</tr>
+</tbody>
+</table>
+<h3 id="31-交付物分类统计">3.1 交付物分类统计</h3>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>数</th>
+<th>行数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>单一可信源（SoT）</td>
+<td>5 (SPEC / PRODUCT / DESIGN / INTERVIEW / ARCHITECTURE legacy)</td>
+<td>~3000</td>
+</tr>
+<tr>
+<td>权威架构 / 设计</td>
+<td>6 (ARCH-DESIGN / DATA-MODEL / API-DESIGN / PROJECT-STRUCTURE /
+CODING-STANDARDS / WORK-BREAKDOWN)</td>
+<td>~4500</td>
+</tr>
+<tr>
+<td>项目记忆</td>
+<td>7 (docs/AI_HANDOVER + 6 其他)</td>
+<td>~2500</td>
+</tr>
+<tr>
+<td>ADR</td>
+<td>21 (20 ADR + 1 README)</td>
+<td>~2500</td>
+</tr>
+<tr>
+<td>启动配套</td>
+<td>4 (GIT-WORKFLOW / BOOTSTRAP-PLAN / SPEC-FREEZE ×2 / MANUAL)</td>
+<td>~2400</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="四架构基因-7-原则architecture-dna">四、架构基因 7
+原则（Architecture DNA）</h2>
+<blockquote>
+<p>不可松动的架构设计基石。详见
+<code>Nook-ARCH-DESIGN-v1.0.md § 1</code>。</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>原则</th>
+<th>体现</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>P-01</strong></td>
+<td><strong>永久免费 &gt; 过度设计</strong></td>
+<td>架构以"实际用量 + 10× 余量"为容量规划</td>
+</tr>
+<tr>
+<td><strong>P-02</strong></td>
+<td><strong>维护成本 = 0 是设计目标</strong></td>
+<td>单厂商首选（Supabase 一体化）</td>
+</tr>
+<tr>
+<td><strong>P-03</strong></td>
+<td><strong>隐形可靠 &gt; 显性创新</strong></td>
+<td>选用了 ≥3 年的成熟方案；不追新框架</td>
+</tr>
+<tr>
+<td><strong>P-04</strong></td>
+<td><strong>单一 Source of Truth</strong></td>
+<td>DB 是权威；Realtime 仅是通知</td>
+</tr>
+<tr>
+<td><strong>P-05</strong></td>
+<td><strong>RLS 优先于应用层鉴权</strong></td>
+<td>7 张业务表全开 RLS</td>
+</tr>
+<tr>
+<td><strong>P-06</strong></td>
+<td><strong>反 Never-Do 边界</strong></td>
+<td>Web Push / E-mail notif / 多设备 — 架构层硬不实现</td>
+</tr>
+<tr>
+<td><strong>P-07</strong></td>
+<td><strong>不发明轮子</strong></td>
+<td>Auth / Realtime / Storage 全部使用现成</td>
+</tr>
+</tbody>
+</table>
+<h3 id="黑名单任何提议需先被否决">黑名单（任何提议需先被否决）</h3>
+<ul>
+<li>❌ 不上 K8s / Docker Swarm / 微服务 / GraphQL Federation</li>
+<li>❌ 不引除 Supabase / Cloudflare / Sentry / LogSnag / GitHub Actions
+以外的供应商</li>
+<li>❌ 不把任何消息内容送入第三方 AI / 分析服务</li>
+<li>❌ 不引 Google Fonts CDN</li>
+<li>❌ 不做 light mode 切换入口（SPEC § 1.7.2）</li>
+</ul>
+<hr />
+<h2 id="五22-项-adr-一览decisions-summary">五、22 项 ADR 一览（Decisions
+Summary）</h2>
+<blockquote>
+<p>总计 22 项决策（D-01..D-22）+ 20 项完整 ADR。详见
+<code>docs/adr/</code> + <code>docs/DECISIONS.md</code>。</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>★</th>
+<th>决策</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>D-01</td>
+<td>⭐</td>
+<td><strong>SPEC = Single Source of Truth</strong> — 与 SPEC
+冲突的所有代码/文档 = bug</td>
+</tr>
+<tr>
+<td>D-02</td>
+<td>⭐</td>
+<td><strong>i18n v1.0 仅双语（zh-CN + en）</strong> — ja-JP 等
+v1.1+</td>
+</tr>
+<tr>
+<td>D-03</td>
+<td>⭐⭐</td>
+<td><strong>永不放 Web Push / 系统通知 / Email 推送</strong> —
+Never-Do</td>
+</tr>
+<tr>
+<td>D-04</td>
+<td>⭐</td>
+<td><strong>F-MSG-07
+列级软隐藏（<code>deleted_by_sender_at</code>）</strong> — 不物理
+DELETE</td>
+</tr>
+<tr>
+<td>D-05</td>
+<td>⭐</td>
+<td><strong>未读计数基于 <code>last_read_at</code> 游标</strong> — 非
+24h 滑动窗口</td>
+</tr>
+<tr>
+<td>D-06</td>
+<td>⭐⭐</td>
+<td><strong>4 群 + 8 成员硬上限 = DB trigger + UI disabled</strong></td>
+</tr>
+<tr>
+<td>D-07</td>
+<td>⭐</td>
+<td><strong>编辑 2 分钟窗口 = DB trigger</strong></td>
+</tr>
+<tr>
+<td>D-08</td>
+<td>⭐</td>
+<td><strong>30 天 TTL 同步清理 messages + attachments +
+storage.objects</strong></td>
+</tr>
+<tr>
+<td>D-09</td>
+<td></td>
+<td>前端：React 18 + Vite + TS（不选 Next.js）</td>
+</tr>
+<tr>
+<td>D-10</td>
+<td>⭐⭐</td>
+<td>后端：Supabase 一体化（Postgres + Auth + Realtime + Storage +
+EF）</td>
+</tr>
+<tr>
+<td>D-11</td>
+<td></td>
+<td>实时：Supabase Realtime（WS + Presence）+ 0 自写 WS 协议</td>
+</tr>
+<tr>
+<td>D-12</td>
+<td></td>
+<td>鉴权：Supabase Auth + 自建 invite-token（24h 过期）</td>
+</tr>
+<tr>
+<td>D-13</td>
+<td></td>
+<td>状态管理：Zustand（client）+ TanStack Query v5（server）</td>
+</tr>
+<tr>
+<td>D-14</td>
+<td>⭐</td>
+<td>缓存：Dexie（IndexedDB）+ outbox + client_msg_id dedupe</td>
+</tr>
+<tr>
+<td>D-15</td>
+<td></td>
+<td>部署：Cloudflare Pages + Supabase Cloud + R2 fallback</td>
+</tr>
+<tr>
+<td>D-16</td>
+<td></td>
+<td>CI/CD：GitHub Actions</td>
+</tr>
+<tr>
+<td>D-17</td>
+<td></td>
+<td>监控：Sentry free（5k err/月）+ LogSnag free（1k ev/月）</td>
+</tr>
+<tr>
+<td>D-18</td>
+<td>⭐⭐</td>
+<td><strong>字体来源：自托管 Inter + JetBrains Mono
+WOFF2</strong>（绝不引 Google CDN）</td>
+</tr>
+<tr>
+<td>D-19</td>
+<td></td>
+<td><strong>Edge Function 数 = 6</strong>（admin-bootstrap /
+friend-signup / admin-create-invite / admin-reset-password /
+admin-delete-friend / cleanup-storage-orphans）</td>
+</tr>
+<tr>
+<td>D-20</td>
+<td></td>
+<td><strong>pg_cron 数 = 3</strong>（J-01 消息 / J-02 邀请 / J-03
+orphans）</td>
+</tr>
+<tr>
+<td>D-21</td>
+<td>⭐⭐</td>
+<td><strong>RLS：7 张业务表全开 + I/U/D policy 穷举</strong></td>
+</tr>
+<tr>
+<td>D-22</td>
+<td></td>
+<td><strong>AI 接手阅读顺序 = Project Memory</strong></td>
+</tr>
+</tbody>
+</table>
+<p>⭐ = 关键决策 · ⭐⭐ = 绝对不能改</p>
+<hr />
+<h2 id="六数据模型摘要data-model-summary">六、数据模型摘要（Data Model
+Summary）</h2>
+<blockquote>
+<p><strong>纯业务</strong>模型（无 SQL）。详见
+<code>Nook-DATA-MODEL.md</code>。</p>
+</blockquote>
+<h3 id="61-13-个业务实体">6.1 13 个业务实体</h3>
+<table>
+<thead>
+<tr>
+<th>Entity</th>
+<th>持久？</th>
+<th>30 天清？</th>
+<th>关键字段</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>User</strong>（auth.users）</td>
+<td>✅ 永久</td>
+<td>❌</td>
+<td>id / email / encrypted_pwd</td>
+</tr>
+<tr>
+<td><strong>Profile</strong>（public.profiles）</td>
+<td>✅ 永久</td>
+<td>❌</td>
+<td>display_name / avatar_url / role ∈ {owner, friend}</td>
+</tr>
+<tr>
+<td><strong>Conversation</strong></td>
+<td>✅ 永久</td>
+<td>❌</td>
+<td>id / kind ∈ {one_to_one, group} / name / avatar_url</td>
+</tr>
+<tr>
+<td><strong>ConversationMember</strong></td>
+<td>✅ 永久</td>
+<td>❌</td>
+<td>user_id / conversation_id / role ∈ {owner, member} / joined_at /
+<strong>left_at</strong> / last_read_at</td>
+</tr>
+<tr>
+<td><strong>Message</strong></td>
+<td>✅</td>
+<td>⚠️ 30 天</td>
+<td>conversation_id / sender_id / kind ∈ {text, image, file} / body /
+attachment_id / reply_to_id / edited_at / recalled_at /
+<strong>deleted_by_sender_at</strong> / client_msg_id</td>
+</tr>
+<tr>
+<td><strong>Attachment</strong></td>
+<td>✅</td>
+<td>⚠️ 30 天</td>
+<td>storage_path / mime / size_bytes ≤ 50 MB / width / height /
+uploaded_by</td>
+</tr>
+<tr>
+<td><strong>Reaction</strong></td>
+<td>✅</td>
+<td>⚠️ 30 天</td>
+<td>message_id / user_id / emoji ∈ {👍❤️😂👀🔥🙏} PK</td>
+</tr>
+<tr>
+<td><strong>Invite</strong></td>
+<td>✅ 24h</td>
+<td>⚠️ 过期</td>
+<td>token ≥ 24 byte / created_by / target_kind / expires_at / used_by /
+used_at</td>
+</tr>
+<tr>
+<td><strong>TypingStatus</strong></td>
+<td>❌ 不存表</td>
+<td>—</td>
+<td>Realtime Presence（内存，仅连接期）</td>
+</tr>
+<tr>
+<td><strong>DexieCache</strong>（IndexedDB）</td>
+<td>❌ 客户端</td>
+<td>—</td>
+<td>1000 条最近消息 / outbox</td>
+</tr>
+<tr>
+<td><strong>AppEvent</strong>（结构化日志）</td>
+<td>✅ 7 天</td>
+<td>⚠️ 滚动</td>
+<td>kind / ts / idempotency_key / meta_jsonb</td>
+</tr>
+<tr>
+<td><strong>LanguagePref</strong>（localStorage）</td>
+<td>✅ 永不过期</td>
+<td>—</td>
+<td>zh-CN / en</td>
+</tr>
+<tr>
+<td><strong>DisplayTheme</strong></td>
+<td>✅ 永不过期</td>
+<td>—</td>
+<td>dark 强制（不存 light toggle）</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>永不做清单（Never-Exist）</strong>：Device · DeviceSession ·
+ReadReceipt · PushSubscription · Notification · EmailQueue ·
+VoiceMessage · VideoMessage · Payment · Poll · MomentsPost · Story ·
+Announcement · ChatTheme</p>
+</blockquote>
+<h3 id="62-35-条业务规则r-1r-35">6.2 35 条业务规则（R-1..R-35）</h3>
+<p>5 大类硬约束：</p>
+<ol type="1">
+<li><strong>角色权限</strong>（R-1..R-10）— Owner 单点永久 / Friend ≤
+20</li>
+<li><strong>会话约束</strong>（R-11..R-18）— 4 群 / 每群 ≤ 8 / 1:1
+不计入</li>
+<li><strong>消息约束</strong>（R-19..R-23）— 编辑 2 分钟 / 撤回软标记 /
+删除列级软隐藏</li>
+<li><strong>邀请约束</strong>（R-24..R-29）— 24h 一次性 + friend 重邀请
+edge case</li>
+<li><strong>附件约束</strong>（R-30..R-35）— ≤ 50 MB / EXIF strip / MIME
+白名单</li>
+</ol>
+<h3 id="63-5-级隐私分类">6.3 5 级隐私分类</h3>
+<table>
+<thead>
+<tr>
+<th>Level</th>
+<th>示例数据</th>
+<th>保护策略</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Public</strong></td>
+<td>朋友 display_name / 头像</td>
+<td>RLS 守可见</td>
+</tr>
+<tr>
+<td><strong>Internal</strong></td>
+<td>1:1 / 群会话存在</td>
+<td>RLS 同会话可见</td>
+</tr>
+<tr>
+<td><strong>Private</strong></td>
+<td>conversation_members.role / 撤回标记</td>
+<td>sender + 同会话 + admin</td>
+</tr>
+<tr>
+<td><strong>Sensitive</strong></td>
+<td>email / language / last_seen_at</td>
+<td>仅 owner + 自己可见</td>
+</tr>
+<tr>
+<td><strong>Confidential</strong></td>
+<td>messages.deleted_by_sender_at</td>
+<td><strong>列级 GRANT</strong>——sender 仅可改自己的</td>
+</tr>
+</tbody>
+</table>
+<h3 id="64-30-天-ttl-编排">6.4 30 天 TTL 编排</h3>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- pg_cron J-01 (每日 03:00 UTC): messages + attachments 同步清理</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">WITH</span> del <span class="kw">AS</span> (</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">DELETE</span> <span class="kw">FROM</span> messages</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">WHERE</span> created_at <span class="op">&lt;</span> now() <span class="op">-</span> <span class="st">&#39;30 days&#39;</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">RETURNING</span> attachment_id</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="kw">DELETE</span> <span class="kw">FROM</span> attachments <span class="kw">WHERE</span> <span class="kw">id</span> <span class="kw">IN</span> (<span class="kw">SELECT</span> attachment_id <span class="kw">FROM</span> del);</span></code></pre></div>
+<p><strong>关键决策（SPEC § 7 DR-05）</strong>：30 天清的 pg_cron
+<strong>包括</strong> recalled_at 不为 null
+的消息（即已撤回占位也会被硬删）—— 这是 SPEC 决策，30
+天是硬上限，无论任何标记。</p>
+<hr />
+<h2 id="七api-契约摘要api-contract-summary">七、API 契约摘要（API
+Contract Summary）</h2>
+<blockquote>
+<p>25 CAP 100% 覆盖。详见 <code>Nook-API-DESIGN-v1.0.md</code>。</p>
+</blockquote>
+<h3 id="71-端点分类">7.1 端点分类</h3>
+<table>
+<thead>
+<tr>
+<th>端点类型</th>
+<th>数</th>
+<th>来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>REST</strong>（Supabase auto-generated）</td>
+<td>14 endpoint</td>
+<td>7 业务表 CRUD</td>
+</tr>
+<tr>
+<td><strong>Edge Functions</strong>（Deno）</td>
+<td>6 handler</td>
+<td>admin / friend (含 1 internal cron)</td>
+</tr>
+<tr>
+<td><strong>Realtime</strong>（WSS）</td>
+<td>7 channel</td>
+<td>postgres_changes + Presence</td>
+</tr>
+</tbody>
+</table>
+<h3 id="72-4-类错误码统一格式">7.2 4 类错误码（统一格式）</h3>
+<table>
+<thead>
+<tr>
+<th>前缀</th>
+<th>含义</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>E_AUTH</strong></td>
+<td>认证 / 授权</td>
+<td>UNAUTHORIZED · FORBIDDEN · INVALID_CREDENTIALS ·
+SESSION_EXPIRED</td>
+</tr>
+<tr>
+<td><strong>E_VAL</strong></td>
+<td>校验（限制、约束）</td>
+<td>EDIT_WINDOW_EXPIRED · GROUP_LIMIT_REACHED · MEMBER_LIMIT_REACHED ·
+FILE_TOO_LARGE · INVALID_EMAIL</td>
+</tr>
+<tr>
+<td><strong>E_RES</strong></td>
+<td>资源（找不到 / 冲突 / 过期）</td>
+<td>NOT_FOUND · ALREADY_USED · INVITE_EXPIRED · ALREADY_MEMBER</td>
+</tr>
+<tr>
+<td><strong>E_SYS</strong></td>
+<td>系统（内部 / 限速 / 维护）</td>
+<td>INTERNAL · RATE_LIMIT · DB_ERROR · STORAGE_FULL</td>
+</tr>
+</tbody>
+</table>
+<h3 id="73-edge-functions">7.3 Edge Functions</h3>
+<table>
+<thead>
+<tr>
+<th>EF</th>
+<th>作用</th>
+<th>触发</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>admin-bootstrap</code></strong></td>
+<td>写 profiles(role='owner')</td>
+<td>Owner 首次注册</td>
+</tr>
+<tr>
+<td><strong><code>friend-signup</code></strong></td>
+<td>signUp + profiles + invite.used_by + 自动 1:1 conv</td>
+<td>Friend 接受 invite</td>
+</tr>
+<tr>
+<td><strong><code>admin-create-invite</code></strong></td>
+<td>gen_random_bytes(24) token + INSERT invites</td>
+<td>/invite/new</td>
+</tr>
+<tr>
+<td><strong><code>admin-reset-password</code></strong></td>
+<td>supabase.auth.admin.updateUserById</td>
+<td>/settings/admin/:id/reset (Owner)</td>
+</tr>
+<tr>
+<td><strong><code>admin-delete-friend</code></strong></td>
+<td>原子批量 left_at UPDATE</td>
+<td>/settings/admin/:id/delete (Owner)</td>
+</tr>
+<tr>
+<td><strong><code>cleanup-storage-orphans</code></strong></td>
+<td>扫 storage_objects 不在 attachments → DELETE</td>
+<td>pg_cron J-03</td>
+</tr>
+</tbody>
+</table>
+<h3 id="74-realtime-通道">7.4 Realtime 通道</h3>
+<table>
+<thead>
+<tr>
+<th>Channel</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>conversation:&lt;id&gt;</code></td>
+<td>新消息 / edited / recalled / reactions</td>
+</tr>
+<tr>
+<td><code>presence:&lt;id&gt;</code></td>
+<td>Typing + Ambient 光点</td>
+</tr>
+<tr>
+<td><code>user:&lt;self.id&gt;</code></td>
+<td>自己 friends 加入 / 改名 / 换头像</td>
+</tr>
+<tr>
+<td><code>admin:owner</code></td>
+<td>Owner 端 invite 状态 overview</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="八项目目录结构project-structure">八、项目目录结构（Project
+Structure）</h2>
+<blockquote>
+<p>顶层 10+ 目录。详见 <code>Nook-PROJECT-STRUCTURE.md</code>。</p>
+</blockquote>
+<pre><code>nook/
+├── docs/                  # 7 份项目记忆 + adr/
+│   ├── AI_HANDOVER.md     # ⭐ 最重要 — 接手必读
+│   ├── DEVELOPMENT_LOG.md
+│   ├── CHANGELOG.md
+│   ├── TODO.md
+│   ├── KNOWN_ISSUES.md
+│   ├── DECISIONS.md
+│   ├── ROADMAP.md
+│   └── adr/              # 20 项 ADR + README
+├── spec/                  # 16 份权威文档（本手册 + 全部 Stage 产出）
+├── public/                # 自托管字体 + PWA icons + manifest
+├── src/                   # 前端源码
+│   ├── main.tsx · App.tsx
+│   ├── app/              # 路由（13 路由 · 2 guards） + 页面
+│   ├── features/         # 4 个 domain：auth · chat · settings · admin
+│   │   (每个 = components + hooks + services + types)
+│   ├── components/
+│   │   ├── ui/           # 4 原子组件（Button · Input · Avatar · Bubble）
+│   │   ├── layout/       # Sidebar · AppShell · Modal
+│   │   ├── chat/         # Composer · MessageList · MessageItem · ReplyCard · UnreadDot
+│   │   └── a11y/         # MotionReduced · FocusTrap
+│   ├── lib/              # 基础设施
+│   │   ├── api/          # messages · conversations · reactions · invites · admin · profile · errors
+│   │   ├── realtime/     # 4 channel hooks
+│   │   ├── db/           # Dexie
+│   │   ├── storage/      # compressor · exif · uploader
+│   │   ├── i18n/         # locales/{zh-CN,en}
+│   │   ├── auth/         # session · guards
+│   │   └── supabase.ts   # singleton
+│   ├── stores/           # 4 Zustand stores
+│   ├── shared/           # 类型 + 常量（FE + BE 共享）
+│   ├── hooks/ · config/ · styles/
+│   ├── app/pages/        # 13 占位页
+│   └── styles/           # tailwind directives + tokens.css
+├── supabase/              # 后端
+│   ├── config.toml
+│   ├── migrations/       # 6 SQL (0001-0006)
+│   └── functions/        # 6 Deno EF + _shared/auth.ts
+├── scripts/ · tests/ · tokens/
+├── .github/workflows/ci.yml
+├── 11 个根 config（tsconfig ×2 · vite · tailwind · wrangler · supabase/config 等）
+└── .env.example · .gitignore · README.md</code></pre>
+<h3 id="81-import-rules6-条禁止">8.1 Import Rules（6 条禁止）</h3>
+<table>
+<thead>
+<tr>
+<th>规则</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R1</td>
+<td>Feature A 不可 import Feature B</td>
+</tr>
+<tr>
+<td>R2</td>
+<td><code>lib/</code> 不可 import <code>features/</code> 或
+<code>app/</code></td>
+</tr>
+<tr>
+<td>R3</td>
+<td><code>components/</code> 不可 import <code>features/</code></td>
+</tr>
+<tr>
+<td>R4</td>
+<td><code>shared/</code> 不可 import <code>src/</code> 内任何非 shared
+代码</td>
+</tr>
+<tr>
+<td>R5</td>
+<td><code>pages/</code> 不可直接调 <code>lib/api/</code>（必须经
+features/services）</td>
+</tr>
+<tr>
+<td>R6</td>
+<td><code>lib/api/</code> 不可调 <code>supabase-js</code> 之外的
+API</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="九编码规范要点coding-standards">九、编码规范要点（Coding
+Standards）</h2>
+<blockquote>
+<p>14 章节全规范。详见 <code>Nook-CODING-STANDARDS.md</code>。</p>
+</blockquote>
+<h3 id="91-8-条总体原则">9.1 8 条总体原则</h3>
+<p>P-01 Readability First · P-02 Consistency First · P-03 Simplicity
+First · P-04 Type Safety First · P-05 DRY · P-06 KISS · P-07 SOLID ·
+P-08 Convention over Configuration</p>
+<h3 id="92-22-项-anti-patterns硬禁">9.2 22 项 Anti-patterns（硬禁）</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Anti-patterns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A-01..A-22</td>
+<td>详见 Coding Standards：禁 any / magic number / magic string /
+硬编码颜色 / 硬编码文本 / 重复代码 / 跨层引用 / 跨 Feature 引用 / 未用
+Tokens / 未用 i18n / 未更新文档 / ...rest 透传 / 手动 fetch / 显式 any /
+大文件 / 循环依赖 / 生产 console / 吞错误 / 非 LTS / 同步 IO /
+漏编辑窗口检查 / 绕过 EF</td>
+</tr>
+</tbody>
+</table>
+<h3 id="93-3-级-quality-gate">9.3 3 级 Quality Gate</h3>
+<table>
+<thead>
+<tr>
+<th>Level</th>
+<th>检查项</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>L1 Code Quality</strong></td>
+<td>TS 0 error · ESLint 0 error/warning · Build 0 error · 无未用变量 ·
+无重复 · Import 顺序 · 命名 · 无 any · 无硬编码颜色 · 无硬编码文本 · 用
+Tokens · 用 i18n · 用 Theme</td>
+</tr>
+<tr>
+<td><strong>L2 Feature Quality</strong></td>
+<td>功能符合 SPEC · UI 符合 DESIGN · Mobile 正常 · Desktop 正常 ·
+Loading/Empty/Error/Success · 中文/英文切换 · Dark Mode · Lighthouse LCP
+≤ 1.5s</td>
+</tr>
+<tr>
+<td><strong>L3 Engineering Quality</strong></td>
+<td>DEVELOPMENT_LOG / TODO / AI_HANDOVER 已更新 · CHANGELOG 新版更新 ·
+KNOWN_ISSUES / DECISIONS 视适用</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="十git-工作流要点git-workflow">十、Git 工作流要点（Git
+Workflow）</h2>
+<blockquote>
+<p>GitHub Flow（非 Git Flow / GitLab Flow）。详见
+<code>Nook-GIT-WORKFLOW.md</code>。</p>
+</blockquote>
+<h3 id="101-分支策略">10.1 分支策略</h3>
+<table>
+<thead>
+<tr>
+<th>分支</th>
+<th>用途</th>
+<th>来源</th>
+<th>合并到</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>main</code></td>
+<td>生产就绪 · 受保护</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>feature/&lt;name&gt;</code></td>
+<td>新功能</td>
+<td>main</td>
+<td>main（squash merge）</td>
+</tr>
+<tr>
+<td><code>fix/&lt;name&gt;</code></td>
+<td>Bug 修复</td>
+<td>main</td>
+<td>main（squash merge）</td>
+</tr>
+<tr>
+<td><code>docs/&lt;topic&gt;</code></td>
+<td>文档修改</td>
+<td>main</td>
+<td>main（squash merge）</td>
+</tr>
+<tr>
+<td><code>experiment/&lt;topic&gt;</code></td>
+<td>实验/原型</td>
+<td>main</td>
+<td>不合并（或另开 PR）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="102-conventional-commits">10.2 Conventional Commits</h3>
+<pre><code>&lt;type&gt;(&lt;scope&gt;): &lt;description&gt;
+[body · why]
+[footer · Refs ADR-0XX / Closes #N]</code></pre>
+<p>11 种 type：feat · fix · refactor · docs · style · test · chore ·
+perf · ci · build</p>
+<h3 id="103-版本节奏semver">10.3 版本节奏（SemVer）</h3>
+<table>
+<thead>
+<tr>
+<th>版本</th>
+<th>触发</th>
+<th>Tag</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0.4.0</code></td>
+<td>M1 Done</td>
+<td>v0.4.0</td>
+</tr>
+<tr>
+<td><code>0.5.0</code></td>
+<td>M2 Done</td>
+<td>v0.5.0</td>
+</tr>
+<tr>
+<td><code>0.6.0</code></td>
+<td>M3 Done</td>
+<td>v0.6.0</td>
+</tr>
+<tr>
+<td><code>0.7.0</code></td>
+<td>M4 Done</td>
+<td>v0.7.0</td>
+</tr>
+<tr>
+<td><code>0.8.0</code></td>
+<td>M5 Done</td>
+<td>v0.8.0</td>
+</tr>
+<tr>
+<td><code>0.9.0</code></td>
+<td>M6 Done</td>
+<td>v0.9.0</td>
+</tr>
+<tr>
+<td><code>1.0.0</code></td>
+<td>M7 Done（v1.0 正式发布）</td>
+<td>v1.0.0</td>
+</tr>
+<tr>
+<td><code>1.1.0</code></td>
+<td>灵魂打磨</td>
+<td>v1.1.0</td>
+</tr>
+<tr>
+<td><code>1.2.0</code></td>
+<td>容器升级</td>
+<td>v1.2.0</td>
+</tr>
+<tr>
+<td><code>2.0.0</code></td>
+<td>E2EE / 自管</td>
+<td>v2.0.0</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="十一55-task-工作拆分速览work-breakdown">十一、55 Task
+工作拆分速览（Work Breakdown）</h2>
+<blockquote>
+<p>M1-M7 共 55 个 Task · 8 Epic · 4-6 周个人工作量。详见
+<code>Nook-WORK-BREAKDOWN.md</code>。</p>
+</blockquote>
+<h3 id="111-8-epic--m-映射">11.1 8 Epic ↔︎ M 映射</h3>
+<table>
+<thead>
+<tr>
+<th>Epic</th>
+<th>M</th>
+<th>任务数</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>E-INFRA</strong></td>
+<td>M1</td>
+<td>6</td>
+<td>脚手架 · Tokens · i18n · Routes · 4 atoms · CI</td>
+</tr>
+<tr>
+<td><strong>E-AUTH</strong></td>
+<td>M2</td>
+<td>7</td>
+<td>注册 · 登录 · 邀请 · 自动 1:1 · Profile · Auth E2E</td>
+</tr>
+<tr>
+<td><strong>E-CONV</strong> + <strong>E-MSG Core</strong></td>
+<td>M3</td>
+<td>8</td>
+<td>DB schema · Sidebar · MessageList · Composer · Realtime · pg_cron ·
+Chat E2E</td>
+</tr>
+<tr>
+<td><strong>E-MSG Polish</strong></td>
+<td>M4</td>
+<td>8</td>
+<td>Typing · Edit · Recall · Delete · Reply · Reactions · Presence ·
+E2E</td>
+</tr>
+<tr>
+<td><strong>E-Storage</strong></td>
+<td>M5</td>
+<td>9</td>
+<td>Dexie · SW · dedupe · Img compress · EXIF · Avatar · File upload ·
+Storage RLS · Edge E2E</td>
+</tr>
+<tr>
+<td><strong>E-ADMIN</strong></td>
+<td>M6</td>
+<td>7</td>
+<td>Settings · 3 EF · Invite UI · Reset Pwd · Delete · Atomic EF · Admin
+E2E</td>
+</tr>
+<tr>
+<td><strong>E-POLISH</strong> + <strong>E-NOTIF</strong></td>
+<td>M7</td>
+<td>10</td>
+<td>Reduced motion · Focus · 44 px · Responsive · Unread · Tab title ·
+PWA · Fonts · Lighthouse · All AC</td>
+</tr>
+</tbody>
+</table>
+<h3 id="112-m1--foundation6-tasks">11.2 M1 · Foundation（6 Tasks）</h3>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>核心</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>T-M1-01</strong></td>
+<td>Vite + React 18 + TS 脚手架</td>
+</tr>
+<tr>
+<td><strong>T-M1-02</strong></td>
+<td>Tailwind + Design Tokens 注入</td>
+</tr>
+<tr>
+<td><strong>T-M1-03</strong></td>
+<td>i18next 初始化 + 双语 JSON</td>
+</tr>
+<tr>
+<td><strong>T-M1-04</strong></td>
+<td>React Router + 13 路由 + Guards</td>
+</tr>
+<tr>
+<td><strong>T-M1-05</strong></td>
+<td>4 原子组件（Button · Input · Avatar · Bubble）</td>
+</tr>
+<tr>
+<td><strong>T-M1-06</strong></td>
+<td>CI + 自托管字体 + 全局 Dark</td>
+</tr>
+</tbody>
+</table>
+<h3 id="113-m2--auth-flow7-tasks">11.3 M2 · Auth Flow（7 Tasks）</h3>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>核心</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>T-M2-01</strong></td>
+<td>Owner 注册页 + admin-bootstrap EF</td>
+</tr>
+<tr>
+<td><strong>T-M2-02</strong></td>
+<td>Owner 登录页</td>
+</tr>
+<tr>
+<td><strong>T-M2-03</strong></td>
+<td>Owner 创建 Invite UI + admin-create-invite EF</td>
+</tr>
+<tr>
+<td><strong>T-M2-04</strong></td>
+<td>Friend invite 注册落页</td>
+</tr>
+<tr>
+<td><strong>T-M2-05</strong></td>
+<td>friend-signup EF（自动 1:1）</td>
+</tr>
+<tr>
+<td><strong>T-M2-06</strong></td>
+<td>修改 display_name + 语言切换</td>
+</tr>
+<tr>
+<td><strong>T-M2-07</strong></td>
+<td>Auth E2E 测试（AC.01/02/03）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="114-m3--chat-core8-tasks">11.4 M3 · Chat Core（8 Tasks）</h3>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>核心</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>T-M3-01</strong></td>
+<td>6 个 SQL Migration</td>
+</tr>
+<tr>
+<td><strong>T-M3-02</strong></td>
+<td>Supabase client 初始化</td>
+</tr>
+<tr>
+<td><strong>T-M3-03</strong></td>
+<td>侧栏会话列表</td>
+</tr>
+<tr>
+<td><strong>T-M3-04</strong></td>
+<td>消息列表 + Bubble 渲染</td>
+</tr>
+<tr>
+<td><strong>T-M3-05</strong></td>
+<td>Composer floating island</td>
+</tr>
+<tr>
+<td><strong>T-M3-06</strong></td>
+<td>Realtime channel 订阅</td>
+</tr>
+<tr>
+<td><strong>T-M3-07</strong></td>
+<td>pg_cron 3 个 job</td>
+</tr>
+<tr>
+<td><strong>T-M3-08</strong></td>
+<td>Chat E2E + RLS smoke</td>
+</tr>
+</tbody>
+</table>
+<h3 id="115-m4--realtime-polish8-tasks">11.5 M4 · Realtime Polish（8
+Tasks）</h3>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>核心</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>T-M4-01</strong></td>
+<td>Typing 三点动画（4 px / 120 ms 错落）</td>
+</tr>
+<tr>
+<td><strong>T-M4-02</strong></td>
+<td>编辑消息（2 分钟窗 + <code>(edited)</code> 微标签）</td>
+</tr>
+<tr>
+<td><strong>T-M4-03</strong></td>
+<td>撤回（soft recall）</td>
+</tr>
+<tr>
+<td><strong>T-M4-04</strong></td>
+<td>删除（列级软隐藏 <code>deleted_by_sender_at</code>）</td>
+</tr>
+<tr>
+<td><strong>T-M4-05</strong></td>
+<td>引用 / 回复（ReplyCard）</td>
+</tr>
+<tr>
+<td><strong>T-M4-06</strong></td>
+<td>6 emoji 反应 toggle</td>
+</tr>
+<tr>
+<td><strong>T-M4-07</strong></td>
+<td>Ambient 在场状态</td>
+</tr>
+<tr>
+<td><strong>T-M4-08</strong></td>
+<td>Realtime E2E</td>
+</tr>
+</tbody>
+</table>
+<h3 id="116-m5--edge-cases9-tasks">11.6 M5 · Edge Cases（9 Tasks）</h3>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>核心</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>T-M5-01</strong></td>
+<td>Dexie schema + outbox table</td>
+</tr>
+<tr>
+<td><strong>T-M5-02</strong></td>
+<td>Workbox Service Worker + bg sync</td>
+</tr>
+<tr>
+<td><strong>T-M5-03</strong></td>
+<td>client_msg_id + dedupe</td>
+</tr>
+<tr>
+<td><strong>T-M5-04</strong></td>
+<td>图片压缩（canvas WebP + 二压 q=0.6）</td>
+</tr>
+<tr>
+<td><strong>T-M5-05</strong></td>
+<td>EXIF strip（不依赖第三方库）</td>
+</tr>
+<tr>
+<td><strong>T-M5-06</strong></td>
+<td>头像上传 + Storage（含列级 GRANT）</td>
+</tr>
+<tr>
+<td><strong>T-M5-07</strong></td>
+<td>50MB 文件直传</td>
+</tr>
+<tr>
+<td><strong>T-M5-08</strong></td>
+<td>Storage RLS bucket policy</td>
+</tr>
+<tr>
+<td><strong>T-M5-09</strong></td>
+<td>Edge Cases E2E</td>
+</tr>
+</tbody>
+</table>
+<h3 id="117-m6--admin7-tasks">11.7 M6 · Admin（7 Tasks）</h3>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>核心</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>T-M6-01</strong></td>
+<td>Settings 路由 + AdminGuard</td>
+</tr>
+<tr>
+<td><strong>T-M6-02</strong></td>
+<td>EF admin-create-invite</td>
+</tr>
+<tr>
+<td><strong>T-M6-03</strong></td>
+<td>/invite/new UI 增强</td>
+</tr>
+<tr>
+<td><strong>T-M6-04</strong></td>
+<td>EF + UI 重置 Friend 密码</td>
+</tr>
+<tr>
+<td><strong>T-M6-05</strong></td>
+<td>EF + UI 删除 Friend</td>
+</tr>
+<tr>
+<td><strong>T-M6-06</strong></td>
+<td>admin-delete-friend EF 原子操作</td>
+</tr>
+<tr>
+<td><strong>T-M6-07</strong></td>
+<td>Admin E2E</td>
+</tr>
+</tbody>
+</table>
+<h3 id="118-m7--polish--a11y10-tasks">11.8 M7 · Polish &amp; A11y（10
+Tasks）</h3>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>核心</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>T-M7-01</strong></td>
+<td><code>prefers-reduced-motion</code> 兼容</td>
+</tr>
+<tr>
+<td><strong>T-M7-02</strong></td>
+<td>focus-visible + 键盘导航</td>
+</tr>
+<tr>
+<td><strong>T-M7-03</strong></td>
+<td>触达目标 ≥ 44 px</td>
+</tr>
+<tr>
+<td><strong>T-M7-04</strong></td>
+<td>PC/Mobile 流式适配（drawer 模式）</td>
+</tr>
+<tr>
+<td><strong>T-M7-05</strong></td>
+<td>应用内未读小红点（accent-soft-bg chip）</td>
+</tr>
+<tr>
+<td><strong>T-M7-06</strong></td>
+<td>Tab title <code>[N]</code> 前缀</td>
+</tr>
+<tr>
+<td><strong>T-M7-07</strong></td>
+<td>PWA manifest + install banner</td>
+</tr>
+<tr>
+<td><strong>T-M7-08</strong></td>
+<td>自托管字体验证</td>
+</tr>
+<tr>
+<td><strong>T-M7-09</strong></td>
+<td>Lighthouse CI + 性能验证</td>
+</tr>
+<tr>
+<td><strong>T-M7-10</strong></td>
+<td>全 AC 验收 + AC.AC.naming 审计</td>
+</tr>
+</tbody>
+</table>
+<h3 id="119-串行依赖图mermaid">11.9 串行依赖图（Mermaid）</h3>
+<pre><code>M1 ──→ M2 ──→ M3 ──→ M4 ──→ M5 ──→ M6 ──→ M7
+v0.4.0 v0.5.0 v0.6.0 v0.7.0 v0.8.0 v0.9.0 v1.0.0</code></pre>
+<hr />
+<h2 id="十二ai-12-步开发流水线ai-workflow">十二、AI 12 步开发流水线（AI
+Workflow）</h2>
+<blockquote>
+<p>每个 Coding Session 必走 12 步；详见
+<code>Nook-CODING-STANDARDS.md § 十二</code> +
+<code>docs/AI_HANDOVER.md § Development Workflow</code>。</p>
+</blockquote>
+<pre><code>Step 1  ──  阅读 docs/AI_HANDOVER.md  ⭐ 最重要 — 接手必读
+Step 2  ──  阅读 docs/DEVELOPMENT_LOG.md（最近 1-2 Session）
+Step 3  ──  阅读 docs/TODO.md（活跃 Task）
+Step 4  ──  确认当前开发目标（与 Project Lead 对齐）
+Step 5  ──  开始开发（按 SPEC F-ID + ARCH § 章节）
+Step 6  ──  完成功能
+Step 7  ──  更新 docs/DEVELOPMENT_LOG.md（追加 Session）
+Step 8  ──  更新 docs/CHANGELOG.md（新版本条目）
+Step 9  ──  更新 docs/TODO.md（Task 状态 → Done）
+Step 10 ──  更新 docs/KNOWN_ISSUES.md（如适用）
+Step 11 ──  更新 docs/AI_HANDOVER.md（技术状态 + 重点）
+Step 12 ──  输出本次开发总结（1 段文本给 Project Lead）</code></pre>
+<h3 id="121-ai-11-项禁止">12.1 AI 11 项禁止</h3>
+<ol type="1">
+<li>❌ 每次 Session 跨多个 Task</li>
+<li>❌ 跨 Milestone 跨多个</li>
+<li>❌ 同时开发多个 Feature</li>
+<li>❌ 提前开发依赖未完成的 Task</li>
+<li>❌ 开发前不阅读 AI_HANDOVER / TODO</li>
+<li>❌ 开发后不更新 3 份 docs</li>
+<li>❌ 修改已冻结文档</li>
+<li>❌ 跳过 Quality Gate 直接 Done</li>
+<li>❌ 绕过列级 GRANT 直接 UPDATE messages</li>
+<li>❌ 提交含 <code>console.log</code> 生产代码</li>
+<li>❌ 提交未通过 typecheck / lint 的代码</li>
+</ol>
+<h3 id="122-ai-self-review-10-项">12.2 AI Self Review 10 项</h3>
+<table>
+<thead>
+<tr>
+<th>检查项</th>
+<th>来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>代码符合 Coding Standards</td>
+<td>A-01 to A-22</td>
+</tr>
+<tr>
+<td>未违反 Architecture</td>
+<td>P-01 to P-07 + 黑名单</td>
+</tr>
+<tr>
+<td>未违反 ADR</td>
+<td>D-01 to D-22</td>
+</tr>
+<tr>
+<td>未违反 Project Structure</td>
+<td>6 Import Rules</td>
+</tr>
+<tr>
+<td>未违反 Design Tokens</td>
+<td>颜色 / 间距 / 字体</td>
+</tr>
+<tr>
+<td>国际化无遗漏</td>
+<td>F-I18N-01..03</td>
+</tr>
+<tr>
+<td>Theme 无遗漏</td>
+<td>AC.AC.dark</td>
+</tr>
+<tr>
+<td>错误处理无遗漏</td>
+<td>loading / empty / error / success</td>
+</tr>
+<tr>
+<td>响应式无遗漏</td>
+<td>1024 / 768 / 480</td>
+</tr>
+<tr>
+<td>文档更新无遗漏</td>
+<td>12 步流水线</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="十三bootstrap-plan-10-步流程">十三、Bootstrap Plan 10
+步流程</h2>
+<blockquote>
+<p><strong>本节是 Stage 17 启动 M1 Foundation 的核心指南</strong>。详见
+<code>Nook-PROJECT-BOOTSTRAP-PLAN.md</code>。</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>操作</th>
+<th>时长</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>1</strong></td>
+<td><strong>Platform Pre-requisite</strong>（Project Lead 手动）— 创建
+GitHub repo <code>nook</code> + Supabase project + 启用 pg_cron + 提供
+.env</td>
+<td>由 Project Lead 完成</td>
+</tr>
+<tr>
+<td><strong>2</strong></td>
+<td><strong>Local Project Creation</strong> —
+<code>npm create vite@latest nook -- --template react-ts</code></td>
+<td>10 min</td>
+</tr>
+<tr>
+<td><strong>3</strong></td>
+<td><strong>Initial Commit Setup</strong> — <code>git init</code> + 首次
+commit（scaffold baseline）</td>
+<td>5 min</td>
+</tr>
+<tr>
+<td><strong>4</strong></td>
+<td><strong>Configuration Files</strong>（11 必需 + 4 推荐）— tsconfig /
+eslint / prettier / vite / tailwind / gitignore / env / wrangler /
+supabase / ci / editorconfig / vscode</td>
+<td>30 min</td>
+</tr>
+<tr>
+<td><strong>5</strong></td>
+<td><strong>Dependency Installation</strong>（4 组：runtime 11 + dev 12
++ recommended 10 + supabase CLI 1）</td>
+<td>10 min</td>
+</tr>
+<tr>
+<td><strong>6</strong></td>
+<td><strong>Directory Initialization</strong>（src/main.tsx +
+src/App.tsx + 4 原子组件 stub + 40+ 目录占位 + README）</td>
+<td>15 min</td>
+</tr>
+<tr>
+<td><strong>7</strong></td>
+<td><strong>Token + Theme Injection</strong>（tailwind.config.ts ↔︎
+tokens/index.ts + Vite alias <code>@/</code> → <code>src/</code> +
+global dark CSS）</td>
+<td>10 min</td>
+</tr>
+<tr>
+<td><strong>8</strong></td>
+<td><strong>4 Atomic Components</strong>（Button · Input · Avatar ·
+Bubble）— 与 components/*.spec.md 对齐 + unit tests ≥ 80%</td>
+<td>60 min</td>
+</tr>
+<tr>
+<td><strong>9</strong></td>
+<td><strong>i18n + Routes + Guards</strong>（locales 双语 + 13 路由 +
+RequireAuth + RequireOwner）</td>
+<td>45 min</td>
+</tr>
+<tr>
+<td><strong>10</strong></td>
+<td><strong>CI + Dark + Fonts +
+Verification</strong>（.github/workflows/ci.yml + 全球 dark +
+public/fonts/*.woff2 + 8 项验证）</td>
+<td>30 min</td>
+</tr>
+<tr>
+<td></td>
+<td><strong>总 AI 编程时间</strong></td>
+<td><strong>~4 hours</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="131-step-1--平台预创建project-lead-必做">13.1 Step 1 ·
+平台预创建（Project Lead 必做）</h3>
+<ol type="1">
+<li>创建 GitHub repo <code>nook</code>（empty · 无 README）</li>
+<li>创建 Supabase project → 拿到 <code>Project URL</code> +
+<code>ANON_KEY</code> + <code>SERVICE_ROLE_KEY</code></li>
+<li>Supabase Dashboard → Database → Extensions → <strong>启用
+<code>pg_cron</code></strong></li>
+<li>把 <code>.env.real</code> 真实值交付给 AI（<strong>不</strong>入
+git）</li>
+</ol>
+<h3 id="132-step-3--首次-commit-内容">13.2 Step 3 · 首次 Commit
+内容</h3>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>文件数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>根 configs（含 src/main.tsx · App.tsx）</td>
+<td>30+</td>
+</tr>
+<tr>
+<td>11 必需配置文件</td>
+<td>11</td>
+</tr>
+<tr>
+<td>4 推荐配置</td>
+<td>4</td>
+</tr>
+<tr>
+<td>src/ 内目录 + 占位</td>
+<td>40+</td>
+</tr>
+<tr>
+<td>spec/ + docs/ 复制</td>
+<td>23</td>
+</tr>
+<tr>
+<td><strong>首次 commit message</strong></td>
+<td><code>feat(m1): bootstrap Nook v1.0 Foundation</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="133-step-4--11-必需--4-推荐配置">13.3 Step 4 · 11 必需 + 4
+推荐配置</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>File</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>package.json</code></td>
+<td>npm scripts · deps（见 § 13.4）</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>tsconfig.json</code></td>
+<td>strict + path alias <code>@/</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>tsconfig.node.json</code></td>
+<td>Node-side TS（Vite config）</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>vite.config.ts</code></td>
+<td>React + PWA plugin + alias</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>tailwind.config.ts</code></td>
+<td>Tokens 注入 + dark mode = class</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>postcss.config.js</code></td>
+<td>tailwind + autoprefixer</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>.eslintrc.cjs</code></td>
+<td>import/no-restricted-paths + no-explicit-any 等</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>.prettierrc</code></td>
+<td>format + tailwind plugin</td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>.gitignore</code></td>
+<td>node_modules / dist / .env / coverage 等</td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>.env.example</code></td>
+<td>5 个 VITE_* 变量</td>
+</tr>
+<tr>
+<td>11</td>
+<td><code>wrangler.toml</code></td>
+<td>CF Pages 部署</td>
+</tr>
+<tr>
+<td>12</td>
+<td><code>supabase/config.toml</code></td>
+<td>Supabase project config</td>
+</tr>
+<tr>
+<td>13</td>
+<td><code>.editorconfig</code></td>
+<td>(推荐) 跨编辑器基础格式</td>
+</tr>
+<tr>
+<td>14</td>
+<td><code>.vscode/settings.json</code></td>
+<td>(推荐) format on save + TS strict</td>
+</tr>
+<tr>
+<td>15</td>
+<td><code>.vscode/extensions.json</code></td>
+<td>(推荐) 团队扩展推荐</td>
+</tr>
+</tbody>
+</table>
+<h3 id="134-33-项依赖4-组">13.4 33 项依赖（4 组）</h3>
+<h4 id="runtime-11">Runtime (11)</h4>
+<p><code>react@^18.3</code> · <code>react-dom@^18.3</code> ·
+<code>react-router-dom@^6</code> · <code>zustand@^4</code> ·
+<code>@tanstack/react-query@^5</code> · <code>i18next@^23</code> ·
+<code>react-i18next@^14</code> · <code>dexie@^4</code> ·
+<code>react-hook-form@^7</code> · <code>zod@^3</code> ·
+<code>@supabase/supabase-js@^2</code></p>
+<h4 id="dev-12">Dev (12)</h4>
+<p><code>typescript@^5</code> · <code>@types/react@^18</code> ·
+<code>@types/react-dom@^18</code> · <code>vite@^5</code> ·
+<code>@vitejs/plugin-react@^4</code> · <code>tailwindcss@^3</code> ·
+<code>autoprefixer@^10</code> · <code>postcss@^8</code> ·
+<code>eslint@^8</code> · <code>@typescript-eslint/parser@^7</code> ·
+<code>@typescript-eslint/eslint-plugin@^7</code> ·
+<code>eslint-plugin-react@^7</code></p>
+<h4 id="recommended-10">Recommended (10)</h4>
+<p><code>eslint-plugin-react-hooks@^4</code> ·
+<code>eslint-plugin-import@^2</code> · <code>prettier@^3</code> ·
+<code>vitest@^1</code> · <code>@testing-library/react@^14</code> ·
+<code>@testing-library/jest-dom@^6</code> · <code>jsdom@^24</code> ·
+<code>@playwright/test@^1</code> · <code>vite-plugin-pwa@^0</code> ·
+<code>workbox-window@^7</code></p>
+<h4 id="supabase-cli-1">Supabase CLI (1)</h4>
+<p><code>supabase@^1</code> (devDep)</p>
+<h3 id="135-step-10--8-项最终验证">13.5 Step 10 · 8 项最终验证</h3>
+<table>
+<thead>
+<tr>
+<th>验证</th>
+<th>工具</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TypeScript 0 error</td>
+<td><code>npm run typecheck</code></td>
+</tr>
+<tr>
+<td>ESLint 0 error</td>
+<td><code>npm run lint</code></td>
+</tr>
+<tr>
+<td>Prettier 0 error</td>
+<td><code>npm run format:check</code></td>
+</tr>
+<tr>
+<td>Unit test pass</td>
+<td><code>npm run test</code></td>
+</tr>
+<tr>
+<td>Build 0 error</td>
+<td><code>npm run build</code></td>
+</tr>
+<tr>
+<td>Dev server 可达</td>
+<td><code>npm run dev</code></td>
+</tr>
+<tr>
+<td>Dark theme 强制</td>
+<td>DevTools 切 Light 系统偏好</td>
+</tr>
+<tr>
+<td>Fonts 自托管</td>
+<td>DevTools Network 验证无 google fonts 请求</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="十四30-项-bootstrap-checklist">十四、30 项 Bootstrap
+Checklist</h2>
+<blockquote>
+<p><strong>逐条验证</strong>：全部 ✅ 才算 Bootstrap 完成。每个 Stage
+内已标注对应 <code>T-M1-XX</code>。</p>
+</blockquote>
+<h3 id="141-step-1--platform-pre-requisite4-项">14.1 Step 1 · Platform
+Pre-requisite（4 项）</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>B-1.1</strong> GitHub repo
+<code>nook</code> 创建（empty · 无 README）</label></li>
+<li><label><input type="checkbox" /><strong>B-1.2</strong> Supabase
+project 创建 → 拿到 URL + ANON_KEY + SERVICE_ROLE_KEY</label></li>
+<li><label><input type="checkbox" /><strong>B-1.3</strong> Supabase
+pg_cron extension 启用</label></li>
+<li><label><input type="checkbox" /><strong>B-1.4</strong>
+<code>.env.real</code> 真实值交付给 AI（不入 git）</label></li>
+</ul>
+<h3 id="142-step-2-3--vite--initial-commit6-项">14.2 Step 2-3 · Vite +
+Initial Commit（6 项）</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>B-2.1</strong> Vite +
+React-TS 脚手架创建（<code>nook/</code> 目录）— ⬜ T-M1-01</label></li>
+<li><label><input type="checkbox" /><strong>B-2.2</strong> 默认 scaffold
+清理（删除 Vite 默认 App.tsx / *.css，已被覆盖）</label></li>
+<li><label><input type="checkbox" /><strong>B-3.1</strong>
+<code>git init</code> + <code>git remote add origin</code>
+完成</label></li>
+<li><label><input type="checkbox" /><strong>B-3.2</strong>
+<code>git checkout -b main</code> 完成（默认）</label></li>
+<li><label><input type="checkbox" /><strong>B-3.3</strong> 首次 commit
+内容清单 100% 包含（见 § 13.2）</label></li>
+<li><label><input type="checkbox" /><strong>B-3.4</strong>
+<code>git push -u origin main</code> 完成</label></li>
+</ul>
+<h3 id="143-step-4--11-必需--4-推荐配置15-项">14.3 Step 4 · 11 必需 + 4
+推荐配置（15 项）</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>B-4.1</strong>
+<code>package.json</code>：含 scripts (§ 13.4) + 33 项 deps +
+<code>@/</code> 路径别名 ⬜ T-M1-01</label></li>
+<li><label><input type="checkbox" /><strong>B-4.2</strong>
+<code>tsconfig.json</code>：<code>strict: true</code> +
+<code>noUncheckedIndexedAccess: true</code> +
+<code>paths: { "@/*": ["./src/*"] }</code> ⬜ T-M1-01</label></li>
+<li><label><input type="checkbox" /><strong>B-4.3</strong>
+<code>tsconfig.node.json</code>：extends tsconfig.json + Node JSX ⬜
+T-M1-01</label></li>
+<li><label><input type="checkbox" /><strong>B-4.4</strong>
+<code>vite.config.ts</code>：React plugin + PWA plugin + <code>@/</code>
+alias + 构建优化 ⬜ T-M1-01</label></li>
+<li><label><input type="checkbox" /><strong>B-4.5</strong>
+<code>tailwind.config.ts</code> + <code>postcss.config.js</code>：tokens
+注入 + dark mode ⬜ T-M1-02</label></li>
+<li><label><input type="checkbox" /><strong>B-4.6</strong>
+<code>.eslintrc.cjs</code>：<code>@typescript-eslint/no-explicit-any: error</code>
++ <code>import/no-restricted-paths: error</code> ⬜ T-M1-01</label></li>
+<li><label><input type="checkbox" /><strong>B-4.7</strong>
+<code>.prettierrc</code> + <code>.editorconfig</code>
+(推荐)：singleQuote + 2 spaces + LF ⬜ T-M1-01</label></li>
+<li><label><input type="checkbox" /><strong>B-4.8</strong>
+<code>.gitignore</code>：node_modules / dist / .env / coverage 等 ⬜
+T-M1-01</label></li>
+<li><label><input type="checkbox" /><strong>B-4.9</strong>
+<code>.env.example</code> + <code>.env</code> (real)：5 个 VITE_* 变量
+⬜ T-M1-01</label></li>
+<li><label><input type="checkbox" /><strong>B-4.10</strong>
+<code>wrangler.toml</code>：<code>pages_build_output_dir = "./dist"</code>
+⬜ T-M1-01</label></li>
+<li><label><input type="checkbox" /><strong>B-4.11</strong>
+<code>supabase/config.toml</code>：DB port + auth site_url + verify_jwt
++ pg_cron ⬜ T-M1-01</label></li>
+<li><label><input type="checkbox" /><strong>B-4.12</strong>
+<code>.github/workflows/ci.yml</code>：typecheck + lint + format + test
++ build + Lighthouse ⬜ T-M1-06</label></li>
+<li><label><input type="checkbox" /><strong>B-4.13</strong>
+<code>.vscode/settings.json</code> (推荐)：format on save + TS
+strict</label></li>
+<li><label><input type="checkbox" /><strong>B-4.14</strong>
+<code>.vscode/extensions.json</code> (推荐)：dbaeumer.vscode-eslint +
+esbenp.prettier-vscode 等</label></li>
+<li><label><input type="checkbox" /><strong>B-4.15</strong>
+<code>README.md</code>：含 5 个 Quick Links + Quick Start + Project
+Memory + License</label></li>
+</ul>
+<h3 id="144-step-5--33-项依赖4-项">14.4 Step 5 · 33 项依赖（4 项）</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>B-5.1</strong> Runtime 11
+项安装 ⬜ T-M1-01</label></li>
+<li><label><input type="checkbox" /><strong>B-5.2</strong> Dev 12 项安装
+⬜ T-M1-01</label></li>
+<li><label><input type="checkbox" /><strong>B-5.3</strong> Recommended
+10 项安装 ⬜ T-M1-01</label></li>
+<li><label><input type="checkbox" /><strong>B-5.4</strong> Supabase CLI
+1 项安装（M3 真正使用）⬜ T-M1-01</label></li>
+</ul>
+<h3 id="145-step-6-9--4-原子组件--i18n--routes5-项">14.5 Step 6-9 · 4
+原子组件 + i18n + Routes（5 项）</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>B-8.1</strong>
+<code>Button.tsx</code> 实现 + 完全对齐
+<code>prompt/components/Button.spec.md</code> ⬜ T-M1-05</label></li>
+<li><label><input type="checkbox" /><strong>B-8.2</strong>
+<code>Input.tsx</code> 实现 + 对齐 <code>Input.spec.md</code> ⬜
+T-M1-05</label></li>
+<li><label><input type="checkbox" /><strong>B-8.3</strong>
+<code>Avatar.tsx</code> 实现 + 对齐 <code>Avatar.spec.md</code> ⬜
+T-M1-05</label></li>
+<li><label><input type="checkbox" /><strong>B-8.4</strong>
+<code>Bubble.tsx</code> 实现 + 对齐 <code>Bubble.spec.md</code> ⬜
+T-M1-05</label></li>
+<li><label><input type="checkbox" /><strong>B-9.1</strong> i18next
+初始化 + 双语 JSON + 13 路由 + 2 guards ⬜ T-M1-03 +
+T-M1-04</label></li>
+</ul>
+<h3 id="146-final-verification10-项">14.6 Final Verification（10
+项）</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>B-V.1</strong>
+<code>npm run typecheck</code> 0 error</label></li>
+<li><label><input type="checkbox" /><strong>B-V.2</strong>
+<code>npm run lint</code> 0 error / warning</label></li>
+<li><label><input type="checkbox" /><strong>B-V.3</strong>
+<code>npm run format:check</code> 0 error</label></li>
+<li><label><input type="checkbox" /><strong>B-V.4</strong>
+<code>npm run test</code> pass</label></li>
+<li><label><input type="checkbox" /><strong>B-V.5</strong>
+<code>npm run build</code> 0 error，含 dist/ 输出</label></li>
+<li><label><input type="checkbox" /><strong>B-V.6</strong>
+<code>npm run dev</code> → 浏览器打开 <code>http://localhost:5173</code>
+深色渲染</label></li>
+<li><label><input type="checkbox" /><strong>B-V.7</strong> 13
+路由全部可达（占位 OK）</label></li>
+<li><label><input type="checkbox" /><strong>B-V.8</strong> Dark theme
+强制（系统偏好 Light → 仍 dark）</label></li>
+<li><label><input type="checkbox" /><strong>B-V.9</strong> Fonts
+自托管（断网后字体正常，无 fonts.googleapis.com 请求）</label></li>
+<li><label><input type="checkbox" /><strong>B-V.10</strong> i18n 切换
+zh-CN / en → UI 文案即时刷新</label></li>
+</ul>
+<h3 id="147-总计30-项含-13-项硬性--4-项推荐">14.7 总计：<strong>30
+项</strong>（含 13 项硬性 + 4 项推荐）</h3>
+<blockquote>
+<p><strong>Bootstrap 完成 = M1 Foundation Done = git tag
+<code>v0.4.0</code></strong>。</p>
+</blockquote>
+<hr />
+<h2 id="十五6-类-bootstrap-risks">十五、6 类 Bootstrap Risks</h2>
+<blockquote>
+<p>全部 6 类 + RAG + 缓解策略。详见
+<code>Nook-PROJECT-BOOTSTRAP-PLAN.md § 十</code>。</p>
+</blockquote>
+<h3 id="风险矩阵rag-heat-map">风险矩阵（RAG Heat Map）</h3>
+<table>
+<thead>
+<tr>
+<th>风险</th>
+<th>概率</th>
+<th>影响</th>
+<th>等级</th>
+<th>关键缓解</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>R-BS-01</strong> ANON_KEY 泄露</td>
+<td>Med</td>
+<td>Med</td>
+<td>🟡</td>
+<td><code>.env</code> 不入 git + RLS 兜底 + verify_jwt 默认开</td>
+</tr>
+<tr>
+<td><strong>R-BS-02</strong> 字体自托管失败</td>
+<td>Low</td>
+<td><strong>High</strong></td>
+<td>🟡</td>
+<td>从 rsms.me / JetBrains 官网下载；devOptions.enabled=false</td>
+</tr>
+<tr>
+<td><strong>R-BS-03</strong> Tailwind tokens 注入失败</td>
+<td>Med</td>
+<td><strong>High</strong></td>
+<td>🟡</td>
+<td>显式 <code>import tokens</code> + AC.AC.naming grep 验证</td>
+</tr>
+<tr>
+<td><strong>R-BS-04</strong> path alias 不生效</td>
+<td>Low</td>
+<td><strong>High</strong></td>
+<td>🟡</td>
+<td>tsconfig <code>paths</code> + vite <code>resolve.alias</code> +
+ESLint resolver 三处一致</td>
+</tr>
+<tr>
+<td><strong>R-BS-05</strong> CI token 权限不足</td>
+<td>Low</td>
+<td>Med</td>
+<td>🟣</td>
+<td>M1 阶段 CI 只 verify（不 deploy）</td>
+</tr>
+<tr>
+<td><strong>R-BS-06</strong> Service Worker dev 干扰</td>
+<td>Med</td>
+<td>Med</td>
+<td>🟣</td>
+<td><code>registerType: 'autoUpdate'</code> +
+devOptions.enabled=false</td>
+</tr>
+</tbody>
+</table>
+<h3 id="151-critical-2-项必检">15.1 Critical 2 项（必检）</h3>
+<h4
+id="r-bs-04-path-alias-不生效--m1-build-直接失败"><strong>R-BS-04</strong>
+Path alias 不生效 → M1 Build 直接失败</h4>
+<p><strong>Why Critical</strong>：TypeScript 严格模式 + Vite alias
+必须完全一致；不一致 → 100+ 个 import error。</p>
+<p><strong>必检命令</strong>（Step 4 完成后立即跑）：</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">npm</span> run typecheck    <span class="co"># 必 0 error</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">npm</span> run build        <span class="co"># 必 exit 0</span></span></code></pre></div>
+<p><strong>验证矩阵</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>验证项</th>
+<th>工具</th>
+<th>通过条件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TS 配置</td>
+<td><code>npm run typecheck</code></td>
+<td>0 error</td>
+</tr>
+<tr>
+<td>ESLint resolver</td>
+<td><code>npm run lint</code></td>
+<td>0 error</td>
+</tr>
+<tr>
+<td>Vite alias</td>
+<td><code>npm run build</code></td>
+<td>0 error</td>
+</tr>
+</tbody>
+</table>
+<h4
+id="r-bs-02-字体自托管失败--acacfonts-不通过"><strong>R-BS-02</strong>
+字体自托管失败 → AC.AC.fonts 不通过</h4>
+<p><strong>Why Critical</strong>：SPEC UI-5 + AC.AC.fonts 硬禁 Google
+Fonts；字体缺失是断网时立即可见。</p>
+<p><strong>必检命令</strong>（Step 10 完成后立即跑）：</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. 字体文件存在检查</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">ls</span> public/fonts/inter/<span class="pp">*</span>.woff2</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="fu">ls</span> public/fonts/jetbrains-mono/<span class="pp">*</span>.woff2</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. DevTools Network 检查</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="co">#    打开浏览器 → F12 → Network → 过滤 .woff2 → 确认 sources = localhost</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 断网测试</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="co">#    关闭网络 → 刷新页面 → 字体仍渲染正确</span></span></code></pre></div>
+<p><strong>每个字体 2 个权重</strong>：</p>
+<ul>
+<li>Inter: 400 (Regular) + 600 (SemiBold)</li>
+<li>JetBrains Mono: 400 (Regular) + 700 (Bold)</li>
+</ul>
+<h3 id="152-验证矩阵完整">15.2 验证矩阵（完整）</h3>
+<table>
+<thead>
+<tr>
+<th>验证项</th>
+<th>工具</th>
+<th>通过条件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TS 严格 0 error</td>
+<td><code>npm run typecheck</code></td>
+<td>exit 0</td>
+</tr>
+<tr>
+<td>ESLint 0 error</td>
+<td><code>npm run lint</code></td>
+<td>0 error + warning</td>
+</tr>
+<tr>
+<td>Prettier 0 error</td>
+<td><code>npm run format:check</code></td>
+<td>无 diff</td>
+</tr>
+<tr>
+<td>Build 成功</td>
+<td><code>npm run build</code></td>
+<td>exit 0，含 dist/</td>
+</tr>
+<tr>
+<td>Unit test 通过</td>
+<td><code>npm run test</code></td>
+<td>pass</td>
+</tr>
+<tr>
+<td>4 原子组件渲染</td>
+<td><code>npm run dev</code> + 浏览器</td>
+<td>prop variants 正常</td>
+</tr>
+<tr>
+<td>13 路由可达</td>
+<td><code>curl http://localhost:5173/&lt;route&gt;</code></td>
+<td>200 或路由占位</td>
+</tr>
+<tr>
+<td>i18n 切换</td>
+<td>手动切换 zh-CN / en</td>
+<td>UI 文案即时刷新</td>
+</tr>
+<tr>
+<td>Dark theme</td>
+<td>系统偏好 Light</td>
+<td>Nook 仍 dark</td>
+</tr>
+<tr>
+<td>字体自托管</td>
+<td>DevTools Network</td>
+<td>无 Google fonts 请求</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="十六路线图roadmap">十六、路线图（Roadmap）</h2>
+<h3 id="161-版本节拍">16.1 版本节拍</h3>
+<table>
+<thead>
+<tr>
+<th>版本</th>
+<th>节拍</th>
+<th>主要目标</th>
+<th>起步</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>MVP · Stage 8.1 已完成</strong></td>
+<td>文档完工</td>
+<td>6 个文档冻结 + 工作流 + 记忆</td>
+<td>2026-06-25 → 2026-06-27</td>
+</tr>
+<tr>
+<td><strong>V1.0 (M1-M7)</strong></td>
+<td>4–6 周</td>
+<td>5 个朋友「进得来、发得出、看得见」</td>
+<td>2026-06-27 → 当前</td>
+</tr>
+<tr>
+<td><strong>V1.1</strong></td>
+<td>2–3 周</td>
+<td>Ambient · 6 emoji 反应 · Typing 精修 · Sentry 收口</td>
+<td>V1.0 后</td>
+</tr>
+<tr>
+<td><strong>V1.2</strong></td>
+<td>2–3 周</td>
+<td><code>(edited)</code> 印记 · 时间分组 · 应用内未读文案 ·
+断网重连</td>
+<td>V1.1 后</td>
+</tr>
+<tr>
+<td><strong>V2.0</strong></td>
+<td>视需求</td>
+<td>E2EE + 自托管可选 + 原生 App 壳</td>
+<td>朋友显式请求 / KI-4 实际发生</td>
+</tr>
+</tbody>
+</table>
+<h3 id="162-v10-阶段任务清单m1-m7--55-task">16.2 v1.0
+阶段任务清单（M1-M7 · 55 Task）</h3>
+<pre><code>M1 Foundation ──→ M2 Auth Flow ──→ M3 Chat Core ──→ M4 Realtime
+     (6)              (7)              (8)              (8)
+     v0.4.0           v0.5.0           v0.6.0           v0.7.0
+                                                       │
+                                                       ▼
+                       M5 Edge Cases ──→ M6 Admin ──→ M7 Polish &amp; A11y
+                            (9)           (7)            (10)
+                            v0.8.0        v0.9.0         v1.0.0</code></pre>
+<hr />
+<h2 id="十七已知问题known-issues">十七、已知问题（Known Issues）</h2>
+<blockquote>
+<p>7 项 KI + 4 项 deferred FU。详见
+<code>docs/KNOWN_ISSUES.md</code>。</p>
+</blockquote>
+<h3 id="171-7-ki">17.1 7 KI</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>等级</th>
+<th>描述</th>
+<th>修复</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>KI-1</strong></td>
+<td>🟡</td>
+<td>Supabase Storage 6-8 月逼近</td>
+<td>v1.1 准备迁 R2</td>
+</tr>
+<tr>
+<td><strong>KI-2</strong></td>
+<td>🟢</td>
+<td>Web Push 在大陆 Chrome 无 FCM</td>
+<td><strong>已规避</strong>（永不放 push）</td>
+</tr>
+<tr>
+<td><strong>KI-3</strong></td>
+<td>🟢</td>
+<td>30 天 TTL 含已撤回占位</td>
+<td>SPEC § 7 决策</td>
+</tr>
+<tr>
+<td><strong>KI-4</strong></td>
+<td>🟠</td>
+<td>Supabase 单厂商故障风险</td>
+<td>v2.0+ 自托管可选</td>
+</tr>
+<tr>
+<td><strong>KI-5</strong></td>
+<td>🟢</td>
+<td>Owner 自删入口未在 v1.0 暴露</td>
+<td>设计如此</td>
+</tr>
+<tr>
+<td><strong>KI-6</strong></td>
+<td>🟢</td>
+<td>Light mode 强禁</td>
+<td>Never-Do</td>
+</tr>
+<tr>
+<td><strong>KI-7</strong></td>
+<td>🟢</td>
+<td>Friend 重邀请产生新 user_id</td>
+<td>设计如此</td>
+</tr>
+</tbody>
+</table>
+<h3 id="172-4-fu-deferredv11-决策">17.2 4 FU Deferred（v1.1+ 决策）</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>描述</th>
+<th>解锁</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>FU-1</strong></td>
+<td>Web Push 永远不放</td>
+<td>v1.0.1 patch 已删</td>
+</tr>
+<tr>
+<td><strong>FU-2</strong></td>
+<td>多语 (ja-JP+)</td>
+<td>加 i18n locale 即可</td>
+</tr>
+<tr>
+<td><strong>FU-3</strong></td>
+<td>Active friend 重邀请边缘</td>
+<td>v1.1+ 加 <code>AC.SEC.06b</code></td>
+</tr>
+<tr>
+<td><strong>FU-4</strong></td>
+<td>Owner 自删 tombstone + 孤儿态</td>
+<td>v1.1+ 加 Edge Function</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="十八附录appendix">十八、附录（Appendix）</h2>
+<h3 id="181-f-id-索引41-个--9-大域">18.1 F-ID 索引（41 个 · 9
+大域）</h3>
+<table>
+<thead>
+<tr>
+<th>域</th>
+<th>F-ID</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>AUTH</strong> (10)</td>
+<td>F-AUTH-01..10</td>
+</tr>
+<tr>
+<td><strong>CONV</strong> (5)</td>
+<td>F-CONV-01..05</td>
+</tr>
+<tr>
+<td><strong>MSG</strong> (11)</td>
+<td>F-MSG-01..11</td>
+</tr>
+<tr>
+<td><strong>MEDIA</strong> (1)</td>
+<td>F-MEDIA-01</td>
+</tr>
+<tr>
+<td><strong>ST</strong> (3)</td>
+<td>F-ST-01..03</td>
+</tr>
+<tr>
+<td><strong>NOTIF</strong> (3)</td>
+<td>F-NOTIF-01..03</td>
+</tr>
+<tr>
+<td><strong>SEC</strong> (6)</td>
+<td>F-SEC-01..06</td>
+</tr>
+<tr>
+<td><strong>UI</strong> (5)</td>
+<td>F-UI-01..05</td>
+</tr>
+<tr>
+<td><strong>I18N</strong> (3)</td>
+<td>F-I18N-01..03</td>
+</tr>
+<tr>
+<td><strong>总计</strong></td>
+<td><strong>41 F-ID</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="182-ac-验收标准28-条">18.2 AC 验收标准（28 条）</h3>
+<table>
+<thead>
+<tr>
+<th>AC</th>
+<th>覆盖</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AC.01-03</td>
+<td>注册 / 登录 + Friend 加入</td>
+</tr>
+<tr>
+<td>AC.04-17</td>
+<td>1:1 聊 / Typing / display_name / 引用 / 编辑 / 撤回 / 删除 / 在场 /
+未读 / 头像 / 群 8 / TTL / 重置密码 / 离线</td>
+</tr>
+<tr>
+<td>AC.18</td>
+<td>删 friend 输 confirm</td>
+</tr>
+<tr>
+<td>AC.AC.rls</td>
+<td>RLS 全表</td>
+</tr>
+<tr>
+<td>AC.AC.motion</td>
+<td>reduced-motion</td>
+</tr>
+<tr>
+<td>AC.AC.pwa</td>
+<td>PWA 可安装</td>
+</tr>
+<tr>
+<td>AC.AC.fonts</td>
+<td>字体自托管</td>
+</tr>
+<tr>
+<td>AC.AC.i18n</td>
+<td>双语 + ICU plural</td>
+</tr>
+<tr>
+<td>AC.AC.naming</td>
+<td>0 业务代码裸 hex</td>
+</tr>
+<tr>
+<td>AC.AC.perf</td>
+<td>LCP ≤ 1.5s</td>
+</tr>
+<tr>
+<td>AC.AC.dark</td>
+<td>全路由深色</td>
+</tr>
+<tr>
+<td>AC.AC.responsive</td>
+<td>4 断点不崩</td>
+</tr>
+<tr>
+<td>AC.AC.i18n.lite</td>
+<td>UI 字符串 i18n 覆盖率</td>
+</tr>
+<tr>
+<td>AC.AC.30day.cap</td>
+<td>30 天消息非永久</td>
+</tr>
+</tbody>
+</table>
+<h3 id="183-术语表glossary">18.3 术语表（Glossary）</h3>
+<table>
+<thead>
+<tr>
+<th>术语</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>SoT</strong></td>
+<td>Single Source of Truth（单一可信源）= <code>Nook-SPEC.md</code></td>
+</tr>
+<tr>
+<td><strong>ADR</strong></td>
+<td>Architecture Decision Record（架构决策记录）</td>
+</tr>
+<tr>
+<td><strong>CAP</strong></td>
+<td>API Capability（接口能力）</td>
+</tr>
+<tr>
+<td><strong>F-ID</strong></td>
+<td>Functional ID（功能 ID）=
+<code>F-&lt;DOMAIN&gt;-&lt;NN&gt;</code></td>
+</tr>
+<tr>
+<td><strong>AC</strong></td>
+<td>Acceptance Criteria（验收标准）</td>
+</tr>
+<tr>
+<td><strong>BF</strong></td>
+<td>Business Flow（业务流程）</td>
+</tr>
+<tr>
+<td><strong>DR</strong></td>
+<td>Data Requirement（数据需求）</td>
+</tr>
+<tr>
+<td><strong>DoR</strong></td>
+<td>Definition of Ready（开发前就绪）</td>
+</tr>
+<tr>
+<td><strong>DoD</strong></td>
+<td>Definition of Done（完成定义）</td>
+</tr>
+<tr>
+<td><strong>M1-M7</strong></td>
+<td>Foundation → Auth → Chat → Realtime → Edge Cases → Admin →
+Polish</td>
+</tr>
+<tr>
+<td><strong>WBS</strong></td>
+<td>Work Breakdown Structure（工作拆分结构）</td>
+</tr>
+<tr>
+<td><strong>RLS</strong></td>
+<td>Row Level Security（行级安全）</td>
+</tr>
+<tr>
+<td><strong>pg_cron</strong></td>
+<td>Postgres 内置定时调度</td>
+</tr>
+<tr>
+<td><strong>EF</strong></td>
+<td>Edge Function（边缘函数，Deno runtime）</td>
+</tr>
+<tr>
+<td><strong>TTV</strong></td>
+<td>Time To First Byte</td>
+</tr>
+<tr>
+<td><strong>LCP</strong></td>
+<td>Largest Contentful Paint（最大内容绘制）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="184-文档索引22-文件--23-specadr">18.4 文档索引（22 文件 · 23
+spec/adr）</h3>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>File</th>
+<th>路径</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>SoT（5）</strong></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>Nook-SPEC.md v1.0.1</td>
+<td>spec/</td>
+</tr>
+<tr>
+<td></td>
+<td>Nook-PRODUCT.md</td>
+<td>prompt/</td>
+</tr>
+<tr>
+<td></td>
+<td>Nook-DESIGN.md + tokens</td>
+<td>prompt/</td>
+</tr>
+<tr>
+<td></td>
+<td>Nook-ARCHITECTURE.md（legacy）</td>
+<td>spec/</td>
+</tr>
+<tr>
+<td></td>
+<td>Nook-INTERVIEW-spec.md</td>
+<td>prompt/</td>
+</tr>
+<tr>
+<td><strong>权威架构/设计（6）</strong></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>Nook-ARCH-DESIGN-v1.0.md</td>
+<td>spec/</td>
+</tr>
+<tr>
+<td></td>
+<td>Nook-DATA-MODEL.md v1.0.1</td>
+<td>spec/</td>
+</tr>
+<tr>
+<td></td>
+<td>Nook-API-DESIGN-v1.0.md</td>
+<td>spec/</td>
+</tr>
+<tr>
+<td></td>
+<td>Nook-PROJECT-STRUCTURE.md</td>
+<td>spec/</td>
+</tr>
+<tr>
+<td></td>
+<td>Nook-CODING-STANDARDS.md</td>
+<td>spec/</td>
+</tr>
+<tr>
+<td></td>
+<td>Nook-WORK-BREAKDOWN.md</td>
+<td>spec/</td>
+</tr>
+<tr>
+<td><strong>项目记忆（7）</strong></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>AI_HANDOVER.md</td>
+<td>docs/</td>
+</tr>
+<tr>
+<td></td>
+<td>DEVELOPMENT_LOG.md</td>
+<td>docs/</td>
+</tr>
+<tr>
+<td></td>
+<td>CHANGELOG.md</td>
+<td>docs/</td>
+</tr>
+<tr>
+<td></td>
+<td>TODO.md</td>
+<td>docs/</td>
+</tr>
+<tr>
+<td></td>
+<td>KNOWN_ISSUES.md</td>
+<td>docs/</td>
+</tr>
+<tr>
+<td></td>
+<td>DECISIONS.md</td>
+<td>docs/</td>
+</tr>
+<tr>
+<td></td>
+<td>ROADMAP.md</td>
+<td>docs/</td>
+</tr>
+<tr>
+<td><strong>ADR（20+1）</strong></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>README + ADR-001..020</td>
+<td>docs/adr/</td>
+</tr>
+<tr>
+<td><strong>规范配套（4）</strong></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>Nook-GIT-WORKFLOW.md</td>
+<td>spec/</td>
+</tr>
+<tr>
+<td></td>
+<td>Nook-PROJECT-BOOTSTRAP-PLAN.md</td>
+<td>spec/</td>
+</tr>
+<tr>
+<td></td>
+<td>Nook-SPEC-FREEZE.md / Nook-SPEC-FREEZE-v1.0.1.md</td>
+<td>spec/</td>
+</tr>
+<tr>
+<td></td>
+<td>Nook-PROJECT-STARTUP-MANUAL.md（本文 ⭐）</td>
+<td>spec/</td>
+</tr>
+<tr>
+<td><strong>原始存档（5）</strong></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>Nook-DESIGN-TOKENS.{ts,css,json,md}</td>
+<td>spec/</td>
+</tr>
+<tr>
+<td></td>
+<td>4 组件 .spec.md</td>
+<td>prompt/components/</td>
+</tr>
+</tbody>
+</table>
+<h3 id="185-关键数字一览">18.5 关键数字一览</h3>
+<table>
+<thead>
+<tr>
+<th>数字</th>
+<th>值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>F-ID 数</td>
+<td>41</td>
+<td>9 大功能域</td>
+</tr>
+<tr>
+<td>BF-ID 数</td>
+<td>18</td>
+<td>业务流程</td>
+</tr>
+<tr>
+<td>AC 数</td>
+<td>28</td>
+<td>验收标准</td>
+</tr>
+<tr>
+<td>CAP 数</td>
+<td>25</td>
+<td>API 能力</td>
+</tr>
+<tr>
+<td>DR 数</td>
+<td>11</td>
+<td>数据需求</td>
+</tr>
+<tr>
+<td>ADR 数</td>
+<td>22</td>
+<td>决策记录</td>
+</tr>
+<tr>
+<td>路由数</td>
+<td>13</td>
+<td>页面规格</td>
+</tr>
+<tr>
+<td>实体数</td>
+<td>13</td>
+<td>业务模型</td>
+</tr>
+<tr>
+<td>Edge Functions</td>
+<td>6</td>
+<td>含 1 internal cron</td>
+</tr>
+<tr>
+<td>pg_cron Jobs</td>
+<td>3</td>
+<td>daily jobs</td>
+</tr>
+<tr>
+<td>4 原子组件</td>
+<td>Button / Input / Avatar / Bubble</td>
+<td>Design System</td>
+</tr>
+<tr>
+<td>Epic 数</td>
+<td>8</td>
+<td>业务域</td>
+</tr>
+<tr>
+<td>Milestone 数</td>
+<td>7</td>
+<td>M1-M7</td>
+</tr>
+<tr>
+<td><strong>Task 数</strong></td>
+<td><strong>55</strong></td>
+<td>WBS</td>
+</tr>
+<tr>
+<td>Checklist 项数</td>
+<td>30</td>
+<td>验证项</td>
+</tr>
+<tr>
+<td>Risk 数</td>
+<td>6</td>
+<td>Bootstrap</td>
+</tr>
+<tr>
+<td>Spec v 版本</td>
+<td><strong>v1.0.1</strong></td>
+<td>含 FU-1/FU-2 patch</td>
+</tr>
+<tr>
+<td>代码 v 版本</td>
+<td><code>0.3.7</code> (文档阶段) → <code>v0.4.0</code> (M1) →
+<code>v1.0.0</code> (M7)</td>
+<td>semver</td>
+</tr>
+<tr>
+<td>总 Session 数</td>
+<td>17</td>
+<td>S0.0 → S16.0 → 当前</td>
+</tr>
+</tbody>
+</table>
+<h3 id="186-never-do-硬边界产品决策--永不延期">18.6 Never-Do
+硬边界（产品决策 · 永不延期）</h3>
+<blockquote>
+<p>任何"主流 IM 有，Nook 没"的功能进入 SPEC 前必须过
+<code>Nook-PRODUCT § 2</code> 反模式清单。</p>
+</blockquote>
+<ul>
+<li>❌ <strong>已读回执</strong>（v1.0 引入 =
+背叛"无压力"核心价值）</li>
+<li>❌ <strong>语音消息 / 语音通话 /
+视频通话</strong>（产品定位纯文字）</li>
+<li>❌ <strong>Sticker Market / 表情包商店</strong>（品牌失守）</li>
+<li>❌ <strong>朋友圈 / 动态墙 / 个人主页</strong>（社交媒体不是
+Nook）</li>
+<li>❌ <strong>群公告 / 群待办 / 群管理工具</strong>（拒绝组织化）</li>
+<li>❌ <strong>加好友二维码 / 通讯录导入</strong>（邀请制是入口）</li>
+<li>❌ <strong>多设备登录管理 / 设备列表</strong>（单设备情感强制）</li>
+<li>❌ <strong>红包 / 支付</strong>（商业化）</li>
+<li>❌ <strong>白天模式 / 换肤 / light mode 切换</strong>（深色 =
+进入黑夜心智）</li>
+<li>❌ <strong>Web Push / 系统通知 / Email
+通知</strong>（零噪音定位）</li>
+<li>❌ <strong>Email 验证邮件 / Email
+通知邮件</strong>（无邮件基础设施）</li>
+<li>❌ <strong>隐身模式</strong>（请打开，不要回避）</li>
+<li>❌ <strong>"最后在线时间"显示</strong>（不评论在场度）</li>
+</ul>
+<hr />
+<h2 id="19--1-页速查卡one-page-cheat-sheet">19 · 1 页速查卡（One-Page
+Cheat Sheet）</h2>
+<blockquote>
+<p>印刷 / 贴墙 用。<strong>核心信息密度最大化</strong>。</p>
+</blockquote>
+<h3 id="191-nook-v10-一页速查">19.1 Nook v1.0 一页速查</h3>
+<pre><code>┌─────────────────────────────────────────────────────────────┐
+│   Nook v1.0 · 你的朋友和你之间的私人小房子                    │
+│   ─────────────────────────────────────────────────────────  │
+│   4-6 周单人 MVP  |  Owner + ≤ 20 密友  |  永久免费 3 层部署  │
+└─────────────────────────────────────────────────────────────┘
+
+   Stack (32 deps)
+   ──────────────────────────────────────────────────
+   FE  │ React 18 · Vite 5 · TS · Tailwind · i18next
+   BE  │ Postgres 15 (RLS) · Supabase Auth · Realtime
+       │ Storage · Edge Functions (Deno) · pg_cron
+   Ops │ CF Pages + Supabase + R2 fallback
+   Tools│ Sentry (PII off) · LogSnag · GitHub Actions
+   Fonts│ 自托管 Inter + JetBrains Mono WOFF2 (no Google)
+
+   Never-Do (13)
+   ──────────────────────────────────────────────────
+   ❌已读 · ❌语音/视频 · ❌表情包 · ❌朋友圈 · ❌群公告
+   ❌二维码加好友 · ❌多设备 · ❌红包 · ❌Light mode
+   ❌Web Push · ❌邮件 · ❌隐身 · ❌最后在线时间
+
+   7 Milestone · 55 Task
+   ──────────────────────────────────────────────────
+   M1 Foundation (6) ─→ M2 Auth (7) ─→ M3 Chat (8)
+   ─→ M4 Realtime (8) ─→ M5 Edge (9) ─→ M6 Admin (7)
+   ─→ M7 Polish &amp; A11y (10) ─→ v1.0.0 ✅
+
+   Bootstrap · 10 Step
+   ──────────────────────────────────────────────────
+   1. Project Lead: GitHub repo + Supabase project
+   2. `npm create vite@latest nook -- --template react-ts`
+   3. `git init` + initial commit (30+ files)
+   4. 11 configs (tsconfig/vite/eslint/tailwind/wrangler/...)
+   5. `npm install` (33 deps)
+   6. 40+ directories in src/
+   7. Tailwind tokens injection
+   8. 4 atomic components (Button/Input/Avatar/Bubble)
+   9. i18n + 13 routes + 2 guards
+  10. CI + dark + fonts + 8 verifications
+
+   Quality Gate 3 Levels
+   ──────────────────────────────────────────────────
+   L1 Code Quality   │ ts/lint/format/test/build 0 error
+   L2 Feature Quality│ 符合 SPEC + UI + 4断点 + LCP ≤ 1.5s
+   L3 Engineering    │ docs/ 5 docs updated
+
+   AI 12 Step Pipeline
+   ──────────────────────────────────────────────────
+   AI_HANDOVER → DEV_LOG → TODO → 目标确认 → 开发
+   → 完成 → 5 docs 更新 → 总结</code></pre>
+<hr />
+<h2 id="结束语">结束语</h2>
+<p>本文档是把 Nook v1.0 全部 16 个设计/文档阶段 + 55 Task + 30 Bootstrap
+Checklist + 6 Risks + AI 12 步
+流水线整合为一份<strong>自包含</strong>手册。当 Nook v1.0 真正完成 M1-M7
+代码开发时，本手册本身的 <code>v1.0</code> Work Complete 标记将转为
+Confirmed。</p>
+<p><strong>使用建议</strong>：</p>
+<ul>
+<li>📖 <strong>重新接手 Nook</strong>：读 § 一 → § 三（16 阶段清单）→ §
+五（ADR 一览）→ § 十一（55 Task 速览）</li>
+<li>🚀 <strong>Bootstrap 新项目</strong>：读 § 十三（10 步）→ § 十四（30
+Checklist 逐条）</li>
+<li>✅ <strong>Quality Review</strong>：读 § 十五（6 Risks）→ §
+二十（Never-Do）+ § 九（L1/L2/L3 Quality Gate）</li>
+<li>🧭 <strong>路线决策</strong>：读 § 十六（路线图）→ § 十七（KI /
+FU）</li>
+</ul>
+<hr />
+<blockquote>
+<p><strong>END · Nook v1.0 Project Startup Manual</strong> · 2026-06-27
+· Frozen Stub: Stored at <code>Nook-PROJECT-STARTUP-MANUAL.md</code>
+(Markdown). To produce PDF: install MiKTeX or wkhtmltopdf, then
+<code>pandoc Nook-PROJECT-STARTUP-MANUAL.md -o manual.pdf</code>.</p>
+</blockquote>
+</body>
+</html>
