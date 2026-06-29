@@ -2,9 +2,8 @@
  * Nook M6 · Admin API client unit tests.
  *
  * Strategy: vi.mock('@/lib/supabase') at module top — verifies that
- * `adminApi.createInvite` and `adminApi.createPasswordReset` shape the
- * EF request correctly AND surface the EF response / errors in the
- * right shapes for the UI.
+ * `adminApi.*` functions shape the EF request correctly AND surface
+ * the EF response / errors in the right shapes for the UI.
  */
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 
@@ -34,6 +33,13 @@ const createdResetFixture = {
   target_user_id: '12345678-1234-1234-1234-123456789abc',
   expires_at: '2026-06-30T00:00:00.000Z',
   reset_url: 'https://nook.example/reset-password/abcdefghijklmnopqrstuvwxyz123456',
+};
+
+const deletedFriendFixture = {
+  id: '12345678-1234-1234-1234-123456789abc',
+  target_user_id: '12345678-1234-1234-1234-123456789abc',
+  deleted_at: '2026-06-30T00:00:00.000Z',
+  conversations_left: 3,
 };
 
 beforeEach(() => {
@@ -259,7 +265,126 @@ describe('M6-4 adminApi — createPasswordReset error surfacing', () => {
 });
 
 // =========================================================================
-// mapAdminError — fallbacks (M6 + M6-4 share)
+// M6-5 deleteFriend — request shape
+// =========================================================================
+
+describe('M6-5 adminApi — deleteFriend request shape', () => {
+  it('passes target_user_id to admin-delete-friend EF', async () => {
+    invoke.mockResolvedValueOnce({ data: deletedFriendFixture, error: null });
+    await adminApi.deleteFriend({
+      targetUserId: '12345678-1234-1234-1234-123456789abc',
+    });
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke.mock.calls[0]![0]).toBe('admin-delete-friend');
+    expect(invoke.mock.calls[0]![1]).toEqual({
+      body: { target_user_id: '12345678-1234-1234-1234-123456789abc' },
+    });
+  });
+
+  it('returns the EF payload verbatim', async () => {
+    invoke.mockResolvedValueOnce({ data: deletedFriendFixture, error: null });
+    const result = await adminApi.deleteFriend({
+      targetUserId: '12345678-1234-1234-1234-123456789abc',
+    });
+    expect(result).toEqual(deletedFriendFixture);
+  });
+});
+
+// =========================================================================
+// M6-5 deleteFriend — error surfacing
+// =========================================================================
+
+describe('M6-5 adminApi — deleteFriend error surfacing', () => {
+  it('maps envelope E_RES_NOT_FOUND for missing target', async () => {
+    invoke.mockResolvedValueOnce({
+      data: null,
+      error: {
+        name: 'FunctionsHttpError',
+        message: 'HTTP 400',
+        context: {
+          code: 'E_RES_NOT_FOUND',
+          message: 'Friend does not exist',
+        },
+      },
+    });
+    let captured: unknown;
+    try {
+      await adminApi.deleteFriend({
+        targetUserId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      });
+    } catch (e) {
+      captured = e;
+    }
+    expect(captured).toEqual({
+      code: 'E_RES_NOT_FOUND',
+      message: 'Friend does not exist',
+    });
+  });
+
+  it('maps E_AUTH_FORBIDDEN for non-owner caller', async () => {
+    invoke.mockResolvedValueOnce({
+      data: null,
+      error: {
+        name: 'FunctionsHttpError',
+        message: 'HTTP 403',
+        context: {
+          code: 'E_AUTH_FORBIDDEN',
+          message: 'Only the Owner may delete friends',
+        },
+      },
+    });
+    let captured: unknown;
+    try {
+      await adminApi.deleteFriend({
+        targetUserId: '12345678-1234-1234-1234-123456789abc',
+      });
+    } catch (e) {
+      captured = e;
+    }
+    expect(captured).toEqual({
+      code: 'E_AUTH_FORBIDDEN',
+      message: 'Only the Owner may delete friends',
+    });
+  });
+
+  it('fallback numeric status: 500 → E_SYS_INTERNAL', async () => {
+    invoke.mockResolvedValueOnce({
+      data: null,
+      error: {
+        name: 'FunctionsHttpError',
+        message: 'RPC failure',
+        context: { status: 500 },
+      },
+    });
+    let captured: unknown;
+    try {
+      await adminApi.deleteFriend({
+        targetUserId: '12345678-1234-1234-1234-123456789abc',
+      });
+    } catch (e) {
+      captured = e;
+    }
+    expect(captured).toEqual({
+      code: 'E_SYS_INTERNAL',
+      message: 'RPC failure',
+    });
+  });
+
+  it('throws INTERNAL when EF returns no data and no error', async () => {
+    invoke.mockResolvedValueOnce({ data: null, error: null });
+    await expect(
+      adminApi.deleteFriend({
+        targetUserId: '12345678-1234-1234-1234-123456789abc',
+      }),
+    ).rejects.toEqual({
+      code: 'INTERNAL',
+      message: 'Delete-friend EF returned no body',
+    });
+  });
+});
+
+// =========================================================================
+// mapAdminError — fallbacks (M6 + M6-4 + M6-5 share)
 // =========================================================================
 
 describe('M6 adminApi — mapAdminError fallbacks', () => {

@@ -2,14 +2,17 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { PasswordResetCard } from '@/components/settings/PasswordResetCard';
+import { DeleteFriendCard } from '@/components/settings/DeleteFriendCard';
 
 /**
  * Nook M6 · Settings → Admin page (F-SEC-04 / CAP-03 surface).
  *
- * Layout: per-section cards. Each card has a title, subtitle, and a single
- * CTA. M6-1: Invite + reset + delete (the latter two were disabled stubs).
- * M6-4: Reset password card is now ACTIVE — the delete-friend card remains
- * a DISABLED stub since M6-5 is a separate increment.
+ * Layout: per-section cards. Each card has a title, subtitle, and a
+ * dedicated action surface.
+ *   - Invite card · ACTIVE (M6-3 admin-create-invite UI)
+ *   - Reset password card · ACTIVE (M6-4 admin-reset-password)
+ *   - Delete friend card · ACTIVE (M6-5 admin-delete-friend + M6-6
+ *     confirm modal — S43.0 docs sync sibling ship).
  */
 export default function SettingsAdminPage() {
   const { t } = useTranslation();
@@ -28,7 +31,7 @@ export default function SettingsAdminPage() {
 
       {/* ── Action cards ────────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-[var(--space-md)]">
-        {/* Invite card · ACTIVE */}
+        {/* Invite card · ACTIVE (M6-3) */}
         <article
           data-testid="settings-admin-card-invite"
           className="
@@ -63,38 +66,8 @@ export default function SettingsAdminPage() {
         {/* Reset password card · ACTIVE (M6-4) */}
         <PasswordResetCard />
 
-        {/* Delete friend card · DISABLED PLACEHOLDER (M6-5) */}
-        <article
-          data-testid="settings-admin-card-delete"
-          className="
-            flex flex-col gap-[var(--space-md)]
-            rounded-[var(--radius-xl)] border border-[var(--color-hairline-default)]
-            bg-[var(--color-surface-1)]
-            p-[var(--space-lg)]
-            opacity-60
-          "
-        >
-          <div className="flex flex-col gap-[var(--space-2xs)]">
-            <h3
-              className="text-[font-size-body-lg] font-[600] text-[var(--color-ink-default)]"
-              style={{ fontSize: 'var(--font-size-body-lg)' }}
-            >
-              {t('settings.adminBox.sections.delete.title')}
-            </h3>
-            <p className="text-[var(--font-size-meta)] text-[var(--color-ink-muted)] leading-[var(--leading-chill)]">
-              {t('settings.adminBox.sections.delete.subtitle')}
-            </p>
-          </div>
-          <Button
-            intent="danger"
-            size="md"
-            disabled
-            aria-disabled="true"
-            data-testid="settings-admin-delete-disabled"
-          >
-            {t('settings.adminBox.sections.delete.action')}
-          </Button>
-        </article>
+        {/* Delete friend card · ACTIVE (M6-5 + M6-6 sibling ship) */}
+        <DeleteFriendCard />
       </div>
     </div>
   );

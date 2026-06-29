@@ -218,8 +218,6 @@
     "copied": "Copied!",
     "resetPassword": "Reset password",
     "deleteFriend": "Delete friend",
-    "confirmDelete": "Type \"confirm\" to delete",
-    "confirmPlaceholder": "Type confirm",
     "shareViaWeChat": "Share via WeChat",
     "adminBox": {
       "title": "Admin",
@@ -238,7 +236,7 @@
         "delete": {
           "title": "Delete friend",
           "subtitle": "Permanently remove a friend's account.",
-          "action": "Coming soon"
+          "action": "Delete friend"
         }
       }
     },
@@ -296,6 +294,30 @@
         "internal": "Couldn't create reset link. Please try again.",
         "generic": "Something went wrong."
       }
+    },
+    "deleteFriend": {
+      "title": "Delete a friend",
+      "subtitle": "Revoke a friend's access to all conversations. Their messages stay visible to you so old history is preserved.",
+      "pickerLabel": "Friend to delete",
+      "pickerPlaceholder": "Choose a friend",
+      "noFriends": "You don't have any friends yet.",
+      "chooseAction": "Delete friend",
+      "deleted": "Deleted on {{date}} ({{count}} conversation(s) updated)",
+      "confirm": {
+        "title": "Delete {{name}}?",
+        "message": "Removing {{name}} revokes their access to all conversations immediately. Their message history stays in your view — this is non-destructive so old context is preserved.",
+        "warning": "This action cannot be undone. The friend will not be notified.",
+        "submit": "Delete friend",
+        "cancel": "Cancel"
+      },
+      "error": {
+        "unauthorized": "Your session has expired. Please sign in again.",
+        "forbidden": "Only the Owner can delete friends.",
+        "friendNotFound": "Friend not found.",
+        "invalidInput": "Invalid delete configuration.",
+        "internal": "Couldn't delete friend. Please try again.",
+        "generic": "Something went wrong."
+      }
     }
   },
   "common": {
@@ -315,6 +337,11 @@
     "owner": "Owner",
     "member": "Member",
     "group": "Group"
+  },
+  "confirmModal": {
+    "confirmLabel": "Type \"{{phrase}}\" to enable the submit button",
+    "submitPlaceholder": "Type \"{{phrase}}\"",
+    "phraseMatches": "Phrase confirmed. You may submit."
   },
   "errors": {
     "required": "This field is required",

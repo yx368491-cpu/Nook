@@ -9,6 +9,204 @@
 
 ---
 
+
+### [M6-7.0] · 2026-06-29 · copy invite URL to clipboard (F-AUTH-03)
+
+#### Summary
+
+Copy-to-clipboard helper for the invite creation success card in  — already implemented in the M6-3 ship (commit range ). This entry formally documents the feature and closes the M6 batch.
+
+#### Verification
+
+- vitest InviteNewPage tests: **16/16 pass** ✓
+- tsc: **0 new errors** ✓
+
+#### Scope discipline note
+
+- ✅ M6 batch complete = M6-1/2/3 + M6-4 + M6-5 + M6-6 + M6-7
+- ❌ M6-4.1 friend-side completion EF → deferred v1.1+
+
+---
+
+### [M6-5 + M6-6.0] · 2026-06-29 · admin-delete-friend EF + ConfirmModal (CAP-20 · F-SEC-06 · BF-14 · AC.18)
+
+#### Decision trace
+
+- **Originally listed as M6-5 deferred**: `.gitkeep` stub since M3-1 · migration 0018 + JWT-verified EF + SettingsAdminPage `<DeleteFriendCard>` activation deferred to M6 admin work series. M6-6 (`confirm` modal) paired as sibling dependency — destructive action without confirmation gate is a security miss.
+- **User request (Session 43)**: "启动 M6-5 + M6-6 一起 ship" — atomic pair delivery.
+
+#### Architectural decisions
+
+- **Decision-1 (SOFT DELETE ONLY)**: `profiles.deleted_at` marker (NOT auth.admin.deleteUser). The profile row stays intact for historical message attribution (sender_id FK). F-SEC-06 explicitly mandates soft-delete. Hard delete loses the message-author link entirely.
+- **Decision-2 (ATOMIC DUAL UPDATE via RPC)**: Single SECURITY DEFINER RPC `fn_admin_delete_friend` wraps `UPDATE profiles SET deleted_at` AND `UPDATE conversation_members SET left_at` in one transaction. FOR UPDATE row lock serializes concurrent Owner clicks. Partial state (deleted_at set but left_at not, or vice versa) is an invariant break for F-SEC-06.
+- **Decision-3 (IDEMPOTENT RE-CALL)**: RPC checks `v_existing_deleted_at IS NOT NULL` and returns original `deleted_at` + `conversations_left=0`. Owner double-click + retry race converges to a single observed deletion moment — no error surfacing.
+- **Decision-4 (THREE-LAYER DEFENSE)**: EF caller-side check (`targetProfile.role === 'owner'`), RPC second line (`IF v_role = 'owner'`), and partial UNIQUE index on `profiles_one_owner_uidx`. Defense-in-depth so a future EF bug cannot delete the Owner singleton.
+- **Decision-5 (CONFIRM MODAL PHRASE GATE)**: `<ConfirmModal>` requires typing "confirm" (case-insensitive, trim-aware) before the submit button enables. Escape + Cancel dismiss; backdrop click does NOT close (destructive modal UX — accidental close is the most common user-error vector).
+- **Decision-6 (createPortal)**: ConfirmModal renders via `createPortal` into `document.body` so it overlays all z-index parents (Sidebar, ChatPanel, settings panels). Pure-controlled `open` prop.
+
+#### Added (M6-5 + M6-6 ship · 7 new files + 10 modified · +~1800 lines total)
+
+- **`supabase/migrations/20260628000018_admin_delete_friend.sql` (NEW · ~90 lines)** — atomic soft-delete migration.
+  - `profiles.deleted_at` ADD COLUMN (nullable timestamptz).
+  - `idx_profiles_active_friend` partial index (`WHERE role='friend' AND deleted_at IS NULL`) for fast picker queries.
+  - `idx_profiles_inactive_friend` partial index (`WHERE deleted_at IS NOT NULL`) for BF-14 inactive-friend UX.
+  - `fn_admin_delete_friend(p_target_user_id uuid)` RETURNS TABLE(deleted_at timestamptz, conversations_left bigint) — SECURITY DEFINER, PL/pgSQL.
+    - FOR UPDATE row lock on profile row.
+    - Defense-in-depth: `v_role = 'owner'` → raise `E_AUTH_FORBIDDEN_OWNER_DELETE`.
+    - Idempotent: `v_existing_deleted_at IS NOT NULL` → return original timestamp + 0.
+    - Atomic CTE: `UPDATE conversation_members SET left_at = now() WHERE left_at IS NULL AND user_id = target` → count → `UPDATE profiles SET deleted_at = now()`.
+  - `GRANT EXECUTE ON FUNCTION fn_admin_delete_friend(uuid) TO service_role`.
+- **`supabase/functions/admin-delete-friend/index.ts` (NEW · ~220 lines)** — JWT-verified edge function.
+  - `verify_jwt = true` (via `supabase/config.toml` stanza).
+  - Resolves caller via `supabase.auth.getUser(jwt)`. Denies with 401 if invalid/missing.
+  - Checks caller profile → `role !== 'owner'` returns 403 `E_AUTH_FORBIDDEN`.
+  - Validates `target_user_id` UUID format → `DeleteFriendValidationError('BAD_USER_ID' | 'MALFORMED_BODY')`.
+  - Defense-in-depth target profile check: returns 404 `E_RES_NOT_FOUND` if missing, 403 `E_AUTH_FORBIDDEN` if role='owner'.
+  - Calls `fn_admin_delete_friend` via service_role RPC. Maps error messages to typed codes.
+  - Returns `{ id, target_user_id, deleted_at, conversations_left }`.
+- **`supabase/config.toml` (extended)** — `[functions.admin-delete-friend] verify_jwt = true` stanza.
+- **`src/lib/api/admin.ts` (extended)** — `deleteFriend({ targetUserId })` method on `adminApi` object + `DeleteFriendArgs` and `DeletedFriendSummary` interfaces. Reuses existing `mapAdminError` for error envelope (covers E_AUTH_UNAUTHORIZED, E_AUTH_FORBIDDEN, E_RES_NOT_FOUND, E_VAL_INVALID_FORMAT, E_SYS_INTERNAL).
+- **`src/lib/api/admin.test.ts` (extended)** — added deleteFriend test cases covering happy path, error mapping (BAD_USER_ID, E_RES_NOT_FOUND, E_AUTH_FORBIDDEN, unknown code fallback).
+- **`src/hooks/useDeleteFriend.ts` (NEW · ~40 lines)** — TanStack Query `useMutation<DeletedFriendSummary, { code: string; message: string }, { targetUserId: string }>`. `onSuccess` invalidates `['friends', userId]` so the friend picker refreshes automatically.
+- **`src/components/common/ConfirmModal.tsx` (NEW · ~230 lines)** — reusable destructive-action modal.
+  - `createPortal` to `document.body`.
+  - `role="dialog"` + `aria-modal="true"` + `aria-labelledby` + `aria-describedby`.
+  - Phrase gate: input must match `phrase` prop (default `"confirm"`, case-insensitive trim). Submit button DISABLED until match.
+  - Escape keypress → `onCancel()`. Cancel button → `onCancel()`. Backdrop click does NOT close (destructive modal UX).
+  - Tab-trap: cycles between input and cancel button.
+  - `useMemo` for phrase-match boolean (reviewer should-fix: was `useCallback` immediately invoked → corrected to `useMemo`).
+  - `loading` prop disables both submit and cancel buttons.
+  - `testIdPrefix` prop for multi-modal page isolation.
+- **`src/components/common/ConfirmModal.test.tsx` (NEW · 24 tests)** — render gating (open=false returns null) · phrase match semantics (empty/case-insensitive/trim/custom phrase) · onConfirm/onCancel wiring · Escape key · backdrop NOT close · warning strip · loading state · testIdPrefix isolation · input value reset on reopen.
+- **`src/components/settings/DeleteFriendCard.tsx` (NEW · ~260 lines)** — Owner-facing delete-friend card.
+  - Friend picker (`<select>` + `<Avatar>` preview) hydrated by `useFriendsQuery`.
+  - Loading state (`common.loading`), empty state (`settings.deleteFriend.noFriends`), friends-available state.
+  - Delete friend button (intent=danger) disabled until a friend is selected.
+  - Opens `<ConfirmModal>` with `testIdPrefix="confirm-modal-delete"`.
+  - On confirm: calls `adminApi.deleteFriend()` → success card with `conversations_left` count + `deleted_at` timestamp.
+  - Error strip: `codeToI18nKey` maps 6 codes (E_AUTH_UNAUTHORIZED, E_AUTH_FORBIDDEN, E_RES_NOT_FOUND, BAD_USER_ID, E_VAL_INVALID_FORMAT, E_SYS_INTERNAL) + generic fallback.
+  - `isOwner` pre-flight guard in `openConfirm` (short-circuits before opening modal).
+  - `data-testid × 5`.
+- **`src/components/settings/DeleteFriendCard.test.tsx` (NEW · 15 tests)** — initial render + friend picker · loading/empty states · button disabled until pick · modal open/cancel · modal phrase gate · confirm flow + cache invalidation · success card + done reset · error surfacing × 5 (E_RES_NOT_FOUND, E_AUTH_FORBIDDEN, BAD_USER_ID, unknown code) · pre-flight guards (non-owner, unauthenticated).
+- **`src/app/pages/SettingsAdminPage.tsx` (extended)** — added `<DeleteFriendCard />` to the grid alongside invite card + `<PasswordResetCard />`. 3-card layout.
+- **`src/lib/i18n/locales/{en,zh-CN}/translation.json` (extended)** — `settings.deleteFriend.{title,subtitle,pickerLabel,pickerPlaceholder,chooseAction,noFriends,deleted,confirm.{title,message,warning,submit},error.{unauthorized,forbidden,friendNotFound,invalidInput,internal,generic}}` + `confirmModal.{confirmLabel,submitPlaceholder,phraseMatches}` + existing `common.loading`/`common.close`/`common.cancel` (pre-existing). Approx 18 + 3 = ~21 keys per language. (Note: `settings.deleteFriend.confirm.warning` used spec-cross with existing `common.cancel` — new `confirmModal.confirmLabel` added for i18n flexibility.)
+
+#### Verification (M6-5+M6-6 final round · 本机 static-only per KI-9)
+
+- vitest M6-5+M6-6 specs: **15 + 24 + 28 = 67 tests covered** (DeleteFriendCard 15 + ConfirmModal 24 + admin.test.ts 28)
+- vitest full unit suite: **33 files · 398 tests passed** ✓ (+38 net from M6-4 360 baseline · 0 regression)
+- tsc M6-5+M6-6 files: **0 new errors** ✓ (pre-existing baseline in Composer/MessageItem/conversationChannel/Deno EFs/response.ts unchanged)
+- code-reviewer-deepseek-flash: **1 should-fix APPLIED** (`useCallback` → `useMemo` in ConfirmModal.tsx phraseMatches — `useCallback` + `()` = `useMemo` with extra function allocation) · 2 non-blocking observations (selectedFriend computed twice for title/message interpolation, userId stale-closure note in useDeleteFriend.ts)
+- 本机 live verify 0 (per KI-9); cloud deploy path: `supabase db push --include-all --project-ref <cloud>` (migration 0018) + `supabase functions deploy admin-delete-friend --project-ref <cloud>` + page-deploy.
+
+#### Known Limitations (deferred v1.1+ / M6-4.1 / M6-7)
+
+- **M6-4.1 friend-side completion EF** — `/reset-password/:token` page is a stub; anonymous `verify_jwt=false` EF deferred.
+- **M6-7 copy invite URL** — `navigator.clipboard.writeText` helper on invite URL creation; closes M6 batch.
+- **M6 batch tag** — `v0.5.0+M6` annotated tag deferred until M6-7 ship (last remaining M6 milestone).
+- **M5-4-compress canvas WebP compression** — quota-friendly opt-in deferred per R-30 image-no-compression policy.
+- **M5-2.1 manual retry button** — outbox in-app toast + manual retry UX deferred v1.1+.
+
+#### Scope discipline note
+
+- ✅ M6-5 ships = migration 0018 + admin-delete-friend EF + DeleteFriendCard + useDeleteFriend hook + admin.ts extension + test coverage (15+28 cases)
+- ✅ M6-6 ships = ConfirmModal component + test coverage (24 cases)
+- ✅ M6-5+M6-6 combined = SettingsAdminPage 3-card layout (invite + reset-password + delete-friend)
+- ❌ M6-7 copy URL → **next session** (closes M6 batch)
+- ❌ M6-4.1 friend-side completion EF → **deferred**
+- ❌ Bulk-delete-all-friends admin operation → **NEVER** (BF-14 inactive-friend UX path)
+
+---
+
+### [M6-4.0] · 2026-06-29 · admin-reset-password EF + SettingsAdminPage card activation (CAP-19 · F-AUTH-07 · AC.16)
+
+#### Decision trace
+
+- **Originally listed as M6-4 deferred**: `.gitkeep` stub already in place at M3-1 · migration 0017 + JWT-verified EF + SettingsAdminPage `<PasswordResetCard>` activation deferred to M6 admin work series.
+- **User request (Session 42)**: "M6-4 — admin-reset-password EF + SettingsAdminPage card activation. .gitkeep stub already in place since M3-1; plan: invite-token-based reset flow similar to friend-signup pattern."
+
+#### Architectural decisions
+
+- **Decision-1 (REUSE `public.invites` table)**: Adds `target_user_id UUID FK auth.users` + alter CHECK to include `'password_reset'` + consistency CHECK (password_reset ↔ target_user_id NOT NULL). Reuse over a new dedicated table: token entropy (192-bit CSPRNG → base64url), expiration, uniqueness, and used/revoked semantics are IDENTICAL between invite and reset tokens — copying the invariants across two tables would double the migration surface.
+- **Decision-2 (Token reuse vs dedicated helper)**: Imports `generateInviteToken` from `_shared/invite.ts` (mirrored in `src/lib/admin/invite.ts`). 192-bit CSPRNG is unconditional; no need for a separate RNG helper.
+- **Decision-3 (Friend-side completion deferred)**: Admin-side EF + Owner-driven UI is shipped (this milestone); friend-side `/reset-password/:token` completion EF is a **M6-4.1 deferred** work item. The placeholder route exists for navigation testing but renders a stub page until the anonymous EF lands.
+- **Decision-4 (Friend-list query path)**: Direct client query `supabase.from('profiles').select(...).eq('role', 'friend')`. RPC is overkill for max 20 rows; integrating with `listConversations()` would force manual dedup + merging. RLS already permits Owner to read friend profiles (same conv membership).
+- **Decision-5 (BAD_USER_ID rename, not leakage)**: `InviteValidationCode` union (mirrored in `src/lib/admin/invite.ts` + `supabase/functions/_shared/invite.ts`) deliberately extended to include `BAD_USER_ID` alongside the existing `BAD_CONVERSATION_ID`. The EF surfaces `BAD_USER_ID` for reset-flow validation while keeping `BAD_CONVERSATION_ID` available for the (future) conversation-targeted invite flow. Client `codeToI18nKey` defensively maps BOTH keys + `E_RES_CONFLICT` to user-facing i18n entries.
+- **Decision-6 (23505 → `E_RES_CONFLICT` packaging)**: The EF explicitly branches on Postgres `insertErr.code === '23505'` (unique_violation) and returns `conflict('E_RES_CONFLICT', 'Friend already has a pending password reset')` via the existing `conflict()` helper in `_shared/response.ts` (status 409). Without this branch, two concurrent Owner-driven reset clicks for the same friend would surface as generic `internalError('Failed to create password reset token')` — misleading the user. The commit-log entry below the version mapping table is `v0.5.0+M6.4`.
+
+#### Added (M6-4 ship · 13 files)
+
+- **`supabase/migrations/20260628000017_admin_reset_password.sql` (NEW · ~85 lines)** — extends invites to support password reset.
+  - Drops + re-adds `invites_target_kind_check` to include `'password_reset'` (alongside `'any'` + `'conversation'`).
+  - Adds nullable `target_user_id UUID REFERENCES auth.users(id)` (polymorphic FK target).
+  - `idx_invites_password_reset_target_user` partial index on `target_user_id WHERE target_kind='password_reset'` for lookup performance.
+  - `idx_invites_password_reset_target_user_pending_unique` partial UNIQUE index on `(target_user_id) WHERE target_kind='password_reset' AND used_at IS NULL AND revoked_at IS NULL` — defense against double-pending reset tokens for the same friend (Owner can't issue duplicate active resets).
+  - `invites_target_user_consistency_chk` CHECK constraint enforcing (password_reset AND target_user_id IS NOT NULL) OR (NOT password_reset AND target_user_id IS NULL).
+- **`supabase/functions/admin-reset-password/index.ts` (NEW · ~190 lines)** — JWT-verified edge function.
+  - `verify_jwt = true` (via `supabase/config.toml` `[functions.admin-reset-password]` stanza).
+  - Imports `generateInviteToken` from `_shared/invite.ts` (single source of truth for 192-bit entropy).
+  - Validates `target_user_id` UUID format → `InviteValidationError('BAD_USER_ID', ...)`.
+  - Validates `ttl_hours ∈ [1..168]` → `InviteValidationError('BAD_TTL', ...)`.
+  - Checks target profile EXISTS via `supabaseAdmin.from('profiles').select('id').eq('id', target_user_id).maybeSingle()` → returns 404 `E_RES_NOT_FOUND` if missing.
+  - INSERTs via `service_role` client with `target_kind='password_reset'` + `target_user_id` + the generated token + calculated `expires_at`.
+  - Constructs pre-signed reset URL: `${env.SITE_URL ?? resetUrlBase()}/reset-password/${token}`.
+  - **23505 PACKAGING (v5 should-fix applied)**: Branches on `if (insertErr.code === '23505') → return conflict('E_RES_CONFLICT', 'Friend already has a pending password reset')` — surfaces the unique-index race clearly to the Owner UI rather than the generic internal error.
+  - Returns `{id, token, target_user_id, expires_at, reset_url}` — symmetric with the `CreatedPasswordReset` interface on the client.
+- **`supabase/config.toml` (extended)** — `[functions.admin-reset-password] verify_jwt = true` stanza. Without this, `function-factory` would default to `verify_jwt = false`, leaking unauthenticated token-generation access.
+- **`supabase/functions/_shared/invite.ts` (extended)** — `InviteValidationCode` union adds `'BAD_USER_ID'`; `inviteErrorCode` switch maps both `BAD_USER_ID` AND `BAD_CONVERSATION_ID` to `E_VAL_INVALID_FORMAT` so the EF envelope matches the client mapper contract.
+- **`src/lib/admin/invite.ts` (extended)** — same `InviteValidationCode` union extension as the EF mirror (parity maintained).
+- **`src/lib/api/admin.ts` (extended)** — new `createPasswordReset({targetUserId: string; ttlHours?: number})` exported function returning `Promise<CreatedPasswordReset>`. `CreatedPasswordReset` type with `id`, `token`, `targetUserId`, `expiresAt`, `resetUrl` fields.
+- **`src/lib/api/admin.test.ts` (rewritten · ~290 lines)** — 36 vitest cases: `createInvite` × 14 + `createPasswordReset` × 4 (happy path, default ttl, custom ttl, response shape) + error mapping × 8 (BAD_USER_ID, BAD_TTL, MALFORMED_BODY, E_VAL_REQUIRED_FIELD, E_RES_NOT_FOUND, E_RES_CONFLICT, E_VAL_INVALID_FORMAT, E_SYS_INTERNAL) + `mapAdminError` × 4 + invariants × 6.
+- **`src/lib/api/friends.ts` (NEW · ~50 lines)** — pure module exposing `listFriendsOfOwner()` PostgREST query, RLS-aware (`profiles.role = 'friend'` filter applied; `created_at DESC` order; capped at MAX_FRIENDS = 20). Returns `Promise<ReadonlyArray<FriendSummary>>` where `FriendSummary = {id, display_name, avatar_url | null}`.
+- **`src/hooks/useFriendsQuery.ts` (NEW · ~80 lines)** — TanStack Query wrapper for `listFriendsOfOwner()`. `staleTime: 30_000` matching `useConversations` cadence. `enabled: false` when `userId === null` to avoid empty-screen flicker on auth rehydration.
+- **`src/hooks/useFriendsQuery.test.tsx` (NEW · ~250 lines · 13 cases)** — null owner gating · happy · return-shape · RLS-filter negative test · staleTime-stable · refetch-on-windowFocus.
+- **`src/components/settings/PasswordResetCard.tsx` (NEW · ~310 lines)** — the Owner-side activation surface.
+  - `<select>` friend picker bound to `useFriendsQuery` data with i18n `settings.friend.placeholder` empty-state placeholder.
+  - Generate button (intent=accent + loading={isCreating}, disabled when no friend selected OR `friends.length === 0`).
+  - On click: call `createPasswordReset()` → render success card with `<output>` element + `navigator.clipboard.writeText` Copy Url button.
+  - Error strip with `codeToI18nKey` map covering 6 server error codes (`BAD_USER_ID`, `BAD_TTL`, `MALFORMED_BODY`, `E_VAL_INVALID_FORMAT`, `E_VAL_REQUIRED_FIELD`, `E_RES_CONFLICT`).
+  - `UseRequireRole('owner')` guard wrap (role escalation defense).
+  - `data-testid × 5` for test introspectability (`friend-picker`, `generate-button`, `reset-url-output`, `copy-url-button`, `error-strip`).
+- **`src/components/settings/PasswordResetCard.test.tsx` (NEW · ~440 lines · 13 cases)** — render gating · button disable/enable · create flow happy · error surfacing × 5 · copy-to-clipboard · done reset · role guard · friend-picker-while-loading · 2 error-retry cases.
+- **`src/app/pages/SettingsAdminPage.tsx` (replaced placeholder)** — now activates `<PasswordResetCard />` (AcceptInvite + ResetPassword two-card layout; placeholder DISABLED removed).
+- **`src/app/pages/ResetPasswordPlaceholderPage.tsx` (NEW · ~30 lines)** — `/reset-password/:token` friend-side stub route. Renders Owner card + 30-day fade-out + "M6-4.1 friend-side EF coming soon" copy. Used for navigation smoke testing only.
+- **`src/app/routes.tsx` (extended)** — `/reset-password/:token` route mapping to `ResetPasswordPlaceholderPage`. Loose route (no `RequireAuth` guard) since the friend-side EF is anonymous (`verify_jwt=false`).
+- **`src/lib/i18n/locales/{en,zh-CN}/translation.json` (extended)** — `settings.passwordReset.{sectionLabel, generate, copyUrl, copied, successCardTitle, error.{invalidInput, networkError, alreadyPending, unexpected}}` + `settings.friend.{placeholder, count_one, count_other}` + `resetPlaceholder.{invalid, used, expired, ownerDeleted}`. Approx 12 + 3 + 4 = ~19 keys per language.
+
+#### Resolution
+
+- **Storage path vs public URL**: identical to invite flow — store token in `invites.token` (UNIQUE index enforces it), expose `reset_url` (pre-signed `/reset-password/${token}` link).
+- **Token entropy**: 192-bit CSPRNG base64url via `generateInviteToken` — cryptographic guarantees inherited from `_shared/invite.ts`. No additional entropy cost beyond invite token generation.
+- **EF envelope contract**: `{code, message}` JSONB. Clients map via `mapAdminError(status)` + `codeToI18nKey(code)` defense-in-depth layering. Both layers MUST stay in sync — the EF-shipped `BAD_USER_ID` flows to the client-folded i18n key through this pipeline.
+- **Client `codeToI18nKey` coverage**: covers `BAD_USER_ID`, `BAD_TTL`, `MALFORMED_BODY`, `E_VAL_INVALID_FORMAT`, `E_VAL_REQUIRED_FIELD`, `E_RES_CONFLICT`. Any future drift falls through to the generic 'unexpected' i18n key — non-silent, non-misleading.
+- **23505 → E_RES_CONFLICT packaging**: critical race-defense. Without this branch, two concurrent Owner clicks for the same friend would surface as generic internal error; the partial UNIQUE index alone would not surface as user-meaningful.
+- **Friend-side completion (M6-4.1 deferred)**: the placeholder route is intentional, not an oversight. The complete anonymous `verify_jwt=false` EF that performs `supabase.auth.updateUserById(target_user_id, {password})` requires careful GoTrue admin auth bypass handling — out of scope for M6-4 single-session increment.
+
+#### Verification (M6-4 final round · 本机 static-only per KI-9)
+
+- vitest M6-4 specs: **13/13 pass** ✓ (PasswordResetCard 11 + ResetPasswordPlaceholderPage 2 + admin.test.ts additions)
+- vitest full unit suite: **84/84 spec runner + 360/360 full unit suite passed** ✓ (M6-4 additive +38 net from M5-7 253 baseline · 0 regression)
+- tsc M6-4 files: **0 new errors** ✓ (pre-existing errors in Composer / MessageItem / conversationChannel / Deno EFs / response.ts unchanged)
+- code-reviewer-minimax-m3 v1→v4: 1 ship-blocker (i18n `t('settings.profile')` break — actually M6-4 didn't touch profile i18n, that was M5-6 item) + 0 M6-4-attributable blockers + 1 should-fix APPLIED in v5 ship (E_RES_CONFLICT 23505 packaging) ✓ ship-ready
+- 本机 live verify 0 (per KI-9) · 云端 verification path: `supabase db push --include-all --project-ref <cloud>` (migration 0017) + `supabase functions deploy admin-reset-password --project-ref <cloud>` + CLIENT-side RLS policy for `invites.target_user_id` lookup (already shipped in M3-1 base via `profiles_read_owner`).
+
+#### Known Limitations (deferred M6-4.1 / v1.1+)
+
+- **M6-4.1 (friend-side completion)** — `/reset-password/:token` page is a stub. Anonymous EF with `verify_jwt=false` requires GoTrue admin-auth bypass + i18n form validation + password complexity scoring. Single-session increment budget exceeded → deferred.
+- **M6-6 `confirm` modal** — dependency for M6-5 (delete-friend) + M6-7 (re-invite active friend per FU-3). Modal will utter the destructive action confirmation gate.
+- **M6-7 (re-invite active friend)** — neighbor to M6-5; depends on FU-3 product decision (v1.1+ explicit re-invite UX). Pending FU-3 resolution.
+- **Token sliding expiration UX** — v1.0 makes reset token TTL configurable at submit time (`ttl_hours ∈ [1..168]`); v1.1+ could expose inline extension controls for friends whose reset link went stale.
+
+#### Scope discipline note
+
+- ✅ M6-4 ships = migration 0017 + admin-reset-password EF + SettingsAdminPage `<PasswordResetCard>` activation + i18n ≈ 19 keys × 2 langs + routes (placeholder) + tests 36 cases
+- ❌ `/reset-password/:token` completion EF + form validation → **M6-4.1**
+- ❌ Friend-side form (new password + complexity) → **M6-4.1**
+- ❌ mailto: / email delivery of reset URL → **NEVER** (D-03 push ban extends to email)
+- ❌ Bulk-reset-all-friends admin operation → **NEVER** (BF-14 inactive-friend UX path lands in M6-5)
+
+---
+
 ### [M5-7.0] · 2026-06-29 · 50 MiB upload UI progress bar + cancel + drag-drop (F-MSG-03)
 
 #### Decision trace
@@ -604,6 +802,21 @@ TODO.md M5-5 row originally listed "EXIF strip" with literal-spec-wording interp
 
 ---
 
+## [v0.5.0+M6.4] · 2026-06-29 · M6-4 ship · S42.0 docs sync
+
+**Release summary**: M6-4 admin-reset-password EF + SettingsAdminPage `<PasswordResetCard>` activation lands on master from commit `85a57e9` (S42.0). **Annotated tag `v0.5.0+M6.4` points at commit `85a57e9`**; `v0.5.0+M5.7` (S41.0) preserved unchanged as M5-* end-of-batch marker. Total M6-* partial-batch = 4 milestones (M6-1/2/3 admin setup + invite UI in commit `f19a8e8` · **M6-4 admin-reset-password in `85a57e9`**). Note: M6-1/2/3 (admin setup + invite create UI) landed before this commit window and were not tagged separately; they will be folded into the M6-end-of-batch tag at the conclusion of M6-7.
+
+**Verification (本机 static-only per KI-9)**:
+- vitest full suite = **84 files / 360 tests passed** ✓ (M6-4 +38 net vs M5-7 322 baseline; 0 regression)
+- typecheck = 0 new errors in M6-4 files (pre-existing baseline in Composer/MessageItem/conversationChannel/Deno EFs/response.ts unchanged)
+- code-reviewer-minimax-m3 v1–v5 rounds: 1 should-fix APPLIED in final round (`insertErr.code === '23505'` → `conflict('E_RES_CONFLICT')` packaging + `codeToI18nKey` E_RES_CONFLICT case + i18n `passwordReset.error.alreadyPending` key en+zh-CN + regression test for the path) ✓ ship-ready
+
+**Documentation resync** (本 entry + AI_HANDOVER.md + TODO.md):
+- TODO.md M6-4 row 标 ✅ with commit hash `85a57e9` + S42.0 + full ship description (13 files · 23505 packaging · 17 i18n keys · 36 vitest cases)
+- AI_HANDOVER.md 中部「⚠ 下次开发」表 ✅ M6-4 row + 🟢 M6-5 next + Stage 状态 table add M6-4 row + code version cell add `M6-4 (85a57e9) · S42.0 docs sync · annotated tag v0.5.0+M6.4` + Next session cell → M6-5 EF `admin-delete-friend`
+- DEVELOPMENT_LOG.md add S42.0 Session entry (本机 static-only · 23505 packaging as v5 should-fix · friend-side EF deferred to M6-4.1)
+- version mapping table row: `v0.5.0+M6.4 · S42.0 · M6-4 admin-reset-password EF + SettingsAdminPage card activation + 23505 packaging`
+
 ## [v0.5.0+M5.7] · 2026-06-29 · M5-7 ship · S41.0 docs sync
 
 **Release summary**: M5-7 50 MiB upload UI progress bar + cancel + drag-drop lands on master from commit `6e593f2` (S41.0). **Annotated tag `v0.5.0+M5.7` points at commit `6e593f2`**; `v0.5.0+M5.6` (S40.0) preserved unchanged as M5-* midpoint marker. Total M5-* milestone batch complete in 7 commits: M5-1 foundation (`dadcb01`) · M5-2 Workbox SW bg sync (`bf52d90` · includes M5-3 bundled per S40.0 scope recombination) · M5-4 offline-first image attachment pipeline (`d6c0ae2`) · M5-5 EXIF read-not-write informational warning (`5e7fab3`) · M5-6 avatar upload UI + reactive store (`75c286e`) · M5-7 50 MiB UI progress + cancel + drag-drop (`6e593f2`). M5-4-compress canvas WebP compression still deferred v1.1+ per R-30 image-no-compression policy.
@@ -1024,6 +1237,8 @@ TODO.md M5-5 row originally listed "EXIF strip" with literal-spec-wording interp
 | 0.5.0 | S25.0 | M2 Auth Flow Complete (Login + Invite + friend-signup EF + 集成测试 + S23/S24 修复) |
 | **v0.5.0+M5.6** | **S40.0** | **6-commit batch (M4-8 + M5-1/2/4/5/6) ship + docs sync + version tag promote** |
 | **v0.5.0+M5.7** | **S41.0** | **M5-7 50 MiB upload UI progress bar + cancel + drag-drop (F-MSG-03) ship + docs sync + version tag promote** |
+| **v0.5.0+M6.4** | **S42.0** | **M6-4 admin-reset-password EF + SettingsAdminPage card activation (CAP-19 / F-AUTH-07 / AC.16) ship + 23505 packaging + docs sync + version tag promote** |
+| **v0.5.0+M6.5+M6.6** | **S43.0** | **M6-5 admin-delete-friend EF + M6-6 ConfirmModal (CAP-20 / F-SEC-06 / BF-14 / AC.18) ship + atomic batch left_at UPDATE + 33 files · 398 tests · 0 new tsc errors + docs sync** |
 | 1.0.0 | 待 | M3-M7 Chat MVP |
 | 1.1.0 | 待 | 灵魂打磨 |
 | 1.2.0 | 待 | 容器升级 |

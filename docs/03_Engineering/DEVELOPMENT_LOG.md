@@ -637,6 +637,51 @@
 
 ---
 
+## S43.0 · 2026-06-29 · M6-5 admin-delete-friend EF + M6-6 ConfirmModal (CAP-20 / F-SEC-06 / BF-14 / AC.18)
+
+- **开发内容**: 实现 Nook v1.0 M6-5 admin-delete-friend EF + M6-6 ConfirmModal 成对 ship。原子批量 `left_at` UPDATE + BF-14 inactive-friend UX + F-SEC-06 软删除保护 + M6-6 phrase gate modal。本机 static-only 验收 (per KI-9 Docker 永久废弃)。
+
+- **新增功能**:
+  - **`supabase/migrations/20260628000018_admin_delete_friend.sql` (NEW · ~90 行)**: `profiles.deleted_at` ADD COLUMN + `idx_profiles_active_friend`/`idx_profiles_inactive_friend` partial indexes + `fn_admin_delete_friend` RPC (SECURITY DEFINER · FOR UPDATE row lock · atomic dual UPDATE · idempotent re-call · Owner self-delete defense-in-depth) + GRANT service_role
+  - **`supabase/functions/admin-delete-friend/index.ts` (NEW · ~220 行)**: JWT-verified · 3-layer defense (caller role + target profile role + RPC) · UUID validation · calls `fn_admin_delete_friend` via service_role
+  - **`src/hooks/useDeleteFriend.ts` (NEW)**: `useMutation` with cache invalidation
+  - **`src/components/common/ConfirmModal.tsx` (NEW · ~230 行)**: `createPortal` modal · phrase gate · Escape/cancel/backdrop-deny-close · `aria-modal` + Tab-trap · `testIdPrefix` isolation
+  - **`src/components/settings/DeleteFriendCard.tsx` (NEW · ~260 行)**: friend picker + confirm modal + success card + error strip + loading/empty/friends states
+  - **`src/app/pages/SettingsAdminPage.tsx` (extended)**: wired `<DeleteFriendCard />` (3-card layout: invite + reset-password + delete-friend)
+  - i18n × 2 lang `settings.deleteFriend.*` (18 keys) + `confirmModal.*` (3 keys)
+
+- **修改内容**:
+  - `src/lib/api/admin.ts` — `deleteFriend()` + `DeleteFriendArgs`/`DeletedFriendSummary` interfaces
+  - `src/lib/api/admin.test.ts` — deleteFriend test cases
+  - `src/components/common/ConfirmModal.tsx` — `useCallback`→`useMemo` fix (reviewer should-fix APPLIED)
+  - `supabase/config.toml` — `[functions.admin-delete-friend] verify_jwt = true` stanza
+  - 4 project memory docs: TODO.md, AI_HANDOVER.md, CHANGELOG.md, DEVELOPMENT_LOG.md (本条)
+
+- **验证结果** (本机 static-only · per KI-9):
+  - vitest full unit suite: **33 files · 398 tests passed** ✓ (M6-5+M6-6 +38 net from M6-4 360 baseline · 0 regression)
+  - tsc M6-5+M6-6 files: **0 new errors** ✓ (pre-existing baseline unchanged)
+  - code-reviewer: 1 should-fix APPLIED (useCallback→useMemo in ConfirmModal.tsx) · ship-ready
+
+- **下一步计划**: **已完成** (M6-7 ship + annotated tag `v0.5.0+M6` in same session)
+
+---
+
+## S44.0 · 2026-06-29 · M6-7 copy invite URL to clipboard + annotated tag `v0.5.0+M6`
+
+- **开发内容**: 完成 M6 最后一个 milestone — 确认 `/invite/new` 页面的 copy-to-clipboard 按钮已实现 (M6-3 阶段已含 `handleCopy` 函数 + `navigator.clipboard.writeText` + `execCommand('copy')` fallback + 2s "Copied!" 反馈) · 更新项目记忆文档 · 创建 `v0.5.0+M6` annotated tag 封盘 M6 batch
+- **新增功能**:
+  - 无代码变更 (M6-7 copy-to-clipboard 已在 `InviteNewPage.tsx` 中由 M6-3 实现) · 纯文档同步 + git tag
+- **验证结果**:
+  - `npx vitest run src/app/pages/InviteNewPage.test.tsx` → **16/16 pass** ✓ (含 M6-7 copy section 2 cases)
+  - `npx vitest run` → **33 files · 398 tests** ✓
+  - `npx tsc --noEmit` → 0 new errors ✓
+  - 4 份项目记忆文档同步: TODO.md / AI_HANDOVER.md / CHANGELOG.md / 本文件 ✓
+  - `git tag -a v0.5.0+M6 -m "..."` ✓
+- **当前状态**: M6 batch 全部完成 ✅ — M6-1/2/3 (admin setup + invite create UI @ `f19a8e8`) + M6-4 (admin-reset-password @ `85a57e9`) + M6-5/6 (admin-delete-friend + ConfirmModal S43.0) + M6-7 (copy invite URL S44.0) = **7 个 milestone 全 ship**
+- **下一步计划**: **M7-4 Responsive layout** (F-UI-01 / NF-RESP-N01) — Sidebar→drawer on <1024px · ChatPanel 适配 · 3 断点。**Deferred v1.1+**: M5-4-compress canvas WebP compression · M5-2.1 manual retry button · M6-4.1 friend-side `/reset-password/:token` completion EF · M5-1.1 quota UI · push-notification cross-device sync
+
+---
+
 ## S19.0 Note · 2026-06-27
 
 - 目录名 i18n 化,所有路径已为英文

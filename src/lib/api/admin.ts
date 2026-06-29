@@ -118,7 +118,54 @@ export const adminApi = {
     }
     return data;
   },
+
+  /**
+   * M6-5 · Admin-issues a soft-delete of a friend's account (F-SEC-06).
+   *
+   * The EF delegates the dual UPDATE inside one transaction to the
+   * RPC `fn_admin_delete_friend` so the operation is atomic. Returns
+   * `{ id, target_user_id, deleted_at, conversations_left }` where
+   * `conversations_left` is the count of conversation_members rows
+   * that had `left_at` set on this call (0 on idempotent re-calls).
+   *
+   * Errors: same envelope contract as createInvite/createPasswordReset:
+   *   - 400 + BAD_USER_ID / MALFORMED_BODY / E_RES_NOT_FOUND (validation)
+   *   - 403 + E_AUTH_FORBIDDEN (caller not Owner OR target is Owner)
+   *   - 401 + E_AUTH_UNAUTHORIZED (session expired / missing)
+   *   - 500 + E_SYS_INTERNAL (RPC failure with no specific code)
+   */
+  async deleteFriend(args: DeleteFriendArgs): Promise<DeletedFriendSummary> {
+    const { data, error } = await supabase.functions.invoke<DeletedFriendSummary>(
+      'admin-delete-friend',
+      { body: { target_user_id: args.targetUserId } },
+    );
+
+    if (error) {
+      throw mapAdminError(error);
+    }
+    if (!data) {
+      throw { code: 'INTERNAL', message: 'Delete-friend EF returned no body' };
+    }
+    return data;
+  },
 };
+
+// =========================================================================
+// M6-5 · Delete-friend surface (admin-only soft-delete)
+// =========================================================================
+
+export interface DeleteFriendArgs {
+  targetUserId: string;
+}
+
+export interface DeletedFriendSummary {
+  id: string;
+  target_user_id: string;
+  /** ISO 8601 UTC timestamptz string. */
+  deleted_at: string;
+  /** Count of conversation_members rows this call set left_at on. */
+  conversations_left: number;
+}
 
 /**
  * Map supabase.functions.invoke() error shape to a Nook `AppError`-like

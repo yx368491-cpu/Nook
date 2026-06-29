@@ -218,8 +218,6 @@
     "copied": "已复制！",
     "resetPassword": "重置密码",
     "deleteFriend": "删除好友",
-    "confirmDelete": "输入 \"confirm\" 确认删除",
-    "confirmPlaceholder": "输入 confirm",
     "shareViaWeChat": "分享到微信",
     "adminBox": {
       "title": "管理",
@@ -238,7 +236,7 @@
         "delete": {
           "title": "删除好友",
           "subtitle": "永久删除好友账号。",
-          "action": "敬请期待"
+          "action": "删除好友"
         }
       }
     },
@@ -296,6 +294,30 @@
         "internal": "无法创建重置链接，请重试。",
         "generic": "出错了。"
       }
+    },
+    "deleteFriend": {
+      "title": "删除好友",
+      "subtitle": "撤销好友对所有会话的访问权限。他们发送的消息保留在你的视图中，历史不影响。",
+      "pickerLabel": "要删除的好友",
+      "pickerPlaceholder": "选择好友",
+      "noFriends": "你还没有任何好友。",
+      "chooseAction": "删除好友",
+      "deleted": "已于 {{date}} 删除（更新 {{count}} 个会话）",
+      "confirm": {
+        "title": "确定删除 {{name}}？",
+        "message": "删除 {{name}} 将立即撤销其对所有会话的访问权限。他们的消息历史将保留在你的视图中——本次操作非破坏性，旧上下文不会丢失。",
+        "warning": "此操作不可撤销。好友不会收到通知。",
+        "submit": "删除好友",
+        "cancel": "取消"
+      },
+      "error": {
+        "unauthorized": "会话已过期，请重新登录。",
+        "forbidden": "只有 Owner 可以删除好友。",
+        "friendNotFound": "找不到该好友。",
+        "invalidInput": "删除配置无效。",
+        "internal": "无法删除好友，请重试。",
+        "generic": "出错了。"
+      }
     }
   },
   "common": {
@@ -315,6 +337,11 @@
     "owner": "所有者",
     "member": "成员",
     "group": "群组"
+  },
+  "confirmModal": {
+    "confirmLabel": "输入 \"{{phrase}}\" 后才能点击提交",
+    "submitPlaceholder": "输入 \"{{phrase}}\"",
+    "phraseMatches": "短语已确认，可以提交。"
   },
   "errors": {
     "required": "此项必填",
