@@ -9,6 +9,90 @@
 
 ---
 
+### [M5-7.0] · 2026-06-29 · 50 MiB upload UI progress bar + cancel + drag-drop (F-MSG-03)
+
+#### Decision trace
+
+- **Originally listed as deferred**: UI progress affordance wasn't shipped even though supabase-js v2 stable `storage.from().upload()` carries the bytes; M3-4+M5-4+M5-6 pipeline already supported 50 MiB upload — only the *user-visible* progress + cancellation was missing.
+- **User request**: "Continue to M5-7 (50MB file upload UI progress bar + drag-drop affordance, F-MSG-03) — the natural Next session per S40.0 / AI_HANDOVER middle-table."
+
+#### Architectural decisions
+
+- **Decision-1 (XHR-DIRECT PATH)**: `supabase-js` v2 stable upload() does NOT expose `onprogress` events or in-flight `AbortSignal`. M5-7 drops down to a raw XMLHttpRequest against `${env.supabaseUrl}/storage/v1/object/attachments/<path>`, header `Authorization: Bearer <session.access_token>`, `xhr.upload.onprogress` drives UI, `xhr.abort()` bridges signal cancel.
+- **Decision-2 (SDK FALLBACK preserved)**: when caller does NOT pass BOTH `opts.onProgress` OR `opts.signal`, fall through to the historical `supabase.storage.from().upload()` SDK path. This preserves the M3-4→M5-6 contract for any non-Composer caller (background/headless invocations stay on battle-tested surface).
+- **Decision-3 (TOKEN FRESHNESS)**: `supabase.auth.getSession()` snapshot at XHR send time. Default token TTL = 1h, so even a 50 MB mobile upload at ~1 MB/s completes well inside the validity window. Gap from `getSession()` call to `xhr.send(file)` = ms-level — not a meaningful drift exposure.
+- **Decision-4 (CANCELLATION CONTRACT)**: Composer `dispatchFile` catch silently swallows `{ code: 'CANCELLED' }` rejections BEFORE the existing error-mapping cascade. User-initiated abort is intentional, not a failure — surfacing it as an inline error strip would mislead. Final `resetUpload()` in the `finally` block clears the UI on every terminal outcome (success / validation-reject / network / cancel / component unmount).
+
+#### Added (M5-7 ship · 12 files · +~1200 lines total)
+
+- **`src/lib/api/chat.ts` (extended · +110 lines)** — public surface.
+  - `UploadAttachmentOptions` interface (`onProgress?: (loaded, total) => void` + `signal?: AbortSignal`).
+  - `AttachmentUploadError extends Error` class (code: `'STORAGE_ERROR' | 'NETWORK_ERROR' | 'CANCELLED' | 'AUTH_MISSING'`).
+  - `uploadAttachmentBytes(file, storagePath, opts)` XHR helper with `getSession()` Bearer auth · POST `${env.supabaseUrl}/storage/v1/object/attachments/<path>` · `signal.aborted === true` short-circuit throws `CANCELLED` BEFORE XHR construction · `signal.addEventListener('abort', onAbort, { once: true })` bridges `xhr.abort()` · `{ once: true }` ensures idempotent cleanup even after onAbort self-removes via abort path.
+  - `uploadAttachment(file, convId, opts?)` + `sendAttachmentMessage(args)` extended signature: `opts?.onProgress || opts?.signal` truthy → XHR-direct path; falsy → SDK path. Conditionally constructs the opts object so the SDK path stays 100% cost-free (`opts` undefined = no Object allocation).
+  - Static `import { env } from '@/config/env'` (XHR-direct needs `env.supabaseUrl`).
+- **`src/hooks/useSendMessage.ts` (extended · +28 lines)** — `useSendAttachmentMessage` mutation variables now include `onProgress?: (loaded, total) => void` + `signal?: AbortSignal`; mutationFn pipes them through to `sendAttachmentMessage`. Both optional so existing callers unaffected.
+- **`src/hooks/useFileUploadProgress.ts` (NEW · ~130 lines)** — pure component hook, owns `AbortController` + state machine + `cancel()` + `reset()` + unmount cleanup (zombie-XHR defense on router-driven unmount).
+  - `start(file)` returns `{ onProgress, signal }` → caller threads into mutateAsync.
+  - `cancel()` aborts + clears state (sets `controllerRef.current = null`).
+  - `reset()` clears state without aborting (Composer `finally` block triggers after every terminal outcome).
+  - Unmount-cleanup `useEffect(() => () => controllerRef.current?.abort())` prevents zombie XHRs after navigation away.
+- **`src/components/chat/UploadProgressBar.tsx` (NEW · ~170 lines)** — visual the progress state.
+  - `role="progressbar"` + `aria-valuenow`/`aria-valuemin`/`aria-valuemax`/`aria-label` (i18n `chat.upload.progressAria`, `{fileName, percent}`).
+  - Cancel button: `aria-label` (i18n `chat.upload.cancelAria`).
+  - Visual: 4 px lavender (`--color-accent-default`) bar + filename + percent label · `motion-safe:transition-[width]` honors `prefers-reduced-motion`.
+  - `data-testid="attachment-upload-progress-bar"` + `data-testid="attachment-upload-progress-cancel"`.
+- **`src/components/chat/AttachmentDropZone.tsx` (NEW · ~105 lines)** — rich drag overlay replacing the M3-4 inline dashed-border div.
+  - `pointer-events-none` so the underlying form remains interactive while the overlay renders.
+  - 36 px SVG download icon (`<line>`-based arrow) + title (`chat.dropZone.title`) + hint (`chat.dropZone.hint`).
+  - `motion-safe:animate-[progress-fade-in_var(--duration-fast)_ease-out]` 120 ms fade-in (respects reduced-motion via global media query in `index.css`).
+  - `data-testid="attachment-drop-zone-overlay"` integration anchor.
+- **`src/components/chat/Composer.tsx` (extended · +80 lines)** — orchestration.
+  - Hook call: `const { state: uploadState, start: startUpload, cancel: cancelUpload, reset: resetUpload } = useFileUploadProgress()`.
+  - `dispatchFile` extended to: arm `startUpload(file)` BEFORE `mutateAsync` → pipe `{onProgress, signal}` into mutation variables → catch wraps the existing error-mapping cascade AND adds CANCELLED early-return at top → `finally` calls `resetUpload()` to clear the UI on every terminal outcome.
+  - JSX swap: inline `isDragging && <div className=...dashed>` REPLACED with `<AttachmentDropZone isDragging />` · new conditional `<UploadProgressBar state={uploadState} onCancel={cancelUpload} />` between warning strips and the form.
+- **`src/styles/tokens.css` (extended · +13 lines)** — `@keyframes progress-fade-in` (120 ms ease-out fade + tiny scale-up so the dashed overlay does not visually pop in). Honors `prefers-reduced-motion` via global media query in `index.css`.
+- **`src/lib/i18n/locales/{en,zh-CN}/translation.json` (extended · +5 keys × 2 langs)** — `chat.upload.{progress, progressAria, cancelAria}` + `chat.dropZone.{title, hint}`. en copy: `"Drag to upload" / "Up to 50 MB · images, PDFs, docs"`. zh-CN copy: `"拖拽上传" / "最大 50 MB · 图片、PDF、文档"`. zh-CN `progressAria` uses `{{percent}}` i18next double-brace interpolation (FIXED in same commit per reviewer round-1 finding #1).
+- **Tests (NEW · +18 cases)**:
+  - `src/hooks/useFileUploadProgress.test.tsx` (8 cases): null-state initial · start returns `{onProgress, signal}` · signal is `AbortSignal` not yet aborted · onProgress advances (loaded, total) into state · cancel signals abort + clears state · onProgress after cancel is no-op · start aborts prior in-flight via `controllerRef.current?.abort()` last-write-wins · reset clears without aborting (end-of-transfer path) · unmount in-flight upload aborts the XHR (zombie cleanup).
+  - `src/components/chat/UploadProgressBar.test.tsx` (6 cases): role=progressbar + aria-valuemin=0 / aria-valuemax=100 / updates aria-valuenow on mid-progress · shows percent + filename in label slot · cancel button invokes onCancel click · total=0 yields 0% (defensive division-by-zero guard) · exposes data-testid anchor.
+  - `src/components/chat/AttachmentDropZone.test.tsx` (4 cases): returns null when not dragging · shows overlay with title + hint when dragging · `pointer-events-none` keeps underlying form interactive · exposes title + hint data-testid anchors.
+
+#### Resolution
+
+- **Why not supabase-js upload() with custom signal extension?** Future-proof but currently unstable in v2 stable. XHR-direct path is the documented escape hatch and avoids future SDK churn.
+- **Why snapshot `getSession()` not a long-lived token refresh listener?** Snapshot is simpler, ms-level invalidation window, 1 h default token TTL easily covers 50 MB at 1 MB/s mobile. Listener complexity not justified in v1.0.
+- **Why SDK fallback for opts-less callers?** Preserves M3-4→M5-6 background/headless contract — no breakage. Conditional `opts` construction means SDK path is zero-cost.
+- **Why `<UploadProgressBar>` state hook (not pure component prop drilling)?** The cancel button needs AbortController + cancel invocation same React batch as the parent dispatch — co-locating state in the hook avoids prop-drilling + keyboard/focus jumping.
+- **Why `<AttachmentDropZone>` not just keep the M3-4 inline div?** Richer visual matches the "fewer-but-better" vibe of M5-4/M5-5 EXIF toast + M5-6 AvatarPicker ~ same UX hue. Future Quick-Capture (Cmd+Shift+V clipboard drop) reuses the same component per v1.1+ feature path.
+- **Why CANCELLED swallow BEFORE the existing error cascade?** User cancellation = intentional, not an error. Surfacing it as an inline error strip would mislead. CANCELLED throws `AttachmentUploadError` extends `Error` — exits via `instanceof Error` in the cascade — so the order matters: top-level check first.
+- **Why `motion-safe:animate-[progress-fade-in_var(--duration-fast)_ease-out]` instead of custom keyframe timing inside Tailwind class?** `--duration-fast` is the design-token (120 ms per tokens.css) — using it ensures the same duration canon is respected across other fade-in affordances (v1.1+).
+- **zh-CN `progressAria` `{percent}` → `{{percent}}`** — i18next interpolation uses double-brace. Single-brace would be rendered as literal `{percent}%` in the screen-reader aria-label. Round-1 should-fix #1; APPLIED in same commit before ship.
+
+#### Verification (M5-7 final round · 本机 static-only per KI-9)
+
+- vitest M5-7 specs: **18/18 pass** ✓ (8 + 6 + 4 module breakdown above)
+- vitest full unit suite: **25 files · 253 tests passed** ✓ (M5-7 additive +18 net from M5-6 235 baseline · **0 regression**)
+- tsc M5-7 files: **0 new errors** ✓ (pre-existing Composer 2 + MessageItem 3 + conversationChannel 7 + Deno EFs + response.ts unchanged. Note the ENABLE_SW ts5097 + response.ts errors are pre-existing baseline carried forward.)
+- code-reviewer-minimax-m3 round-1: **1 should-fix** (zh-CN `progressAria` single-brace → double-brace; APPLIED) · **2 cosmetic nits** carried as followups: (a) settled-guard inside `uploadAttachmentBytes` `onAbort()` to prevent `Promise.reject` running twice on cancel path (idempotent via Promise.prototype but micro-wasteful) + (b) cancelUpload not in `dispatchFile` useCallback dep array (correct — used only at JSX `<UploadProgressBar onCancel>` level · non-shipping nit).
+- 本机 live verify = 0 per KI-9; cloud deploy path: `supabase db push --include-all --project-ref <cloud>` (no new migration needed — M3-1 bucket policies already accepted `attachments` bucket) + Workbox build emit `dist/sw.js` (already shipped M5-2) + page-deploy.
+
+#### Known Limitations (deferred v1.1+ / M5-7.1)
+
+- **Settled-guard in `uploadAttachmentBytes`** — M5-7.1 polish pass. Cosmetic only; Promise.prototype handles double-reject idempotently but cleaner code path adds a `let settled = false` flag.
+- **Workbox bg sync replay of cancelled uploads** — `messages_client_msg_id_unique_idx` partial unique index dedupes on POST shell replay, but cancelled uploads still leave server-side storage object orphans for pg_cron J-03 sweep at 04:30 UTC to reclaim. v1.1+ can wire immediate `void supabase.storage.from('attachments').remove([storagePath])` on cancel path.
+- **`workbox-window` Workbox API surface** — currently using `addEventListener('installed'/'waiting'/'controlling'/'activated')` for observability only. v1.1+ can plumb `messageSkipWaiting` semantics if needed.
+- **Drag-drop UX: iOS long-press menu** — file drop on iPad/iPhone via long-press menu still requires confirm tap (browser-default behavior). v1.1+ can wrap with file-system-access API.
+- **HEIC / WebP / PNG / TIFF EXIF detection** — M5-5 JPEG-only parser is the upstream warning gate; HEIC attachments bypass EXIF warning entirely. M5-7 drop affordance is type-agnostic (driven by Composer dispatcher) so this does NOT regress M5-7 itself, but user-visible asymmetry between JPEG-warn vs HEIC-silent remains.
+
+#### Scope recombination note
+
+- **Originally planned M5-7 scope = UI progress bar only** — purely UI affordance. Out-of-scope: server-side compression (v1.1+ R-30 preservation) · Blob-in-outbox (M5-* deferred per scope discipline) · manual retry button (M5-2.1 followup).
+- **M5-7 scope remains UI-only** — no API surface change beyond transporting `opts` through chat.ts/useSendMessage/Composer; no DB migration; no new EF.
+- **Architecturally validated by thinker-with-files-gemini**: XHR-DIRECT PATH over fetch/TUS/abortify; OPTION-C `opts.onProgress || opts.signal` truthy gate over ALWAYS-XHR; `supabase.auth.getSession()` snapshot at XHR send time over refresh listener.
+
+---
+
 ### [M5-6.0] · 2026-06-28 · Avatar upload UI · profiles.avatar_url reactive rewire (F-AUTH-09 · AC.13 · CAP-17)
 
 #### Decision trace
@@ -520,6 +604,20 @@ TODO.md M5-5 row originally listed "EXIF strip" with literal-spec-wording interp
 
 ---
 
+## [v0.5.0+M5.7] · 2026-06-29 · M5-7 ship · S41.0 docs sync
+
+**Release summary**: M5-7 50 MiB upload UI progress bar + cancel + drag-drop lands on master from commit `6e593f2` (S41.0). **Annotated tag `v0.5.0+M5.7` points at commit `6e593f2`**; `v0.5.0+M5.6` (S40.0) preserved unchanged as M5-* midpoint marker. Total M5-* milestone batch complete in 7 commits: M5-1 foundation (`dadcb01`) · M5-2 Workbox SW bg sync (`bf52d90` · includes M5-3 bundled per S40.0 scope recombination) · M5-4 offline-first image attachment pipeline (`d6c0ae2`) · M5-5 EXIF read-not-write informational warning (`5e7fab3`) · M5-6 avatar upload UI + reactive store (`75c286e`) · M5-7 50 MiB UI progress + cancel + drag-drop (`6e593f2`). M5-4-compress canvas WebP compression still deferred v1.1+ per R-30 image-no-compression policy.
+
+**Verification (本机 static-only per KI-9)**:
+- vitest full suite = **25 files / 253 tests passed** ✓ (M5-7 +18 net vs M5-6 235 baseline; 0 regression)
+- typecheck = 0 new errors in M5-7 files (pre-existing baseline in Composer/MessageItem/conversationChannel/Deno EF/response.ts unchanged)
+- code-reviewer-minimax-m3 round-1 has 1 should-fix APPLIED (zh-CN `progressAria` single-brace `{percent}` → double-brace `{{percent}}` per i18next interpolation contract) + 2 cosmetic nits (settled-guard in cancel path + cancelUpload dep array — both followup notes, non-ship-blocker)
+
+**Documentation resync** (本 entry + AI_HANDOVER.md + TODO.md):
+- TODO.md M5-7 row 标 ✅ (with commit hash `6e593f2` + S41.0 + full M5-7 ship description per Change trace above)
+- AI_HANDOVER.md 中部「⚠ 下次开发」表 drop M5-7 next → ✅ 已完成 row · add M6 admin work next row · 阶段表 add M5-7 row + version-tag-row update to v0.5.0+M5.7 · 代码版本 cell add `M5-7 (6e593f2) · S41.0 docs sync · annotated tag v0.5.0+M5.7` · Next session cell change → M6 admin work
+- DEVELOPMENT_LOG.md add S41.0 Session entry (with architectural decisions from M5-7 ship + verification + 12-file scope discipline)
+
 ## [v0.5.0+M5.6] · 2026-06-29 · M5-* sweep (M4-8 + M5-1/2/4/5/6 ship) · S40.0 docs sync
 
 **Release summary**: 6 commit batch (M4-8 + M5-1 + M5-2 + M5-4 + M5-5 + M5-6) lands in `master` from previously-uncommitted working tree state. **Annotated tag `v0.5.0+M5.6` points at commit `75c286e`** (latest = M5-6 ship, end of batch). M5-3 (client_msg_id dedupe + process startup rehydrate) reassigned into M5-2 commit per S40.0 scope recombination. i18n / package.json / Composer.tsx / vite.config.ts files跨 multiple milestone touches bundle into M5-2 commit (attribution drift documented in commit messages).
@@ -925,6 +1023,7 @@ TODO.md M5-5 row originally listed "EXIF strip" with literal-spec-wording interp
 | 0.4.0 | S20.0 | M1 Foundation Bootstrap Execution (脚手架 + 4 原子组件 + 13 路由 + CI) |
 | 0.5.0 | S25.0 | M2 Auth Flow Complete (Login + Invite + friend-signup EF + 集成测试 + S23/S24 修复) |
 | **v0.5.0+M5.6** | **S40.0** | **6-commit batch (M4-8 + M5-1/2/4/5/6) ship + docs sync + version tag promote** |
+| **v0.5.0+M5.7** | **S41.0** | **M5-7 50 MiB upload UI progress bar + cancel + drag-drop (F-MSG-03) ship + docs sync + version tag promote** |
 | 1.0.0 | 待 | M3-M7 Chat MVP |
 | 1.1.0 | 待 | 灵魂打磨 |
 | 1.2.0 | 待 | 容器升级 |
