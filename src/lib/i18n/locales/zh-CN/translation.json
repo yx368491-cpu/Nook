@@ -177,6 +177,15 @@
     "exifWarning": {
       "title": "图片包含原数据",
       "body": "这张图片含有 EXIF 原数据（相机、位置等）。按 Nook 原图保真约定，会原图直传并保留元数据。"
+    },
+    "upload": {
+      "progress": "{{percent}}% · {{fileName}}",
+      "progressAria": "正在上传 {{fileName}}，{{percent}}%",
+      "cancelAria": "取消上传 {{fileName}}"
+    },
+    "dropZone": {
+      "title": "拖拽上传",
+      "hint": "最大 50 MB · 图片、PDF、文档"
     }
   },
   "settings": {

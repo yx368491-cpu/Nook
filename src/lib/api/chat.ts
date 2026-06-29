@@ -14,6 +14,12 @@ import {
   lruPurgeUntilUnder,
   putAttachmentCache,
 } from '@/lib/db/attachments';
+// M5-7 — env for the XHR-direct storage URL (`<env.supabaseUrl>/storage/v1/...`).
+// We can't route through `supabase.storage.from().upload()` AND also expose
+// upload progress / cancellation (supabase-js v2 stable upload() does not
+// accept onProgress), so the M5-7 path drops down to a raw XMLHttpRequest
+// when the caller asks for either affordance.
+import { env } from '@/config/env';
 
 /**
  * Chat API — typed wrappers around Supabase REST + RPC.
@@ -677,6 +683,41 @@ export function isImageMime(mime: string): boolean {
 /** Hard 50 MiB ceiling — matches `attachments.size_bytes` DB CHECK (50 * 1048576). */
 export const MAX_ATTACHMENT_BYTES = 52_428_800;
 
+/**
+ * M5-7 — optional host-side affordances for `uploadAttachment()`.
+ * When EITHER `onProgress` or `signal` is provided, `uploadAttachment`
+ * routes the byte upload through an XMLHttpRequest-direct path so it can
+ * expose (a) upload progress events and (b) abort-driven cancellation.
+ * When neither is provided the historical `supabase.storage.from().upload()`
+ * SDK path is used (keeps background/headless callers on the battle-tested
+ * surface; preserves the M3-4..M5-6 contract for any non-Composer caller).
+ */
+export interface UploadAttachmentOptions {
+  /** Called with (loaded, total) bytes as the XHR fires `progress` events. */
+  onProgress?: (loaded: number, total: number) => void;
+  /** AbortSignal — when aborted, the XHR cancels and rejects with CANCELLED. */
+  signal?: AbortSignal;
+}
+
+/**
+ * M5-7 — Error contract for the XHR-direct upload path. The SDK path
+ * already throws `{ code: 'STORAGE_ERROR', message }`; the XHR path
+ * additionally recognises `CANCELLED` and `NETWORK_ERROR`.
+ */
+export class AttachmentUploadError extends Error {
+  constructor(
+    public readonly code:
+      | 'STORAGE_ERROR'
+      | 'NETWORK_ERROR'
+      | 'CANCELLED'
+      | 'AUTH_MISSING',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'AttachmentUploadError';
+  }
+}
+
 export interface UploadedAttachment {
   id: string;
   storagePath: string;
@@ -749,13 +790,122 @@ async function probeImageDims(
 }
 
 /**
+ * M5-7 — drop-down XMLHttpRequest-based byte upload.
+ *
+ * Why a separate path from the SDK: `supabase.storage.from().upload()`
+ * does not expose `onprogress` events or expose an in-flight AbortSignal
+ * in stable. The Composer needs both affordances (progress bar + Cancel
+ * button), so when `opts.onProgress` OR `opts.signal` is truthy we route
+ * through `XMLHttpRequest` against the same storage REST endpoint the
+ * SDK would hit:
+ *
+ *   POST `${SUPABASE_URL}/storage/v1/object/attachments/<storagePath>`
+ *   Authorization: Bearer <session.access_token>
+ *   Content-Type: `<file.type>`
+ *   x-upsert: false
+ *
+ * Auth token freshness: `supabase.auth.getSession()` returns the
+ * **current** session (supabase-js auto-refreshes on a schedule; default
+ * access token TTL is 1h, so even a 50 MiB upload on a 1 MB/s mobile
+ * connection finishes well inside the validity window). Reading the
+ * session right before `xhr.send(file)` keeps the gap to milliseconds.
+ *
+ * Error mapping:
+ *   - 2xx             → resolve()
+ *   - non-2xx         → reject(AttachmentUploadError { code: 'STORAGE_ERROR' })
+ *   - xhr.onerror     → reject(AttachmentUploadError { code: 'NETWORK_ERROR' })
+ *   - external abort  → xhr.abort() → reject(AttachmentUploadError { code: 'CANCELLED' })
+ *   - missing session → reject(AttachmentUploadError { code: 'AUTH_MISSING' })
+ *
+ * The bridge from `opts.signal.aborted === true` at call time goes
+ * straight to CANCELLED without firing the XHR at all.
+ *
+ * @internal — exported only so its own (future) unit tests can target it
+ * without standing up a full upload fixture.
+ */
+export async function uploadAttachmentBytes(
+  file: File,
+  storagePath: string,
+  opts: UploadAttachmentOptions,
+): Promise<void> {
+  const {
+    data: { session },
+    error: authErr,
+  } = await supabase.auth.getSession();
+  if (authErr || !session) {
+    throw new AttachmentUploadError('AUTH_MISSING', 'No active session');
+  }
+
+  if (opts.signal?.aborted) {
+    throw new AttachmentUploadError('CANCELLED', 'Cancelled by user');
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const url = `${env.supabaseUrl}/storage/v1/object/attachments/${storagePath}`;
+
+    xhr.open('POST', url, true);
+    xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`);
+    xhr.setRequestHeader('Content-Type', file.type);
+    xhr.setRequestHeader('x-upsert', 'false');
+
+    if (opts.onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          opts.onProgress!(e.loaded, e.total);
+        }
+      };
+    }
+
+    const onAbort = () => {
+      xhr.abort();
+      reject(new AttachmentUploadError('CANCELLED', 'Cancelled by user'));
+    };
+    if (opts.signal) {
+      opts.signal.addEventListener('abort', onAbort, { once: true });
+    }
+
+    xhr.onload = () => {
+      if (opts.signal) opts.signal.removeEventListener('abort', onAbort);
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        reject(
+          new AttachmentUploadError(
+            'STORAGE_ERROR',
+            `HTTP ${xhr.status}: ${xhr.statusText || 'upload failed'}`,
+          ),
+        );
+      }
+    };
+
+    xhr.onerror = () => {
+      if (opts.signal) opts.signal.removeEventListener('abort', onAbort);
+      reject(
+        new AttachmentUploadError(
+          'NETWORK_ERROR',
+          'Network request failed',
+        ),
+      );
+    };
+
+    xhr.send(file);
+  });
+}
+
+/**
  * Upload a file to the `attachments` bucket + insert an `attachments` row
  * (SPEC § 6 BF-06 happy path).
  *
  * Flow:
  *   1. Local validation (size + MIME)
  *   2. Generate UUID-prefixed storage path: `<uuid>/<safe-filename>`
- *   3. Upload bytes via `supabase.storage.from('attachments').upload()`
+ *   3. Upload bytes via either
+ *      (a) `supabase.storage.from('attachments').upload()` — default SDK
+ *          path, no progress / no cancellation, OR
+ *      (b) M5-7 `uploadAttachmentBytes()` — XHR-direct path, exposes
+ *          `onProgress` + `signal` when caller supplies them via
+ *          `UploadAttachmentOptions`.
  *   4. INSERT `attachments` row with `message_id = NULL`
  *      (the FK is backfilled by `sendAttachmentMessage` after the message row
  *      exists, so cleanup accounting at pg_cron J-01 stays consistent).
@@ -767,11 +917,13 @@ async function probeImageDims(
  *      committed; the cache miss just triggers a fetch on first view).
  *
  * @throws AttachmentValidationError for local validation failures
- * @throws { code: 'STORAGE_ERROR' | 'DB_ERROR', ... } for network / RLS errors
+ * @throws AttachmentUploadError for XHR-direct path failures
+ * @throws { code: 'STORAGE_ERROR' | 'DB_ERROR', ... } for SDK path / RLS errors
  */
 export async function uploadAttachment(
   file: File,
   conversationId: string,
+  opts?: UploadAttachmentOptions,
 ): Promise<UploadedAttachment> {
   validateAttachmentFile(file);
   const dims = await probeImageDims(file);
@@ -781,13 +933,27 @@ export async function uploadAttachment(
     file.name.replace(/[^\w.\-]+/g, '_').slice(0, 100) || 'file';
   const storagePath = `${fileId}/${safeName}`;
 
-  const { error: uploadError } = await supabase.storage
-    .from('attachments')
-    .upload(storagePath, file, {
-      contentType: file.type,
-      cacheControl: '3600',
-      upsert: false,
-    });
+  // M5-7 — XHR-direct path when caller wants progress or cancellation.
+  // Defaults to the SDK path so background / headless callers stay on
+  // the battle-tested surface (preserves M3-4..M5-6 contract for any
+  // caller that does not pass `opts`).
+  if (opts?.onProgress || opts?.signal) {
+    await uploadAttachmentBytes(file, storagePath, opts);
+  } else {
+    const { error: uploadError } = await supabase.storage
+      .from('attachments')
+      .upload(storagePath, file, {
+        contentType: file.type,
+        cacheControl: '3600',
+        upsert: false,
+      });
+    if (uploadError) {
+      throw {
+        code: 'STORAGE_ERROR',
+        message: uploadError.message,
+      };
+    }
+  }
   if (uploadError) {
     throw {
       code: 'STORAGE_ERROR',
@@ -1069,6 +1235,10 @@ export async function sendReplyMessage(args: {
  * Calls `uploadAttachment` first, then INSERTs `messages` with the FK,
  * then best-effort UPDATE of `attachments.message_id` so the FK is
  * symmetrical (cleanup cron picks up either direction).
+ *
+ * M5-7 — `onProgress` and `signal` pass through to `uploadAttachment`
+ * so the Composer can drive the XHR-direct progress affordance from
+ * one place. When omitted, the SDK path is used (no progress events).
  */
 export async function sendAttachmentMessage(args: {
   conversationId: string;
@@ -1077,15 +1247,26 @@ export async function sendAttachmentMessage(args: {
   file: File;
   replyToId?: string | null;
   clientMsgId: string;
+  onProgress?: (loaded: number, total: number) => void;
+  signal?: AbortSignal;
 }): Promise<{ messageId: string; attachmentId: string; createdAt: string }> {
-  const { conversationId, senderId, kind, file, replyToId, clientMsgId } = args;
+  const { conversationId, senderId, kind, file, replyToId, clientMsgId, onProgress, signal } = args;
 
   // M5-4 — `uploadAttachment` now takes the conversationId for the
   // local blob cache mirror (the cache is conversation-scoped via the
   // `conversationId` index; without the seam, a self-sent image would
   // have to look up the conversationId on the way back, costing a
   // round-trip).
-  const uploaded = await uploadAttachment(file, conversationId);
+  //
+  // M5-7 — pipe through the opts so XHR-direct progress + cancellation
+  // contract holds all the way through to the byte upload. Conditionally
+  // building the object keeps the SDK path 100% cost-free (one Object
+  // allocation vs. a no-op).
+  const uploaded = await uploadAttachment(
+    file,
+    conversationId,
+    onProgress || signal ? { onProgress, signal } : undefined,
+  );
 
   const { data, error } = await supabase
     .from('messages')

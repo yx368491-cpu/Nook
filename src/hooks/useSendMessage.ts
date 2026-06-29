@@ -433,10 +433,26 @@ export function useSendAttachmentMessage(
       kind: 'image' | 'file';
       replyToId: string | null;
       clientMsgId: string;
+      /**
+       * M5-7 — optional host-side affordances forwarded to
+       * `sendAttachmentMessage` so the XHR-direct path inside
+       * `uploadAttachmentBytes` can drive the progress bar and
+       * respect the cancel button. When BOTH are undefined the SDK
+       * upload path is used (no onprogress / no abort).
+       */
+      onProgress?: (loaded: number, total: number) => void;
+      signal?: AbortSignal;
     },
     OptimisticContext
   >({
-    mutationFn: async ({ file, kind, replyToId, clientMsgId }) => {
+    mutationFn: async ({
+      file,
+      kind,
+      replyToId,
+      clientMsgId,
+      onProgress,
+      signal,
+    }) => {
       const res = await sendAttachmentMessage({
         conversationId,
         senderId: currentUserId,
@@ -444,6 +460,8 @@ export function useSendAttachmentMessage(
         file,
         replyToId,
         clientMsgId,
+        onProgress,
+        signal,
       });
       // M5-4 — bubble's attachment now has the server `id`; the local
       // blob cache mirror runs inside `uploadAttachment`, so the

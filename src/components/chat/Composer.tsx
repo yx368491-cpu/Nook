@@ -38,6 +38,15 @@ import { generateClientMsgId } from '@/lib/db/client_msg_id';
 // JPEG APP1/Exif parser behind the detection.
 import { detectExif } from '@/lib/storage/exif';
 import { ComposeReplyCard } from './ComposeReplyCard';
+// M5-7 — 50 MiB progress bar + cancel affordance. The Composer
+// threads `useFileUploadProgress.start(file)` → `{ onProgress, signal }`
+// into `useSendAttachmentMessage.mutateAsync(...)`. The hook is the
+// single source of truth for the in-flight state machine; the
+// XHR-direct path inside `uploadAttachmentBytes` (chat.ts) is what
+// actually fires the progress events and respects the AbortSignal.
+import { useFileUploadProgress } from '@/hooks/useFileUploadProgress';
+import { UploadProgressBar } from './UploadProgressBar';
+import { AttachmentDropZone } from './AttachmentDropZone';
 
 /**
  * Composer — M3-4 "floating island" chat composer (DESIGN § 7 form B).
@@ -132,6 +141,22 @@ export function Composer({ conversationId }: ComposerProps) {
   const outbox = useOutbox(conversationId);
   const pendingOutboxCount = outbox.pending.length;
   const failedOutboxCount = outbox.failed.length;
+
+  // M5-7 — in-flight upload state. `startUpload(file)` returns a bound
+  // `{ onProgress, signal }` pair which the Composer passes into the
+  // XHR-direct path inside `sendAttachmentMessage`. `cancelUpload()`
+  // is wired to the progress bar's Cancel button via `<UploadProgressBar>`.
+  // `resetUpload()` is called in the dispatchFile `finally` to hide the
+  // bar on every terminal outcome (success / validation reject /
+  // network error / cancel). The component itself unmount-cleanup
+  // aborts on disposed Composer (router-driven unmount), preventing
+  // zombie XHRs.
+  const {
+    state: uploadState,
+    start: startUpload,
+    cancel: cancelUpload,
+    reset: resetUpload,
+  } = useFileUploadProgress();
 
   // Auto-grow the textarea whenever the draft changes.
   useLayoutEffect(() => {
@@ -284,6 +309,15 @@ export function Composer({ conversationId }: ComposerProps) {
           }, EXIF_WARNING_DISMISS_MS);
         }
       }
+
+      // M5-7 — arm the progress hook BEFORE the mutateAsync call so
+      // the onProgress callback + AbortSignal are wired before any
+      // work begins. `startUpload(file)` is itself synchronous; the
+      // Promise from mutateAsync will reject with `{ code: 'CANCELLED' }`
+      // if the user clicks `<UploadProgressBar>`'s Cancel button (which
+      // calls `cancelUpload()` → `useFileUploadProgress.cancel()`
+      // → AbortController.abort() → XHR abort → CANCELLED rejection).
+      const { onProgress, signal } = startUpload(file);
       try {
         const kind = isImageMime(file.type) ? 'image' : 'file';
         const clientMsgId = generateClientMsgId();
@@ -292,10 +326,27 @@ export function Composer({ conversationId }: ComposerProps) {
           kind,
           replyToId: replyingTo?.id ?? null,
           clientMsgId,
+          onProgress,
+          signal,
         });
         clearReply();
         setError(null);
       } catch (e) {
+        // M5-7 — user-initiated cancellation is intentional, NOT a
+        // failure. We detect via the stable `code: 'CANCELLED'` token
+        // from `AttachmentUploadError` (via `uploadAttachmentBytes`),
+        // and silently drop the error strip — the upload was aborted
+        // mid-flight by a deliberate user action. All other errors
+        // (validation, network, RLS, etc.) fall through to the
+        // existing error-mapping cascade below.
+        if (
+          e &&
+          typeof e === 'object' &&
+          'code' in e &&
+          (e as { code: unknown }).code === 'CANCELLED'
+        ) {
+          return;
+        }
         if (e instanceof AttachmentValidationError) {
           setError({ message: humanizeAttachError(e, t) });
         } else if (
@@ -308,9 +359,25 @@ export function Composer({ conversationId }: ComposerProps) {
         } else {
           setError({ message: t('composer.sendFailed') });
         }
+      } finally {
+        // M5-7 — always reset the UI state machine on dispatch return,
+        // including on success, validation reject, network error,
+        // AND cancel. The `void resetUpload` is intentional — we're
+        // discarding the optimistic `setState(null)` return; the
+        // visible effect is that the progress bar disappears.
+        resetUpload();
       }
     },
-    [selfUserId, sendAttachM, replyingTo, clearReply, t, stopTyping],
+    [
+      selfUserId,
+      sendAttachM,
+      replyingTo,
+      clearReply,
+      t,
+      stopTyping,
+      startUpload,
+      resetUpload,
+    ],
   );
 
   const onPickImage = (e: ChangeEvent<HTMLInputElement>) => {
@@ -373,16 +440,22 @@ export function Composer({ conversationId }: ComposerProps) {
         />
       )}
 
-      {isDragging && (
-        <div
-          aria-hidden="true"
-          className={[
-            'pointer-events-none absolute inset-[var(--space-sm)]',
-            'rounded-[var(--radius-xl)] border-2 border-dashed',
-            'border-[var(--color-accent-soft-ring)]',
-            'bg-[var(--color-accent-soft-bg)]',
-          ].join(' ')}
-        />
+      {/* M5-7 — drag-drop affordance overlay. Replaces the M3-4 inline
+          dashed-border div with a richer overlay (icon + title + hint).
+          The visual is `pointer-events-none` so the underlying form
+          stays interactive. Returns null when isDragging is false so the
+          DOM stays clean. */}
+      <AttachmentDropZone isDragging={isDragging} />
+
+      {/* M5-7 — inline upload progress bar. Renders ONLY when an upload
+          is in flight (i.e. useFileUploadProgress.state !== null). The
+          bar auto-dismisses on the next dispatchFile call's `finally`
+          (which calls `resetUpload`). `onCancel` calls
+          `useFileUploadProgress.cancel()` which aborts the in-flight
+          XHR; the resulting `{ code: 'CANCELLED' }` rejection is
+          silently swallowed in dispatchFile's catch. */}
+      {uploadState && (
+        <UploadProgressBar state={uploadState} onCancel={cancelUpload} />
       )}
 
       {error && (

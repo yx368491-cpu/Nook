@@ -173,3 +173,15 @@
   0%, 60%, 100% { opacity: 0.30; transform: scale(0.85); }
   30%           { opacity: 1.00; transform: scale(1.00); }
 }
+
+/* ===========================================================
+ * M5-7 — AttachmentDropZone fade-in (DESIGN § 7 form B drag affordance)
+ * 120 ms ease-out fade + tiny scale-up so the dashed overlay does
+ * not visually pop in. Prefers-reduced-motion downgraded to a
+ * 0.01ms animation duration via the global media query in
+ * index.css (no extra machinery needed).
+ * =========================================================== */
+@keyframes progress-fade-in {
+  from { opacity: 0;   transform: scale(0.98); }
+  to   { opacity: 1;   transform: scale(1);    }
+}

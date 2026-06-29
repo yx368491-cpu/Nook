@@ -177,6 +177,15 @@
     "exifWarning": {
       "title": "Image contains metadata",
       "body": "This image includes EXIF metadata (camera, location, etc.). Per Nook's no-compression policy, the original bytes will be sent with metadata intact."
+    },
+    "upload": {
+      "progress": "{{percent}}% · {{fileName}}",
+      "progressAria": "Uploading {{fileName}}, {{percent}} percent complete",
+      "cancelAria": "Cancel upload of {{fileName}}"
+    },
+    "dropZone": {
+      "title": "Drag to upload",
+      "hint": "Up to 50 MB · images, PDFs, docs"
     }
   },
   "settings": {
