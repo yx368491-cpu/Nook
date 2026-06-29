@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Profile } from '@/shared/types/domain';
 import { authApi } from '@/lib/api/auth';
+import * as profileApi from '@/lib/api/profile';
 import { supabase } from '@/lib/supabase';
 
 interface AuthState {
@@ -14,6 +15,8 @@ interface AuthState {
   isLoading: boolean;
   /** Last auth-related error message (for UI display) */
   error: string | null;
+  /** Whether an avatar upload/delete is in progress (M5-6) */
+  isUploadingAvatar: boolean;
 
   // Actions
   setSession: (session: AuthState['session']) => void;
@@ -29,6 +32,24 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   /** Sign out and clear state */
   logout: () => Promise<void>;
+
+  /**
+   * M5-6 / F-AUTH-09: upload self avatar.
+   * Writes to `avatars/<uid>/avatar-<ts>.<ext>` then PATCHes
+   * `profiles.avatar_url`; updates local `profile.avatarUrl` reactively.
+   */
+  uploadAvatar: (file: File) => Promise<void>;
+  /**
+   * M5-6 / F-AUTH-09: delete self avatar.
+   * PATCH `profiles.avatar_url = null` FIRST (so Avatar consumers fall back
+   * to initials immediately), then best-effort storage purge.
+   */
+  deleteAvatar: () => Promise<void>;
+  /**
+   * M5-6 / F-AUTH-09: update self profile fields.
+   * Accepts camelCase keys (`displayName`) and translates to DB columns.
+   */
+  updateProfile: (updates: { displayName?: string }) => Promise<void>;
 }
 
 export const useAuth = create<AuthState>((set, get) => ({
@@ -37,6 +58,7 @@ export const useAuth = create<AuthState>((set, get) => ({
   isInitialized: false,
   isLoading: false,
   error: null,
+  isUploadingAvatar: false,
 
   setSession: (session) => set({ session }),
   setProfile: (profile) => set({ profile }),
@@ -209,6 +231,97 @@ export const useAuth = create<AuthState>((set, get) => ({
       // Even if the API call fails, clear local state
     } finally {
       set({ session: null, profile: null, error: null });
+    }
+  },
+
+  // ============================================================
+  // M5-6 / F-AUTH-09 / AC.13 — avatar + profile update actions
+  // ============================================================
+
+  uploadAvatar: async (file: File) => {
+    const userId = get().session?.user.id ?? get().profile?.id;
+    if (!userId) {
+      set({ error: 'Not authenticated' });
+      const err = { code: 'unauthorized' as const, message: 'Not authenticated' };
+      throw err;
+    }
+    set({ isUploadingAvatar: true, error: null });
+    try {
+      const publicUrl = await profileApi.uploadAvatar(userId, file);
+      const current = get().profile;
+      if (current) {
+        set({ profile: { ...current, avatarUrl: publicUrl } });
+      }
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'message' in err
+          ? (err as { message: string }).message
+          : 'Failed to upload avatar';
+      set({ error: msg });
+      throw err;
+    } finally {
+      set({ isUploadingAvatar: false });
+    }
+  },
+
+  deleteAvatar: async () => {
+    const userId = get().session?.user.id ?? get().profile?.id;
+    if (!userId) {
+      set({ error: 'Not authenticated' });
+      const err = { code: 'unauthorized' as const, message: 'Not authenticated' };
+      throw err;
+    }
+    set({ isUploadingAvatar: true, error: null });
+    try {
+      await profileApi.deleteAvatar(userId);
+      const current = get().profile;
+      if (current) {
+        set({ profile: { ...current, avatarUrl: null } });
+      }
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'message' in err
+          ? (err as { message: string }).message
+          : 'Failed to delete avatar';
+      set({ error: msg });
+      throw err;
+    } finally {
+      set({ isUploadingAvatar: false });
+    }
+  },
+
+  updateProfile: async (updates: { displayName?: string }) => {
+    const userId = get().session?.user.id ?? get().profile?.id;
+    if (!userId) {
+      set({ error: 'Not authenticated' });
+      const err = { code: 'unauthorized' as const, message: 'Not authenticated' };
+      throw err;
+    }
+    set({ isLoading: true, error: null });
+    try {
+      // Translate camelCase → snake_case DB columns.
+      const patch: profileApi.ProfilePatch = {};
+      if (updates.displayName !== undefined) patch.display_name = updates.displayName;
+      const result = await profileApi.updateProfile(userId, patch);
+      const current = get().profile;
+      if (current) {
+        set({
+          profile: {
+            ...current,
+            displayName: result.display_name ?? current.displayName,
+            avatarUrl: result.avatar_url,
+          },
+        });
+      }
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'message' in err
+          ? (err as { message: string }).message
+          : 'Failed to update profile';
+      set({ error: msg });
+      throw err;
+    } finally {
+      set({ isLoading: false });
     }
   },
 }));

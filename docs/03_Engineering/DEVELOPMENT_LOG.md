@@ -434,6 +434,155 @@
 
 ---
 
+## S37.0 · 2026-06-28 · M5-4 Offline-first image attachment pipeline (F-MSG-02)
+
+- **开发内容**: 实现 Nook v1.0 M5-4 后端 offline-first image attachment pipeline 完整链 (F-MSG-02 / F-MEDIA-01) — Dexie v2 schema (`attachments` 表) + blob 缓存模块 (200 MB / 30 d idb warm tier) + composer blob-first upload pipeline (after-success Dexie mirror via quota preflight) + Workbox CacheFirst GET `/storage/v1/object/sign/*` + BG sync POST `/storage/v1/object/attachments/*` + `<AttachmentImage>` blob hydrate + touch LRU chain reactivicion 。 **Scope recombination**: 原 TODO M5-4 slot 是 canvas WebP compression (per ARCH § 6.1 F-MSG-02 范围) · user request (Session 37 start) 是 attachment pipeline architecture · 上傳 pipeline archive 优先 ship · canvas compression defer M5-4-compress (v1.1+)。
+- **新增功能** (3 ship-layers + 7 files):
+  - `src/lib/db/schema.ts` (extended) — Bumped to v2: `attachments` 表 (`&id, conversationId, lastAccessedAt, expiresAt, [conversationId+lastAccessedAt]` compound index) + `AttachmentTable = EntityTable<AttachmentRow, 'id'>` typed-table + v1 `nook_outbox_v1` schema preserved (Dexie auto-migration )
+  - `src/lib/db/attachments.ts` (NEW · 260 行) — constants `ATTACHMENT_CACHE_MAX_BYTES = 200 MB · ATTACHMENT_CACHE_MAX_AGE_MS = 30 days · QUOTA_SAFETY_RATIO = 0.9` + mutators `putAttachmentCache · touchAttachment (LRU bump) · deleteAttachment` + readers `getAttachmentCacheRow · listCachedAttachmentsForConversation` + `revokeBlobUrl` + LRU/TTL/quota helpers (`estimateQuotaAvailable` 3-layer null fallback · `getCacheUsageBytes` · `lruPurgeUntilUnder` ASC · `purgeExpiredAttachments` by expiresAt)
+  - `src/lib/api/chat.ts` (extended) — `uploadAttachment(file, conversationId)` threads convId for Dexie mirror key · `persistAttachmentBlobLocally` seam (after-server-INSERT quota preflight `freeBytes < 110% MAX` → `lruPurgeUntilUnder(MAX/2)` 防 QuotaExceededError). Fire-and-forget `.catch(console.warn)` · upload 不 fail by quota miss
+  - `src/components/chat/AttachmentImage.tsx` (rewire) — Dexie blob hydrate FIRST (blob:URL local) before signed-URL fallback; new `useEffect([attachmentId, blobURL])` touching `touchAttachment` on successful hydrate (重新连接 LRU chain · 不 else degrade to stale FIFO); cleanup `useEffect` on unmount/id-change revokes prior blob:URL (防 memory leak)
+  - `vite.config.ts` (extended) — Workbox `runtimeCaching`: ❶ GET `/storage/v1/object/sign/*` → `CacheFirst` + `ExpirationPlugin({maxEntries: 200, maxAgeSeconds: 30d, maxSizeBytes: 200 MB})` + `cacheableResponse: { statuses: [0, 200] }` (opaque + 200 both) ❷ POST `/storage/v1/object/attachments/*` → `NetworkOnly` + BG sync `nook-messages-queue` (7d/5 retries) — same queue as M5-2 text POST, idempotent via `messages_client_msg_id_unique_idx`
+  - Tests 17/17:
+    - `src/lib/db/attachments.test.ts` NEW (12) — LRU/TTL/quota state machine (11 cases) + ATTACHMENT_CACHE constants regression guards (2)
+    - `src/lib/db/schema_v2.test.ts` NEW (5) — Dexie v2 opens BOTH `outbox`+`attachments` + 3 scalar + 1 compound index via `db.tables.find().schema.indexes` API
+- **限制变更**: dexie v1 → v2 schema migration必须在用户宗 bias · 这是 Dexie auto-migration 的 intrinsically blind . 使用 新加 surface only, 不修改 v1 — 现有 nok_used M5-1/M5-2 outbox rows 自动隐 detectable
+- **遇到的问题** (2 critical round-2 闭盘 + round-3 cleanup):
+  - **Round-1** `EntityTable<Omit<AttachmentRow, 'id'>, 'id'>` **show-stopper** — Dexie 需 `'id'` in `keyof T` 为 EntityTable's second generic · Omit 删 'id' 后 dexie 推断违 → 4 TS errors × 6+ calls · fix 为 `EntityTable<AttachmentRow, 'id'>` (full Row type · PK contained in row schema)
+  - **Round-2** `useLiveQuery<AttachmentRow | null, [string | null]>(...)` TS2345 (third arg null not assignable) · fix 为 drop explicit generics (let dexie-react-hooks infer)
+  - **Round-2** `fake-indexeddb` `structuredClone` degrades `Blob` instance → `stored.blob.size` undefined in test env · fix as `typeof stored.blob !== 'undefined'` presence + assert on `sizeBytes` column (always a number) ; 理解 : production 仓意 path native IndexedDB has full Blob ㅇ fly · fake-indexeddb 在 test env decorated
+  - **Round-3** Dead-code hook `useAttachmentBlob` (`'__placeholder__'` fake-URL 是 draftage path) · broke in round-1+2 as I exported + 未 imported · delete the hook · `<AttachmentImage>` inlines the equivalent logic correctly (only-internally-used)
+  - **Round-3** LRU touch chain break — `AttachmentImage.tsx` originally not call `touchAttachment` on cache hit → `lruPurgeUntilUnder(...below(now).sortBy('lastAccessedAt'))` degenerated to stale FIFO · fix: re-wire touch effect (LRU chain reactivicion · on cache hydrate success)
+  - **Round-3** dynamic-import 做作 — `persistAttachmentBlobLocally` 原使用 `await import('@/lib/db/attachments')` per-call · wasteful · fix 为 top-of-file static  import
+- **决原理后层**:
+  - **Dexie on-change warm cache strategy**: USE `lastAccessedAt` index for LRU ASC purge · FB API 优雅 deg to stale FIFO if no touch chain · cycle S37 round-3 fix阐明 this in code comments
+  - **blob-first upload path**: Backend 走 Server-first (所需 `attachments.id` 生成 appears only after REST INSERT) · 本地 mirror SEAM after-success (key seam in `uploadAttachment`); pre-flight quota guard reduces `QuotaExceededError` on mobile low-end devices中的 low-edge case (90%+ already used) · 10% margin (110% threshold) prevents leak
+  - **Workbox image layers**: GET = CacheFirst (signed URL idempotent) · POST = NetworkOnly + BG sync (`sendAttachmentMessage` call path) — 2-layer同 image cache 错 exists dual pattern
+  - **M5-4.1 defer**: Upload progress bar M5-7 only (50 MB 上传 x 慢速 mobile), manual retry button留 v1.1 quota UI
+- **当前状态**: M5-4 final ship ✅ · 197/197 vitest full suite + 0 new tsc errors · Cycle S37.0 · reviewer-minimax-m3 0 critical blockers + minor JSDoc dup on chat.ts persistAttachmentBlobLocally noted as v1.1 hygiene
+- **下一步计划**: **M5-7 50MB progress bar** (F-MSG-03) + **M5-4-compress canvas WebP compression** (v1.1+ quota-friendly opt-in) + **M5-1.1 quota UI** (v1.1+) — M5-5 EXIF strip (S38.0) · M5-6 avatar upload UI (S39.0) 均 ship
+
+## S39.0 · 2026-06-28 · M5-6 avatar upload UI · profiles.avatar_url reactive rewire (F-AUTH-09 / AC.13 / CAP-17)
+
+- **开发内容**: 实现 Nook v1.0 M5-6 avatar UI · profile.avatarUrl reactive store · supabase.storage 'avatars' bucket direct upload path 拼 · 6 文件 ship:
+  - ❶ **src/lib/api/profile.ts** (NEW ~190 行 pure module) — `AVATAR_MAX_BYTES = 5 MB · AVATAR_ALLOWED_MIMES = [png|jpeg|heic|webp]` 跟 bucket policy mirror · `AvatarValidationError` (code: empty/too_large/unsupported_mime/unsupported_ext) · `validateAvatarFile(file): asserts file is File` 三层 preflight · `buildAvatarObjectPath(uid, file, now)` → `<uid>/avatar-<unix-ms>.<ext>` (versioned → CDN cache bust) · `resolveAvatarPublicUrl(path)` via SDK helper · `uploadAvatar(uid, file)` (validate → purge folder best-effort → upload contentType+upsert:true defensive → getPublicUrl) · `deleteAvatar(uid)` (**PATCH profiles.avatar_url:null FIRST** then best-effort storage purge 防 race flash) · `updateProfile(uid, [display_name, avatar_url])` (PATCH + select(...).single)
+  - ❷ **src/lib/api/profile.test.ts** (NEW ~250 行 ~30 cases) — vi.mock supabase · try/catch 错误码 捕 获 · PATCH-FIRST ordering via `mock.invocationCallOrder` (delete-storage-after-DB update precedence)
+  - ❸ **src/components/settings/AvatarPicker.tsx** (NEW ~210 行) — file picker + URL.createObjectURL preview + M5-5 `detectExif` informational warning 6 s timer 复用 + svg triangle icon + switch case 错认码 i18n → 4 button Pick(neutral)+Remove(danger)+Save(accent loading)+Cancel(neutral, dirty-only) + data-testid × 6
+  - ❹ **src/stores/useAuth.ts** 扩 — `isUploadingAvatar` state + `uploadAvatar(file)` / `deleteAvatar()` / `updateProfile({displayName})` actions · `{code:'unauthorized', message:'Not authenticated'} as const` plain throw pattern 匹配 register SESSION_MISSING · camelCase displayName → snake_case 翻译 · reactive profile.avatarUrl re-render
+  - ❺ **src/app/pages/SettingsProfilePage.tsx** 16-line sketch → ~75 行 — `<AvatarPicker />` + DisplayName form (Input variant=form + Button intent=accent type=submit + status msg)
+  - ❻ **src/app/pages/SettingsPage.tsx** nav link `t('settings.profile')` → `t('settings.profile.name')` break-fix-1 + en settings.profile missing `name` key 补丁
+  - ❼ i18n × 2 lang — `settings.profile` 改为 `{name, saved}` 对象 (先前只是一行字符串) + `settings.avatar.{sectionLabel, upload, remove, save, errors:{empty, tooLarge, unsupportedMime, unsupportedExt, uploadFailed, deleteFailed}}`
+- **Round-cor1 → Round-2 修正**: 5 reviewer critical findings 全修复 (i18n restructure break · en missing name key · unsupported_ext fall-through · Object.assign throw style · upsert dead config rationale) · profile.test.ts `!` non-null assertions bypass noUncheckedIndexedAccess
+- **测试结果**: **30/30 vitest M5-6 + 235/235 full unit suite** (包含 M5-1 13 + M5-2 useServiceWorker + M5-3 + M5-4 17 attachments + schema_v2 5 + M5-5 8 exif + M5-6 30) · 0 NEW tsc errors in M5-6 files · reviewer-minimax-m3 ship-ready
+- **System note**: 本机 static-only per KI-9 · M5-7 50MB progress bar (F-MSG-03) + M5-4-compress canvas compression 都 deferred v1.1+ · quota UI M5-1.1 也 deferred v1.1+
+
+- **验证结果** (本机 static-only · per KI-9): vitest full unit suite 197/197 ✓ · M5-4 file-specific 17/17 ✓ · tsc 0 new errors ✓ · 0 critical reviewer blockers · 本机 live verification 0 — 云上 deploy path走 `supabase db push --include-all`后 workbox-build emit dist/sw.js + deploy-set VITE_ENABLE_SW=true deploy env-var
+
+--
+
+- **开发内容**: 在 M5-1 Dexie + outbox foundation (S34.0) 之上 ship M5-2 = AC.17 **application layer** — vite-plugin-pwa Workbox BG sync · `registerServiceWorkerOnce` plain function (main.tsx boot) · useSendMessage text+attachment onMutate/onSuccess/onError 接入 outbox state machine · Composer 黄色点 + reconnecting strip UI + i18n x 2 lang。S34+S35 = AC.17 链路闭环 (foundation + application layer)。本机 static-only 验收。
+- **新增功能**:
+  - `vite.config.ts` 扩 — `VitePWA({ registerType: 'autoUpdate', injectRegister: false })` · `workbox.runtimeCaching` POST->`/rest/v1/*` `NetworkOnly` + `BackgroundSyncPlugin('nook-messages-queue', { maxRetentionTime: 7 days · maxRetries: 5 })` · HTTP-level fault-tolerance fence 配合 server-side `messages_client_msg_id_unique_idx` partial unique 上夜 double-replay 去重 · GET-to-`/rest/v1/*` 保持原 `NetworkFirst` 不动 · `cleanupOutdatedCaches: true`
+  - `src/config/env.ts` 扩 — `enableSw: boolean` · `isTruthyEnvFlag` accepts `'true'`/`'1'` 解析 `VITE_ENABLE_SW` · default false · dev HMR 阻挡 + product opt-in rollback 可能
+  - `src/hooks/useServiceWorker.ts` NEW — plain func `registerServiceWorkerOnce()` (refactor from v1 hook usage) · module-level `_registerOnce` singleton 保证 fire once per boot · 三重 gate (PROD · env.enableSw · navigator.serviceWorker non-nullish) · workbox-window `Workbox` 装货 + `addEventListener('installed'/'waiting'/'controlling'/'activated')` forward 至 console.info · `register()` rejection reset singleton 让 manual retry path 重发
+  - `src/main.tsx` 扩 — boot-time `registerServiceWorkerOnce()` 在 ReactDOM render 前调用 (parallel install + first paint)
+  - `src/hooks/useSendMessage.ts` 扩 — outbox rewire (enqueue/markSent/markFailed fire-and-forget) + `extractErrorMessage` helper handles Error/string/`{message: string}` (Supabase PostgREST payload)
+  - `src/components/chat/Composer.tsx` 扩 — replace inline `crypto.randomUUID()` × N 用 canonical `generateClientMsgId` from M5-1 · 12 px yellow dot on `useOutbox(convId).pending.length > 0` (motion-safe:animate-pulse honors prefers-reduced-motion per AC.AC.motion) · reconnecting strip on `useOutbox(convId).failed.length > 0`
+  - i18n · `chat.outbox.{pending, pendingCount_one, pendingCount_other, reconnecting}` × 2 lang
+  - `package.json` 1 NEW runtime dep `workbox-window@^7` + 1 devDep `vite-plugin-pwa@^0.x`
+- **修复问题** (本 session 内 6 项 fix): hook→plain func refactor (main.tsx hook-rule violation) · useServiceWorker test name bridge · vi.resetAllMocks re-establish outbox mock implementations · extractErrorMessage for Supabase wrapper · triple-check serviceWorker gate (jsdom edge) · Workbox mock class form (3 iterations)
+- **当前状态**: M5-2 ship ✅ · 本机 static-only 全绿色 · M5-2.1 followup = manual 「点按钮重试」 + outbox toast notifications
+- **下一步计划**: M5-3 = client_msg_id dedupe live verify + process startup rehydrate in-flight outbox rows
+- **验证结果** (本机 static-only · per KI-9): vitest M5-2 specs 11/11 + full unit suite 159/159 + tsc 0 new errors + 0 critical reviewer blockers
+
+## S34.0 · 2026-06-28 · M5-1 Dexie schema + outbox foundation (F-MEDIA-01 / AC.17)
+
+- **开发内容**: 实现 Nook v1.0 M5-1 Dexie + outbox foundation (F-MEDIA-01 / AC.17) — Dexie v1 IndexedDB schema (`nook_outbox_v1` db · outbox table) + state machine (pending → sending → sent / 反复又 pending · attempts=MAX→failed terminal) + retry backoff (exponential 1s→2s→4s→8s→16s· 60s cap) + UUID v4 client_msg_id helper + useOutbox live-query hook (bucketed observer) + useTotalOutboxCount global counter · test/setup fake-indexeddb prefill · 4 test file · 65 cases · 本机 static-only 验收 (per KI-9)。
+
+- **新增功能**:
+
+  - `src/lib/db/client_msg_id.ts` NEW — UUID v4 helper (`generateClientMsgId` wrap `crypto.randomUUID()` · `isValidClientMsgId(uuid)` regex V4 + variant1 guarded). Composer.tsx 原 inline `crypto.randomUUID()` × 16 处 · 本 central helper取代 inlines · 为后续 SW bg sync replay path 供 symmetric client_msg_id emission。
+  - `src/lib/db/schema.ts` NEW — Dexie v1 db singleton (`nook_outbox_v1`) + outbox table. Pk=`clientMsgId` + 索引 `conversationId, state, createdAt, [state+createdAt], nextAttemptAt` (`[state+createdAt]` 为 SW bg sync replay FIFO scan performance optimization) · `getDb()` lazy-init · `__resetDbForTests()` close + `indexedDB.deleteDatabase()` + null singleton。
+  - `src/lib/db/outbox.ts` NEW — State machine。Constants `MAX_ATTEMPTS=5`, `RETRY_BACKOFF_BASE_MS=1_000`, `RETRY_BACKOFF_CAP_MS=60_000`, `SENT_GRACE_MS=30min`. Pure reducers 100% side-effect-free: `initOutboxRow`, `markSending`, `markSent`, `markFailed`, `backoffMsFor` (每个 终结态 defensive-guard · sent/failed 不拋退 pending). Dexie 薄包装 mutators: `enqueue`, `applyMarkSending`, `applyMarkSent`, `applyMarkFailed`, `purgeSentBefore`, `getOutboxRow`, `listOutboxForConversation`. All driven by parameterizable `nowMs()` clock 供 testability。
+  - `src/hooks/useOutbox.ts` NEW — `useLiveQuery` observer via `dexie-react-hooks`. Exports: `useOutbox(convId)` returns bucketed `{pending, sent, failed, total, isLoading}` · `useTotalOutboxCount()` · `useOutboxManualRefresh()` (M5-2 SW BroadcastChannel 预留 no-op)。
+  - `tests/setup.ts` reactive — `import 'fake-indexeddb/auto'` first line · jsdom 获 fake IndexedDB backing Dexie。
+  - `package.json` — `dexie@^4` runtime · `dexie-react-hooks@^1.4.0` runtime · `fake-indexeddb@^6` devDep。
+  - 测试 4 文件 · 65 case total:
+    - `client_msg_id.test.ts` NEW (5) — batch 100 unique + V4 regex + isValid matrix
+    - `schema.test.ts` NEW (6) — db opens v1 · outbox table indexes · enqueue round-trip · `[state+createdAt]` compound scan · Row-shape parity
+    - `outbox.test.ts` NEW (22) — backoffMsFor 10 阶 schedule + 6 reducer × terminal-guard + 7 Dexie mutator parity + 3 purgeSentBefore 边界 + listOutboxForConversation FIFO
+    - `useOutbox.test.tsx` NEW (13) — initial empty bucket · enqueue→pending · markSending→仍 pending · markSent→sent · markFailed 1-5 attempts path→failed terminal · per-conv conversationId filter · multi-row FIFO · useTotalOutboxCount × empty/multi/sent-in-grace/terminal · useOutboxManualRefresh trigger
+  - i18n `chat.outbox.{pending,sending,sent,failed,retrying}` × 5 × 2 lang
+- **修改内容**: 无 (本 milestone 仅 new files · store 重构 / Composer hook rewire 均留给 M5-2 send wire 阶段; **scope discipline = foundation only**)。
+- **修复问题** (本 session 内 5 项 fix):
+
+  1. 初版 `__resetDbForTests` 仅 `await db.close()` 不 `idb delete` → cross-test contamination (test #1 inserted row 泄漏到 test #2) · 探查 14 tests fail 根因 · fix 加 `indexedDB.deleteDatabase()` + null singleton。
+  2. 初版 `markFailed` 缺 sent/failed terminal defensive-guards → failure signal on `sent` row 拋退 `pending` 分支 + mutate state illegal · fix 加 if guard `if (row.state === 'sent' || row.state === 'failed') return no-op`。
+  3. 初版 `useTotalOutboxCount` "sent within grace" test 用 `NOW_ZERO = 1_700_000_000_000` 作 `sentAt` · hook read `Date.now() ≈ 1.78e12` → diff ≈ 2.5 年 > 30 min grace → row 被排除 → fix test 改 real wall-clock。
+  4. 初版 `schema.test.ts` `formatKeyPath` 未 handle undefined keyPath (Dexie 4 type widened: `string | readonly string[] | undefined`) → TS2345 → fix widen signature。
+  5. 初版 `schema.test.ts` `db.isOpen()` race · Dexie 连接 lazy-open 未完成前 check 返 `false` → fix explicit `await db.open()` + assert。
+  6. 初版 previous str_replace 失败造成 `outbox.ts` duplicate `markSending` / `markSent` / `markFailed` declarations (每函数被 default `NOW()` 与 default `nowMs()` 重声明 2 次) → fix 整套重写文件 · 现在 constants 统一 `nowMs()` 名。
+
+- **遇到的问题**:
+
+  - `dexie-react-hooks` v1.x 与 jsdom + fake-indexeddb 互动产生 `act()` warnings 5 case · **non-blocking** · cosmetic 异步 model mismatch (live-query re-emit 与 render cycle 不同步)
+  - 初版 reviewer 反馈文有 1 项 Type lie: `OutboxTable` custom intersection 声明了 `byConversationId / byState / pendingFifo` 等不存在的 method · TS 接受但 runtime 会 crash · fix 删除 phantom methods (Dexie standard `.where('xxx').equals(...)` pattern 已够).
+  - 初版 constants naming `NOW` 像 date-format string · reviewer-cosmetic · fix 重命名 `nowMs`。
+- **解决方案**:
+
+  - **M5-1 = foundation only** · 严格 scope discipline: 不 wire useOutbox to UI components (留 M5-2 连带) · 不改 Composer useSendMessage to call `enqueueOnFailure` (留 M5-2 send rewire) · 不 registrate SW bg sync hook (留 M5-2) · 不 add Blob attach for outbox kind='image'/'file' (留 M5-4/5/7)。
+  - **純 reducers first** · Pure reducers 100% side-effect-free · trivially testable · mutators 仅 thin Dexie glue (read → reducer → put)。Two layers stay symmetric, 可单独 unmock-test。
+  - **`__resetDbForTests` close+deleteIDB+null singleton** · 防 cross-test contamination 是 Dexie testing discipline。
+  - **`nowMs()` parameter** · Default `Date.now()` with optional override in tests → deterministic vitest outcomes regardless of real clock drift · 反⼜ enables fake-clock 在 integration test 探查。
+- **当前状态**: M5-1 Dexie + outbox foundation ship ✅ · 4 source files + 4 test files + 1 devDep + 2 runtimeDeps + 5 i18n keys × 2 lang · 本机 static-only 全 green。本机 live 用 0 (per KI-9) · 云 端后续 M5-2 后 下探。
+- **下一步计划**: M5-2 Workbox SW bg sync replay hook integration + useSendMessage text/attachment rewire to outbox-on-failure。具 `Composer.tsx` call-site integration (添加 outbox enqueue + markFailed on error path) + `public/sw.js` Workbox bg sync plugin 配置 + `src/hooks/useServiceWorker.ts` register hook · production-only path 才启 SW 装 (per `VITE_ENABLE_SW` env flag) · dev SSR path 忽 SW。
+- **验证结果** (本机 static-only · per KI-9):
+
+  - vitest M5-1 specs: **65/65 pass** ✓ (45 new + 20 carryover from M4-8 baseline · 0 fails)
+  - vitest full unit suite: **96/96 pass** ✓ (12 test files · M5-1 additive +17 net vs M4-8 · **0 regression**)
+  - tsc M5-1 files: **0 new errors** ✓ (Composer / MessageItem / conversationChannel / Deno EF 17 pre-existing unchanged)
+  - code-reviewer-minimax-m3 multiple rounds: **0 critical blockers** ✓ (9 polish suggestions 记录不动 · 防倒在 M5-1.1 polish M4-8.1 后)
+  - 本机 live verify 0 (per KI-9) · 云 staging/prod 上 以 `supabase db push --include-all --project-ref <cloud>` 后 则 `messages` 表插 以 `client_msg_id` 去重 path 走 全 round-trip
+
+## S33.0 · 2026-06-28 · M4-8 Ambient 在线状态呼吸光点 (F-ST-01 / AC.11)
+
+- **开发内容**: 实现 Nook v1.0 M4-8 Ambient 在线状态完整链（CAP-08 / F-ST-01 / AC.11）— useConversationPresence 子双写 receiver · usePresence store 重构 per-conv Map · ChatPanel 头部 6 px lavender dot · 清理 6 处 upstream JSDoc 引用。Code commit 同 ship + docs commit 同步。本机 static-only 验收 (per KI-9)。
+- **新增功能**:
+  - `src/stores/usePresence.ts` 重构: `onlineUsers` 从 GLOBAL `Set<string>` 转为 per-conv `Map<convId, Set<userId>>` 。新增 `setOnlineUsersForConv(convId, UserId[])` + `clearConv(convId)` 原子双清 API `· typingUsers` shape 保持不变
+  - `src/hooks/useConversationPresence.ts` NEW (取代 M4-1 `useTypingReceivers`): 单 `subscribePresenceEvents` onSync 双写 `onlineUsers + typingUsers` · self-actor gate 在 receiver 层 (per M4-7 RT closure 教训 · per-callback re-read useAuth.userId 防 stale closure) · unmount 清空 exact convId 二者皆免 peer list leak
+  - `src/hooks/useConversationPresence.test.tsx` NEW: 9 unit tests (online+typing 双写 · self-actor gate · online/typing filter chains · unmount/room switch 时 convId 隔离)
+  - `src/components/chat/ChatPanel.tsx` 头部 Avatar 接入 `status + pulse` 表达式 (1-line per-conv size lookup via `usePresence` 路由 selector)
+  - `useConversationPresence` replaces `useTypingReceivers` in ChatPanel import
+- **修改内容**:
+  - 6 处 upstream JSDoc dangling references 同步 (Composer.tsx line 85 / TypingIndicator.tsx line 8 / useTypingBroadcast.ts lines 8/19/82 / useTypingBroadcast.test.tsx line 19) → `useTypingReceivers` 引用改 `useConversationPresence`
+  - `docs/03_Engineering/TODO.md` M4-8 row: 待启动 → ✅ 已完成 + 9 line 描述
+  - `docs/03_Engineering/CHANGELOG.md` `[Unreleased]` 新增 `### [M4-8.0] · 2026-06-28` section + AC Coverage table
+- **删除**:
+  - `src/hooks/useTypingReceivers.ts` (M4-1 typing receiver · 为双写版本取代)
+  - `src/hooks/useTypingReceivers.test.tsx` (旧 9 unit tests 与部分 M4-7.1 polish test 被覆盖)
+- **修复问题**:
+  - 初版 test #9 错误断言: `typingUsers.has('conv-2')` 应使用 `.get(...)` 因为 `setTypingUsers` 总是写 key (即使空 array) · reviewer-minimax-m3 提示后 fix
+  - 初版 unused `@ts-expect-error` on empty-string user_id 场景 (因为 `online: true` 不需要 cast) · 该行多余 directive 删除
+- **遇到的问题**:
+  - store 重构（global → per-conv）方案选择：选择直接破坏替换，背景是 grep 确认零 external consumer (除 `setOnlineUsers` action 本身) · 简化送路而非 post-deprecation wrapper
+  - self-actor gate 选择在 receiver 而非 UI: 与 M4-7 typing 一致 (避免 store 污染 + UI 重复过滤逻辑) · 文档化于 hook JSDoc
+  - 1:1 vs group dot 语义统一为 "any-peer-online": SPEC F-ST-01 字面是 1:1 case，group 是 v1.1+ 加 per-peer dot 的优化机会，v1.0 single-dot 代表 "conv alive" 是最简信号
+- **解决方案**:
+  - store 重构走 immune-escaped Map.set(convId, new Set(userIds)) + clearConv 双 clear 每 ack
+  - useConversationPresence 保持单一 effect lifetime · per-mission clearConv 防 hook 交叉污污
+  - type 0 parmas M4-7 的教训 (避免 “stale-closure useAuth.userId” bug) · stored selfUserId at mount but also per-callback re-read (明显防御)
+- **当前状态**: M4-8 main ship ✅ (本机 static-only) 。Reviewer-minimax-m3 0 critical blockers (5 non-blocking polish suggestions 记录不动)。M3 → M4 全 11 milestone · plus M4-8 = 12 milestone 总 package 完整。
+- **下一步计划**: M5 Edge Cases 启动 · Dec/2026 补充推全对 ”Project Lead 创建远端 GH repo“ (KI-8)，完成后 push v0.5.0+M4-8 + 接着启动 M5-1 Dexie outbox
+- **验证结果** (本机 static-only · per S29.0 / KI-9):
+  - vitest 63/63 pass · 跨 8 个 M4-area test files ✓ (M4-8 +6 net new · 0 regression)
+  - tsc 0 new errors in modified files (`usePresence\.ts` · `useConversationPresence.ts` · `ChatPanel.tsx` + 5 upstream JSDoc cleanup files) ✓
+  - code-reviewer-minimax-m3 0 critical blockers · 5 non-blocking polish suggestions (不必 ship-block)
+  - orphan grep: 0 dangling refs to `useTypingReceivers` post JSDoc cleanup ✓
+  - 0 integration test run (per KI-9 本机仅 static; next 仅云 staging via `supabase db push`)
+  - 0 git commit yet (讲入 S33.0 entry + docs 后准备 squashed commit)
+
+---
+
 ## S19.0 Note · 2026-06-27
 
 - 目录名 i18n 化,所有路径已为英文

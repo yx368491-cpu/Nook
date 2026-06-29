@@ -9,6 +9,120 @@
 
 ---
 
+### [M5-6.0] · 2026-06-28 · Avatar upload UI · profiles.avatar_url reactive rewire (F-AUTH-09 · AC.13 · CAP-17)
+
+#### Decision trace
+
+- **Originally listed as deferred**: UI shell + reactive store wiring wasn't shipped even though bucket RLS + SQL column were ready since M3-1 (migration 0007 + Entity Profile.avatar_url).
+- **User request (Session 39)**: "M5-6 avatar upload UI (F-AUTH-09 / AC.13) — SettingsProfilePage avatar picker + supabase.storage 'avatars' bucket direct upload + profiles.avatar_url rewire; storage RLS policy M3-1 already shipped"
+
+#### Added (M5-6 ship · 7 files)
+
+- **`src/lib/api/profile.ts` (NEW · ~190 lines)** — pure API module mirroring the M3-1 bucket policy.
+  - Constants: `AVATAR_MAX_BYTES = 5 * 1024 / 1024` + `AVATAR_ALLOWED_MIMES = ['image/png','image/jpeg','image/heic','image/webp']`.
+  - `AvatarValidationError extends Error` (code: `'empty' | 'too_large' | 'unsupported_mime' | 'unsupported_ext'`) — preflight error contract.
+  - Public surface: `validateAvatarFile(file: File): asserts file is File` (size + MIME + extension) · `buildAvatarObjectPath(userId, file, now = Date.now())` → `<userId>/avatar-<unix-ms>.<ext>` (versioned for CDN cache-bust; ext mapped: jpeg→jpg) · `resolveAvatarPublicUrl(path)` via `supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl` · `uploadAvatar(userId, file)` (validate → purge folder best-effort → upload `{contentType, upsert: true}` JSDoc-justified retry-after-pre-purge race → resolve URL) · `deleteAvatar(userId)` (**PATCH `profiles.avatar_url: null` FIRST then best-effort storage purge** so Avatar consumers fall back to initials immediately; no flash of broken image) · `updateProfile(userId, updates)` PATCH + `.select('display_name, avatar_url').single()`.
+- **`src/lib/api/profile.test.ts` (NEW · ~250 lines · 30 cases)** — `vi.mock('@/lib/supabase')` at module top + beforeEach chain resets.
+  - `validateAvatarFile` × 7 (each whitelist MIME accept · empty file reject · > 5MB reject · exact-5MB-accept · image/gif reject · text/plain reject · no-extension reject).
+  - `buildAvatarObjectPath` × 5 happy path + it.each MIME→ext mapping (jpeg→jpg, png→png, webp→webp, heic→heic).
+  - `uploadAvatar` × 6 (happy list→upload→getPublicUrl · purge existing files · validation throw BEFORE any supabase call · upload error rethrow · list error tolerated · list throw tolerated).
+  - `deleteAvatar` × 3 (PATCH-FIRST ordering verified via `mock.invocationCallOrder` · DB error precedence · list failure tolerated).
+  - `updateProfile` × 3 (chain shape · parsed row return · avatar_url:null PATCH).
+  - `resolveAvatarPublicUrl` · AVATAR_MAX_BYTES/AVATAR_ALLOWED_MIMES regression pins.
+- **`src/components/settings/AvatarPicker.tsx` (NEW · ~210 lines)** — the UI surface.
+  - Hidden file input (ref'd) with `accept = AVATAR_ALLOWED_MIMES.join(',')`.
+  - `URL.createObjectURL` preview · revoke on unmount + on reset (useEffect dep on previewUrl captures latest).
+  - `validateAvatarFile` preflight → `switch (code)` mapping all four codes → i18n-resolved messages.
+  - **M5-5 integration**: `detectExif(file)` informational warning (read-not-write per DATA-MODEL R-30), 6s `EXIF_WARNING_DISMISS_MS` auto-dismiss · svg triangle icon · `signal-warning` token border-tone · `role="status" aria-live="polite"` · `exifTimerRef` cleared on unmount and on resetPreview.
+  - Button composition: Pick (intent=neutral) · Remove (intent=danger, disabled when no avatar) · Save (intent=accent + loading={isUploadingAvatar}, only when dirty) · Cancel (intent=neutral, dirty-only). `data-testid × 6` for test introspectability.
+- **`src/stores/useAuth.ts` (extended)** — `isUploadingAvatar: boolean` state slice + 3 new actions: `uploadAvatar(file)` · `deleteAvatar()` · `updateProfile({displayName?: string})`.
+  - Plain-object throw: `{ code: 'unauthorized' as const, message: 'Not authenticated' }` — matches the existing `register` `SESSION_MISSING` pattern (round-1 reviewer fix #4).
+  - `updateProfile` translates camelCase `displayName` → snake_case `display_name` for the `ProfilePatch`.
+  - Reactive `profile.avatarUrl` push so all `<Avatar>` consumers (Sidebar self, ChatPanel peer header) re-render on commit without extra fetch.
+- **`src/app/pages/SettingsProfilePage.tsx` (replaced · 16→~75 lines)** — `<AvatarPicker />` section + DisplayName form (Input variant=form size=lg · Button intent=accent type=submit · status messages).
+- **`src/app/pages/SettingsPage.tsx` (1-line fix)** — nav link: `t('settings.profile')` → `t('settings.profile.name')`. Round-1 reviewer found the string-to-object i18n restructure silently broke the parent's link label.
+- **`src/lib/i18n/locales/{en,zh-CN}/translation.json`** — `settings.profile` restructured from string to object `{ name, saved }` (en: `'Profile' / 'Saved'`, zh-CN: `'个人资料' / '已保存'`); added `settings.avatar.{sectionLabel, upload, remove, save, errors.{empty, tooLarge, unsupportedMime, unsupportedExt, uploadFailed, deleteFailed}}` × 12 keys.
+
+#### Resolution
+
+- **Storage path vs public URL**: store the **public URL** directly in `profiles.avatar_url` to match existing chat-side consumers that pass the value straight to `<img src>` (zero migration impact). Trade-off: bucket rename would orphan DB URLs — accepted for v1.0.
+- **EXIF**: detect-and-warn, never strip (DATA-MODEL R-30 `'image 不压缩，保留 EXIF、 不转码'` wins over NF-SEC-N05 literal strip-before-upload wording). User sees 6s toast for awareness; upload proceeds unchanged.
+- **Delete ordering**: PATCH-NULL-FIRST so Avatar consumers fall back to initials immediately. Race-safe.
+- **No cropping UI**: R-30 preset · `<Avatar>` already uses CSS `object-cover` on its `<img>` element · v1.1+ candidate.
+- **Bucket path convention**: `<userId>/avatar-<unix-ms>.<ext>` enforced by both naming and RLS policy (`storage.foldername(name) = auth.uid()::text`).
+
+#### Verification (M5-6 final round · 本机 static-only per KI-9)
+
+- vitest M5-6 specs: **30/30 pass** ✓
+- vitest full unit suite: **22 files · 235 tests passed** ✓ (M5-6 additive +30 net from M5-5 205 baseline · 0 regression)
+- tsc M5-6 files: **0 new errors** ✓ (pre-existing errors in Composer/MessageItem/conversationChannel/Deno EF/response.ts unchanged)
+- code-reviewer-minimax-m3 round-1: 5 critical findings (i18n restructure `t('settings.profile')` break · en missing `name` key · `unsupported_ext` fall-through to `unsupportedMime` · `Object.assign(new Error, {code})` throw style inconsistency · `upsert:true` rationale absent). Round-2: applied + `!` non-null assertions on `mock.calls[0][0]` × 3 and `mock.invocationCallOrder[0]` × 2 to bypass `noUncheckedIndexedAccess`. Round-3 reviewer ship-ready ✓.
+- 本机 live verify 0 (per KI-9); cloud deploy path走 `supabase storage.objects` policies already shipped in M3-1 — no new migration needed for client-only changes.
+
+#### Known Limitations (deferred v1.1+ / M5-7 / M5-4-compress)
+
+- **M5-4-compress canvas WebP compression** — quota-friendly opt-in deferred per scope recombination (Session 37).
+- **M5-7 50 MB upload progress bar (F-MSG-03)** — UI sheen only; pipeline already supports 50 MB. Next session.
+- **M5-2.1 quota UI** — bandwidth / per-user quota management outside v1.0.
+- **Avatar crop UI** — R-30 preset no-reencode; v1.1+ opt-in.
+- **Edge function reactive cleanup `cleanup-storage-orphans` notification** — orphan sweep already runs daily via pg_cron J-03; M5-6 best-effort purge keeps the user folder clean at-the-edge.
+
+---
+
+### [M5-5.0] · 2026-06-28 · EXIF strip / no-strip + informational toast (F-MSG-02 / NF-SEC-N05)
+
+#### SPEC Contradiction Resolution
+
+- **Data-model R-30**: "image 不压缩（保留 EXIF、不转码）" — hard business rule, no-reencode-on-upload
+- **SPEC § 2.3 NF-SEC-N05**: "Client 端 EXIF strip 完成后才上传图" — literal strip-before-upload wording
+- **SPEC § 6 BF E3**: "EXIF strip 失败 → fallback，仍上传像素" — graceful fail-soft
+- **User request (Session 38)**: "M5-5 EXIF strip (F-MSG-02 / NF-SEC-N05) — read-not-write path with no library dependency, file extension detection + warning toast on detected EXIF"
+- **Resolution**: R-30 + user request + BF E3 wording converge on a **read-not-write informational model**:
+  1. DETECT EXIF in upload pipeline (read metadata bytes once)
+  2. SURFACE detection result to user via single warning toast at the Composer
+  3. PROCEED with upload unchanged (no re-encode, no strip)
+  4. User retains agency — they can choose to send or re-attach a stripped-thumbnail version manually
+
+#### Added (M5-5 ship)
+
+- `src/lib/storage/exif.ts` (NEW, ~200 lines): Pure module, no library, JPEG APP1/`Exif\0\0` binary walker.
+  - Public surface: `ExifDetectionResult = { hasExif: boolean, sources: ReadonlyArray<'jpeg_app1'> }` + `detectExif(file: File): Promise<ExifDetectionResult>`. Module self-resolves all errors to `{ hasExif: false, sources: [] }` (BF E3 fallback rule enforced at module boundary).
+  - Internal: `looksLikeJpeg(file)` extension+MIME short-circuit + `hasExifInJpegBytes(uint8Array)` Segmented walker (skip 0xFF padding → marker code → standalone-or-payload → SOI/SOS terminator → APP1/Exif-0x0 6-byte magic).
+  - Constants: `JPEG_SOI = [0xFF, 0xD8]`, `JPEG_APP1_MARKER = 0xE1`, `EXIF_MAGIC = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00]`, `EXIF_SCAN_BYTES = 64 KB`, `JPEG_STANDALONE_MARKERS Set {0x01, 0xD0..0xD8, 0xD9}`, `JPEG_SOS_MARKER = 0xDA` (scan terminator).
+  - Format coverage v1.0: JPEG only — PNG/HEIC/TIFF/WebP deferred to v1.1+ under feature flag (thinker decision #2; v1.0 conservative ROI on library-free binary parsing).
+
+- `src/lib/storage/exif.test.ts` (NEW, 8 cases): Covers happy path (APP1+Exif magic), sad paths (no APP1, XMP App1-magic mismatch, multi-segment skip), short-circuit (PNG, plain text, PDF, ZIP), and defensive (1-byte + 0-byte truncated JPEG).
+  - Test plumbing: `makeFakeFile(bytes, name, type)` helper overrides BOTH `file.arrayBuffer` AND `file.slice` (the latter returning a Blob with its own overridden `arrayBuffer`) to bypass jsdom's slice-propagation quirk where `File.slice()` returns a fresh Blob backed by the File's empty BlobPart — production code is untouched.
+
+- `src/components/chat/Composer.tsx` (extended): NEW `warning` useState (parallel to `error`) + `EXIF_WARNING_DISMISS_MS = 6000` const + `exifTimerRef` useRef. `dispatchFile` extended to:
+  - BEFORE sendAttachM.mutateAsync: if `isImageMime(file.type)` await `detectExif(file)`.
+  - If `result.hasExif === true`: setWarning(t('chat.exifWarning.body')) + cancel prior timer + reset setTimeout(setWarning(null), 6000ms).
+  - Upload proceeds unchanged (read-not-write).
+  - NEW render: `{warning && <p role="status" aria-live="polite" data-testid="composer-exif-warning" border-signal-warning tone SVG triangle icon>body</p>}` between the existing error strip and the form.
+  - NEW 2 useEffects: (a) conversationId-change reset clears stale warning + timer; (b) unmount cleanup clears zombie timer.
+  - Dropped the redundant inner `try { await detectExif } catch {}` (detectExif module's documented self-catch + BF E3 fallback enforce the rule from one place, Composer is one try/catch deep).
+
+- `src/lib/i18n/locales/{en,zh-CN}/translation.json` (extended): added `chat.exifWarning.{title,body}` keys × 2 langs. en: "Image contains metadata / This image includes EXIF metadata (camera, location, etc.). Per Nook's no-compression policy, the original bytes will be sent with metadata intact." zh-CN: "图片包含原数据 / 这张图片含有 EXIF 原数据（相机、位置等）。按 Nook 原图保真约定，会原图直传并保留元数据。"
+
+#### Verification (M5-5 final round · 本机 static-only per KI-9)
+
+- vitest M5-5 specs: **8/8 pass** ✓ (after round-3 fix to jsdom slice-propagation bypassing)
+- vitest full unit suite: **21 files · 205 tests passed** ✓ (M5-5 additive +8 net from M5-4 baseline; 0 regression)
+- tsc M5-5 files: **0 new errors** ✓ (pre-existing Composer `useSendAttachmentMessage` export + MessageItem minor props + conversationChannel export + Deno EFs + response.ts TS5097 unchanged)
+- code-reviewer-minimax-m3 **0 critical blockers** ✓ (1 cosmetic nit on test helper type cast, non-shipping)
+- 本机 live verify 0 (per KI-9); cloud deploy path走 `supabase db push --include-all` (no migration needed for client-only change)
+
+#### Known Limitations (deferred M5-5.1+ ... v1.1+)
+
+- **HEIC / WebP / PNG / TIFF format coverage**: v1.0 JPEG-only. HEIC attachments silently bypass EXIF warning (Composer input accepts `image/heic` MIME per ATTACHMENT_MIME_WHITELIST; HEIC parser is non-trivial ISO BMFF meta-box walk). User-visible impact: drop/attach HEIC images bypass the warning entirely. v1.1+ feature flag.
+- **`accept="image/png,image/jpeg,image/heic,image/webp"` mismatch**: v1.0 should narrow accept to `image/png,image/jpeg,image/webp` to match detection coverage. Cosmetic only — drop/paste still allows HEIC, just silently no-warning.
+- **v1.1 canvas compression (M5-4-compress slot)**: future WebP q=0.78 + 2MB 二压 q=0.6 — orthogonal to detection, not blocking v1.0 ship.
+- **Future: full strip pipeline**: per R-30, NEVER inline — would be a separate explicit user-toggle feature ("Send stripped") with its own opt-in dialog flow.
+
+#### Scope recombination note
+
+TODO.md M5-5 row originally listed "EXIF strip" with literal-spec-wording interpretation; Session 38 user request explicitly reformulated as "read-not-write path with no library dependency". The literal strip-from-bytes path was never implemented; archival-behavior closer to F-MSG-02 spirit is the informational warning + transparent R-30 preservation. This is a deliberate product decision (input by you, the user, at Session 38 boundary): in-flight stories cite R-30 as the timeliest visual update.
+
 ## [0.2.0] · 2026-06-27 · Stage 8.1 · Project Workflow + Memory
 
 ### Added
@@ -407,6 +521,156 @@
 ---
 
 ## Unreleased
+
+### [M5-4.0] · 2026-06-28 · Offline-first image attachment pipeline (Dexie blob cache + sync replay + Workbox image-precache warm layer)
+
+#### Scope Recombination
+- **Originally planned M5-4 slot** (per TODO) = 客户端图片压缩 canvas WebP q=0.78 + 2MB 二压 q=0.6 (DATA-MODEL 拒绝 compression 得不代理上传质量 **image 不压缩, 原图保真** R-30)
+- **User request at Session 37** = 后端 offline-first 图片 attachment pipeline (Dexie blob cache + sync replay + Workbox image-precache warm layer)
+- **Scope recombination**: M5-4 slot 上上傳 pipeline architecture (user request) ship · 原 canvas compression 压缩 task defer **M5-4-compress (v1.1+)** · re-名迟迟 M4-10 / M5-10 避免冲突
+
+#### Added (M5-4 ship · 3 layers)
+
+- **Dexie schema v2 bump** (`src/lib/db/schema.ts`) — 原 v1 `nook_outbox_v1` 保留 (auto-migration) + 新加 `attachments` 表: PK `&id` (server-side `attachments.id` UUID v4) · 索引 `conversationId, lastAccessedAt, expiresAt, [conversationId+lastAccessedAt]` (compound 为 per-conv LRU scan performance) + `ATTACHMENT_TABLE` typed-name union `AttachmentTable = EntityTable<AttachmentRow, 'id'>` (Dexie 4 typed-table pattern) · `AttachmentRow` interface (id / storagePath / blob / conversationId / mime / sizeBytes / width / height / lastAccessedAt / expiresAt / createdAt)
+- **Dexie blob cache module** (`src/lib/db/attachments.ts` · NEW · 260 行) — constants (`ATTACHMENT_CACHE_MAX_BYTES` = 200 MB · `ATTACHMENT_CACHE_MAX_AGE_MS` = 30 day · `QUOTA_SAFETY_RATIO` = 0.9) + mutators (`putAttachmentCache` · `touchAttachment` LRU bump · `deleteAttachment`) + readers (`getAttachmentCacheRow` · `listCachedAttachmentsForConversation` · `revokeBlobUrl` URL cleanup) + quota/LRU helpers (`estimateQuotaAvailable` 3-layer fallback for jsdom / Safari < 17.4 / locked-down iframe · `getCacheUsageBytes` · `lruPurgeUntilUnder` ASC by lastAccessedAt · `purgeExpiredAttachments` by expiresAt)
+- **blob-first upload pipeline** (`src/lib/api/chat.ts`) — `uploadAttachment(file, conversationId)` (M5-3 原只接 file, M5-4 加 conversationId 为 本地 mirror key seam) + `persistAttachmentBlobLocally` seam (after server INSERT, direct Dexie.put · quota preflight 110% margin: `freeBytes < 1.1 * ATTACHMENT_CACHE_MAX_BYTES` 调 `lruPurgeUntilUnder(MAX/2)` 防 `QuotaExceededError` 年老 mobile 设备) · `sendAttachmentMessage` fully wire · fire-and-forget `void persistAttachmentBlobLocally(...).catch(console.warn)` (quota miss 不 fail upload)
+- **Workbox image-pipeline layer** (`vite.config.ts`):
+  - **GET `/storage/v1/object/sign/*`** = `CacheFirst` (signed signed URL cache layer) + `ExpirationPlugin({ maxEntries: 200 · maxAgeSeconds: 30 days · maxSizeBytes: 200 MB })` 流 · `cacheableResponse: { statuses: [0, 200] }` opaque + 200 both
+  - **POST `/storage/v1/object/attachments/*`** = `NetworkOnly` + `BackgroundSyncPlugin('nook-messages-queue', { maxRetentionTime: 7 day · maxRetries: 5 })` · same queue as M5-2 text POST path (idempotent client_msg_id dedupe via `messages_client_msg_id_unique_idx`)
+- **LRU touch chain in UI** (`src/components/chat/AttachmentImage.tsx`) — new `useEffect([attachmentId, blobURL])` fires on blob URL hydrate success invoks `touchAttachment(id)` 趌 LRU scan accurate (否则不 concurrent write fresh row → lru degenerate to stale FIFO) · URL cleanup `useEffect` on unmount / id change
+- **TypeScript chain** — `AttachmentTable` import in attachments.ts (NOT in schema.ts) · `dexie.attachRow` 用 EntityTable<AttachmentRow, 'id'> 不需 cast
+
+#### Added (M5-4 tests · 17 cases total)
+
+- `src/lib/db/attachments.test.ts` NEW (12 cases) — `putAttachmentCache` lastAccessedAt + expiresAt materialized · `getAttachmentCacheRow` null on miss · `touchAttachment` bump + false on missing · `deleteAttachment` row + idempotent · `getCacheUsageBytes` sum · `lruPurgeUntilUnder` reclaim by lastAccessedAt order + no-op under target · `purgeExpiredAttachments` removed · `listCachedAttachmentsForConversation` filter · `estimateQuotaAvailable` null triple-fallback (jsdom) + ATTACHMENT_CACHE_MAX_BYTES = 200MB + ATTACHMENT_CACHE_MAX_AGE_MS = 30 days regression guards
+- `src/lib/db/schema_v2.test.ts` NEW (5 cases) — Dexie v2 opens BOTH `outbox` + `attachments` tables · `lastAccessedAt` / `expiresAt` / `conversationId` scalar indexes via `db.tables.find().schema.indexes` Dexie public-API-stable introspection + `[conversationId+lastAccessedAt]` compound index
+
+#### Removed
+- `src/hooks/useAttachmentBlob.ts` (was 起草以作 reactive hook 双焦样 · round-3 fix 化为 dead code, 删除)
+
+#### Verification (M5-4 final round · 本机 static-only per KI-9)
+
+- vitest M5-4 specs: **2 files · 17 tests passed** ✓ (12 attachments + 5 schema_v2)
+- vitest full unit suite: **20 files · 197 tests passed** ✓ (M5-4 additive +17 net · 0 regression from M5-1 M5-2 M5-3 baseline)
+- tsc M5-4 files: **0 new errors** ✓ (pre-existing errors in Composer / MessageItem / conversationChannel / Deno EF unchanged)
+- code-reviewer-minimax-m3 **0 critical blockers** ✓ (3 rounded modules lgtm + minor JSDoc dup on chat.ts persistAttachmentBlobLocally noted as v1.1 hygiene)
+- 本机 static-only · 云 staging/prod deploy path走: `supabase db push --include-all` + workbox-build dist/sw.js + page-deploy
+- Cycle S37.0
+
+#### Known Limitations (deferred M5-4.1 / M5-5 / M5-6 / M5-7 / v1.1)
+
+- **M5-4-compress** · canvas WebP compression deferred (user request scope replacing). Quota-friendly compression v1.1 feature.
+- **M5-5** · EXIF strip (不依赖库 · read 不写回)
+- **M5-6** · 头像上传 + profiles.avatar_url (storage RLS bucket policy M3-1 ship 走了) — **✅ ship at Cycle S39.0** — avatar upload UI + reactive profiles.avatar_url rewire. See [M5-6.0].
+- **M5-7** · 50MB 文件直传 — UI cosmetically 要加拖拽十进条 on 上传 > 5MB
+
+- **M5-4.1+** · manual 「点按钮重试」 on outbox yellow dot (留 v1.1 + quota management UI)
+
+### [M5-2.0] · 2026-06-28 · Workbox SW bg sync + useSendMessage outbox rewire (F-MEDIA-01 / AC.17)
+
+#### Added（M5-2 ship · AC.17 application layer）
+
+- `vite.config.ts` 扩 — `VitePWA({ registerType: 'autoUpdate', injectRegister: false })`。`workbox.runtimeCaching` 声明 POST->`/rest/v1/*` 走 `NetworkOnly` + `BackgroundSyncPlugin('nook-messages-queue', { maxRetentionTime: 7 days · maxRetries: 5 })` HTTP-level replay path · 与 Dexie outbox state machine 互为补充 (做并行 fault-tolerance fence · server-side `messages_client_msg_id_unique_idx` partial unique 上夜 double-replay 去重) · GET-to-`/rest/v1/*` 保持 M1-6 原 `NetworkFirst` 不动 (stale 自 fallback Dexie outbox warm tier) · `cleanupOutdatedCaches: true` 保留。
+- `src/config/env.ts` 扩 — `enableSw: boolean` + `isTruthyEnvFlag(value)` (accepts `'true'` or `'1'`) 解析 `VITE_ENABLE_SW` · prod 部署 opt-in dev-er 急备 rollback 点 · default false 以免 dev HMR 阻挡
+- `src/hooks/useServiceWorker.ts` NEW — plain function `registerServiceWorkerOnce()` (NOT a hook · main.tsx module-top 调用 useEffect 触发 hook-rule「Invalid hook call」· plain func 净化 module-level `_registerOnce` singleton extras 「duplicate register on re-render」 无) · 三重 gate: (1) `import.meta.env.PROD` (HMR protection) · (2) `env.enableSw` (deploy opt-in) · (3) `navigator.serviceWorker` 非 nullish (triple-check 防 jsdom 边角 · `'serviceWorker' in navigator` 不够 — property-defined-as-undefined 仍发 true)。SW lifecycle events (`installed / waiting / controlling / activated`) console.info forward · register() rejection 后 reset singleton 让 manual retry path 重发。
+- `src/main.tsx` 扩 — boot-time `registerServiceWorkerOnce()` 调用 在 ReactDOM render 前 (并行 install + first paint)
+- `src/hooks/useSendMessage.ts` 扩 — outbox rewire · onMutate 调 `void outbox.enqueue(input)` · onSuccess 调 `void outbox.applyMarkSent(clientMsgId)` · onError 调 `void outbox.applyMarkFailed(clientMsgId, extractErrorMessage(err))` · 全部 fire-and-forget `.catch(console.warn)` 避免 slow IDB 阻挡 optimistic cache mutat。`extractErrorMessage(err)` helper handles Error / string / `Error`-similar `{message: string}` (Supabase PostgREST `{code, message, details, hint}` payload) + worst-case typeof-prefixed `String(err)`。text + attachment 两个 hook 同步重写。
+- `src/components/chat/Composer.tsx` 扩 — replace inline `crypto.randomUUID()` × N 处 with canonical `generateClientMsgId` from M5-1 · 黄色点 (12 px `color-signal-warning` circle · 2 px surface-2 border · -1 × -1 offset) · `motion-safe:animate-pulse` honors `prefers-reduced-motion` (AC.AC.motion) · reconnecting strip (warning border · refresh icon · `role=status` · `aria-live="polite"`) shown when `useOutbox(convId).failed.length > 0` (M5-2.1 manual retry button deferred)
+- `src/lib/i18n/locales/en/translation.json` + `zh-CN/translation.json` 扩 — `chat.outbox.{pending, pendingCount_one, pendingCount_other, reconnecting}` × 2 lang
+- `package.json` 1 New runtime dep `workbox-window@^7` (workbox BG sync 跨 browser SS API) + 1 devDep `vite-plugin-pwa@^0.x`
+
+#### Added (M5-2 test code · 11 cases total)
+
+- `src/hooks/useServiceWorker.test.tsx` NEW (7 cases) — env gate rewire (dev no-call · enableSw=false no-call · navigator absent no-call · happy-path register() called once · rejection captured to console.error + singleton reset for retry path · re-call idempotency) · plugin-level mock (`workbox-window` `Workbox` → class with `addEventListener / register` methods · capturing ctor + register call counts through top-level `vi.fn` references)
+- `src/hooks/useSendMessage.test.tsx` NEW (4 cases) — onMutate calls `outbox.enqueue` with same `clientMsgId` · onSuccess calls `applyMarkSent` · onError calls `applyMarkFailed` with `extractErrorMessage(err)` (Supabase wrapped → `.message` extracted) · vitest sanity check isMockFunction 覆盖
+
+#### Changed
+
+- `docs/03_Engineering/TODO.md` M5-2 row promote `⏳ 待开发` → `✅ 已完成` + ~190 字描述 涵盖 (vite.config BG sync · env flag · service worker hook · main.tsx boot · useSendMessage rewire · Composer outbox UI · i18n x 2 lang)
+- `docs/03_Engineering/CHANGELOG.md` `[Unreleased]` 新增 M5-2.0 section + Verification + Known Limitations
+- `docs/03_Engineering/DEVELOPMENT_LOG.md` 新增 S35.0 Session entry (含 6 in-session fix)
+- `docs/03_Engineering/KNOWN_ISSUES.md` 新增 KI-10 (VITE_ENABLE_SW deploy caveat 详见 下表)
+- `docs/03_Engineering/AI_HANDOVER.md` 全 resync (代码版本 + Next session → M5-3 + 阶段表 + S35.0 Update section)
+
+#### Verification (M5-2 · 本机 static-only per KI-9)
+
+- vitest M5-2 specs: **2 文件 · 11 tests passed** ✓ (useServiceWorker 7 + useSendMessage 4)
+- vitest full unit suite: **17 文件 · 159 tests passed** ✓ (M5-2 +11 net vs M5-1 baseline · 0 regression)
+- tsc M5-2 files: **0 new errors** ✓ (12 pre-existing errors in Composer / MessageItem / conversationChannel / Deno EF / response.ts unchanged)
+- code-reviewer-minimax-m3 **0 critical blockers** ✓ (9 polish suggestions 记录不动 · 留 M5-2.1 polish pass)
+- 本机 live verify 0 (per KI-9) · 云 staging/prod deploy path走: `supabase functions deploy ... + workbox-build output emit dist/sw.js + page-deploy + set VITE_ENABLE_SW=true deploy env var`
+
+#### Known Limitations (deferred M5-2.1 / M5-3 / M5-4 / M5-5 / M5-7)
+
+- M5-2.1: manual 「点按钮重试」 button on reconnecting strip · outbox in-app toast notifications · 详 M5-3 scope
+- M5-3: client_msg_id dedupe 端到端 live verification (走 cloud `messages_client_msg_id_unique_idx` partial unique · SQL D3 migration 0003 在 M3-1 已 ship) · process startup rehydrate in-flight outbox rows · detailed stat probe of replay 占
+- M5-4: client image canvas compression (q=0.78 · 2MB 二压 q=0.6)
+- M5-5: EXIF strip (不依赖库 · read 不写回)
+- M5-7: 直传 50MB file (Supabase Storage signed URL)
+- M5-4/5/7 后续 deferred 到 M5-4/5/7 · M5-2 完成 low-hanging fruit 后 would ship M5-3 → M5-4 ...
+
+### [M5-1.0] · 2026-06-28 · Dexie + outbox foundation (F-MEDIA-01 / AC.17)
+
+#### Added（M5-1 ship）
+
+- `src/lib/db/client_msg_id.ts` （NEW）— UUID v4 helper。`generateClientMsgId()` wrap `crypto.randomUUID()` · `isValidClientMsgId(uuid)` regex V4 + variant1 guarded（lowercase ascii letter only）。本辅助取代 M3-4 Composer `crypto.randomUUID()` inlined × 16 处调用 + 为后续 SW bg sync replay path 供 symmetric client_msg_id emission。
+- `src/lib/db/schema.ts` （NEW）— Dexie v1 db singleton（`nook_outbox_v1`）。Outbox table PK=`clientMsgId` + 索引 `conversationId, state, createdAt, [state+createdAt], nextAttemptAt`（compound index 为后续 SW replay FIFO scan performance）。`getDb()` lazy-init + `__resetDbForTests()` 完整 lifecycle hook（`db.close()` + `indexedDB.deleteDatabase()` + `_db = null` · 防 cross-test contamination）。
+- `src/lib/db/outbox.ts` （NEW）— State machine。常数：`MAX_ATTEMPTS=5` · `RETRY_BACKOFF_BASE_MS=1_000` · `RETRY_BACKOFF_CAP_MS=60_000` · `SENT_GRACE_MS=30min`。Pure reducers：`initOutboxRow` · `markSending` · `markSent` · `markFailed` · `backoffMsFor` （每个终结态 defensive-guard + sent/failed 不拋退到 pending）。Dexie 薄包装 mutators：`enqueue` · `applyMarkSending` · `applyMarkSent` · `applyMarkFailed` · `purgeSentBefore` · `getOutboxRow` · `listOutboxForConversation`。All driven by `nowMs()` param clock 供 testability。
+- `src/hooks/useOutbox.ts` （NEW）— read-only Dexie observer via `useLiveQuery` (from `dexie-react-hooks`)。Exports：`useOutbox(convId)` returns bucketed `{pending, sent, failed, total, isLoading}` · `useTotalOutboxCount()` · `useOutboxManualRefresh()` M5-2 SW 预留 no-op。
+- 测试 4 文件 · 65 case 合计 （45 new + 20 carryover from M4-8 baseline）：
+  - `src/lib/db/client_msg_id.test.ts` NEW（5）— batch 100 唯一 + V4 regex 验证 + isValid acceptance/rejection matrix
+  - `src/lib/db/schema.test.ts` NEW（6）— db 开上 v1 · outbox 表 indexes · enqueue round-trip · [state+createdAt] compound scan · Row-shape parity
+  - `src/lib/db/outbox.test.ts` NEW（22）— backoffMsFor 10 阶 schedule + 6 reducer × terminal-guard × 7 Dexie mutator parity + 3 purgeSentBefore 边界 + listOutboxForConversation FIFO
+  - `src/hooks/useOutbox.test.tsx` NEW（13）— 初始空 bucket · enqueue→pending · markSending→仍 pending · markSent→sent · 1-5 attempts markFailed 路径 →failed terminal · per-conv conversationId filter · multi-row FIFO · useTotalOutboxCount × empty/multi/sent-in-grace/terminal · useOutboxManualRefresh trigger
+- `tests/setup.ts` reactive — `import 'fake-indexeddb/auto'` first line · jsdom 获 fake IndexedDB backing Dexie
+- `package.json` — `dexie@^4` runtime + `dexie-react-hooks@^1.4.0` runtime + `fake-indexeddb@^6` devDep
+- i18n `chat.outbox.{pending,sending,sent,failed,retrying}` × 5 × 2 lang
+
+#### Verification（M5-1）
+
+- vitest M5-1 specs: **4 文件 · 65 tests passed** ✓ （45 new + 20 carryover）
+- vitest 全 unit suite: **12 文件 · 96 tests passed** ✓ （M5-1 additive +17 net vs M4-8 baseline · 0 regression）
+- tsc M5-1 files: **0 new errors** ✓ （17 pre-existing errors Composer / MessageItem / conversationChannel / Deno EF unchanged）
+- code-reviewer-minimax-m3 0 critical blockers · **9 polish suggestions** 记录不动留 M5-1.1
+- 本机 static-only verification（per **KI-9 / S29.0** Docker 永久废弃）· live verification 仅 云 staging/prod 走 `supabase db push --include-all --project-ref <cloud>` 后 全 STG EF invocations。第 1 次 live validation = M5-2 send rewire + SW bg sync 联调后。
+- vitest `act()` warnings 5 case in useOutbox.test.tsx （cosmetic scenario dexie-react-hooks live-query re-render timing 异步 model mismatch）— tests pass · non-blocking · polish may M5-1.1
+
+#### Known Limitations（deferred M5-2 / M5-3 / M5-4 / M5-7）
+
+- useSendMessage text/attachment rewire to outbox-on-failure（AP layer 在 outbox hook 之上的 glue） — **deferred M5-2**
+- Workbox SW bg sync replay hook registration — **deferred M5-2**
+- Dexie messages cache warm tier（超出 outbox · ADR-014 DR-10 1000-row FIFO messages cache 列） — **deferred M5-5**
+- Attach Blob storage in outbox kinds=`'image' | 'file'` — **deferred M5-4 / M5-5 / M5-7** （M5-1 ships `body: string | null` only · 详 M5-4 image compression / M5-5 EXIF strip / M5-7 50MB 直传）
+- useOutbox hook 还未 wire 到 UI Composer yellow dot / ChatPanel status strip — **deferred M5-2 / M5-5**（谁 M5-3 走 UI 接入 均 透明） · M5-1 hook as data-only observer 走 · 仅可被其他 may M5-5 UI hook 引入
+- 进程 startup rehydrate outbox in-flight rows (唤醒时扫 table — offline-while-closed 消息复拋送) — **deferred M5-2**（营造 `useSendMessage` rewire 核心 priority）
+
+### [M4-8.0] · 2026-06-28 · Ambient 在线状态 (F-ST-01 / AC.11)
+
+#### Added（M4-8 ship）
+
+- `src/stores/usePresence.ts` (restructure) — `onlineUsers` 从 GLOBAL `Set<string>` 重构为 per-conv `Map<convId, Set<userId>>`，与 `typingUsers` shape 统一；新增 `setOnlineUsersForConv(convId, ids)` + `clearConv(convId)` (原子双清)
+- `src/hooks/useConversationPresence.ts` (NEW · 重构自 M4-1 `useTypingReceivers.ts`) — 单 `subscribePresenceEvents` 订阅，双写 `onlineUsers[convId]` + `typingUsers[convId]`；self-actor gate 在 receiver 层 (`peer.user_id === selfUserId` skip) per M4-7 RT closure 教训；unmount `clearConv(convId)` 防 peer list 潜漏
+- `src/components/chat/ChatPanel.tsx` (extended) — 头部 `<Avatar>` 接入 `status={isAnyPeerOnline ? 'online' : undefined}` + `pulse={isAnyPeerOnline}`；修剧本表达式 `usePresence((s) => s.onlineUsers.get(convId)?.size ?? 0)` -> `> 0` boolean
+- `src/hooks/useConversationPresence.test.tsx` (NEW · 9 tests) — online/typing BOTH writes · 6 个 filter guard (online=true / has user_id / not self) · unmount 双清 · room switch 重订阅 · unrelated conv 保持完整
+- 6 处 JSDoc dangling reference cleanup in `Composer.tsx` / `TypingIndicator.tsx` / `useTypingBroadcast.ts` / `useTypingBroadcast.test.tsx` (上游点心 ∈ `useTypingReceivers` 引用 → `useConversationPresence`)
+
+#### Removed
+
+- `src/hooks/useTypingReceivers.ts` (M4-1 默认 typing receiver hook · 取代为统一 `useConversationPresence` 处理在线 + 打字)
+- `src/hooks/useTypingReceivers.test.tsx` (对应的 9 个旧 unit tests)
+
+#### Verification（M4-8）
+
+- vitest 63/63 pass · 跨 8 个 M4-area test 文件 ✓ (M4-8 +6 net new 到总数 63 · 包括上游 M4-1/2/3/4/5/6/7)
+- tsc 0 new errors in modified files (`usePresence\.ts` / `useConversationPresence.ts` / `ChatPanel.tsx`) ✓
+- orphan grep: 0 dangling refs to `useTypingReceivers` ✓
+- reviewer-minimax-m3: 0 critical blockers (5 non-blocking polish suggestions记录于 session)
+- 本机 static-only (per S29.0 / KI-9); live verification 仅云 staging/prod 走 (`supabase db push --include-all` 后集成测试 · 不依赖本机 docker)
+
+#### Known Limitations (deferred M4-8.1+)
+
+- Sidebar per-row online dot 的描画 是 v1.1 polish opportunity (`isPeerOnline(convId, userId)` selector helper 是 1 review suggestion，留 M4-8.1 后)
+- MapReplyErrorCode 的 `(?![a-z])` forward-proof polish (M4-7.2 deferred cosmetic 项) 仍以原 `bad[_\\\\s-]?` regex 走 (M4-7.1 polish 已 ship 但仅 reactions / emoji-picker area)
 
 ### [docs-only · S29.0] · 2026-06-28 · 本机 Docker 永久废弃 · 架构决策
 

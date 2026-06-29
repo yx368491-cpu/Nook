@@ -15,7 +15,7 @@ export default function SettingsPage() {
         {t('settings.title')}
       </h1>
       <div className="flex gap-[var(--space-md)] mb-[var(--space-lg)]">
-        <Link to="/settings/profile" className="text-[var(--color-accent-default)]">{t('settings.profile')}</Link>
+        <Link to="/settings/profile" className="text-[var(--color-accent-default)]">{t('settings.profile.name')}</Link>
         <Link to="/settings/admin" className="text-[var(--color-accent-default)]">{t('settings.admin')}</Link>
       </div>
       <div className="mb-[var(--space-lg)]">

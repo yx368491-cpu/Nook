@@ -27,11 +27,11 @@
 | **项目描述** | 「深夜书房」一词为一间好友小房子，屏蔽互联网社交噪音的私人聊天网站（A Digital Sanctuary） |
 | **当前阶段** | M2 · Auth Flow ✅ Done (v0.5.0 tagged 2026-06-28) → **M3-1 DB Schema Migration ✅ Done (S26.0)** → **M3 → M4 Chat Core 全段 ✅ Done (S32.0)** · M3-2 → M4-7.1 共 11 milestone + RT closure + polish · **本机 Docker 已永久废弃 (S29.0 · KI-9)** · 验证链仅 static-only |
 | **当前文档版本** | `v1.0.1`（2026-06-27）— 含 docs-only patch Sync + 全部 15 设计阶段冻结 |
-| **代码版本** | `v0.5.0 + M3-1 (c88c076) + M3-2 (75d7300) + M3-3 (70d6e41) + M3-4 (0fa9cbd) + M3-5 (d1915f2) + M4-1/2 (d39dbbe) + M4-3 (9fa1968) + M4-4 (ea2f2ef) + M4-5 (7f2b47a) + M4-6 (33e4179 + fixup 6eaa861) + M4-7 (0111398 + RT closure 075b4b1 + 540165a) + M4-7.1 polish (7e3ec3f)` |
+| **代码版本** | `v0.5.0 + M3-1 (c88c076) + M3-2 (75d7300) + M3-3 (70d6e41) + M3-4 (0fa9cbd) + M3-5 (d1915f2) + M4-1/2 (d39dbbe) + M4-3 (9fa1968) + M4-4 (ea2f2ef) + M4-5 (7f2b47a) + M4-6 (33e4179 + fixup 6eaa861) + M4-7 (0111398 + RT closure 075b4b1 + 540165a) + M4-7.1 polish (7e3ec3f) + M4-8 (无 code tag · 本机 .ts 写盘 · 未 commit) + M5-1 Dexie + outbox foundation (无 commit yet · S34.0 doc 占位)` |
 | **目标用户** | Owner（1）+ Friend（≤ 20 社交目标） |
 | **MVP 节拍** | 4-6 周个人工作量 |
 | **产品定位** | "少数密友的数字避难所"（不商业化 / 不规模化） |
-| **Next session** | **M4-8 Ambient 在线状态呼吸光点 (F-ST-01 / AC.11)** — M3 → M4-7.1 Chat Core 全段已 ship；M4-8 = lib/presence + usePresence + UI dot · F-NOTIF-01/02 应用内未读小红点 + F-ST-02 Tab title 余项入口 |
+| **Next session** | **M5-7 50MB upload progress bar (F-MSG-03)** — M5-5 EXIF (S38.0) + M5-6 avatar upload UI (S39.0) 均 ship · M5-4 offline-first image attachment pipeline (S37.0) 已 ship · M5-7 = 50MB 直传 supabase.storage attachments bucket  UI progress bar + drag-drop affordance · **Deferred v1.1+**: M5-4-compress canvas WebP compression (R-30 原图保真 作为 仅是 quota-friendly opt-in) + M5-1.1 quota UI · **Deferred M5-2.1** 剩队: 加密 storage · push-notification cross-device sync |
 | **本机环境（S29.0 后）** | Docker Desktop 已永久删除。本机 validation 仅 static。Live verification 仅在云 staging/prod 走 `supabase db push` + `supabase functions deploy`。 |
 
 ---
@@ -121,7 +121,9 @@
 | ✅ 已完成 | M4-6 · Reply threading | parent_id FK + closure + reply UI (commit `33e4179` + followup `6eaa861`) |
 | ✅ 已完成 | M4-7 · 6 emoji reactions (F-MSG-09 / CAP-15) | fn_add_reaction + fn_remove_reaction + bucketReactions + EmojiPicker + onReactionEvent RT gate · RT closure `075b4b1` + `540165a` REPLICA IDENTITY FULL + publication membership (commit `0111398`) |
 | ✅ 已完成 | M4-7.1 · viewport-flip + regex polish | EmojiPicker 自适应翻转(`top→bottom` 8px margin gate) + `mapReactionErrorCode` `(?![a-z])` forward-proof regex (commit `7e3ec3f`) |
-| 🟢 下一步 | **M4-8 · Ambient 在线状态** | lib/presence + usePresence + UI dot (F-ST-01 / AC.11) · M5-7 attachment download deferred |
+| ✅ 已完成 | M4-8 · Ambient 在线状态 (F-ST-01 / AC.11) | useConversationPresence 双写 receiver · ChatPanel 头部 6 px lavender pulse dot · 9 unit tests (plan) |
+| ✅ 已完成 | M5-1 · Dexie + outbox foundation (F-MEDIA-01 / AC.17) | Dexie v1 schema + state machine (`MAX_ATTEMPTS=5` + `SENT_GRACE_MS=30min`) + UUID v4 helper + useOutbox read-only observer · 65/65 vitest · 96/96 full suite · 0 new tsc errors (S34.0) |
+| 🟢 下一步 | **M5-2 · Workbox SW bg sync + useSendMessage outbox rewire** | public/sw.js Workbox bg sync + src/hooks/useServiceWorker.ts register (production-only env flag) · Composer.tsx 调用 outbox enqueue on send + markFailed on error path · useOutbox wire to Composer yellow-dot UI |
 
 ### 本阶段（S26.0–S28.0）目标 · M3-1/M3-2/M3-3 ✅ 已完成
 
@@ -287,6 +289,9 @@
 | M4-6 · Reply threading | ✅ 已完成 (33e4179 + fixup 6eaa861) — parent_id FK + closure + F-MSG-04 AC.07 UI |
 | M4-7 · 6 emoji reactions (F-MSG-09 / CAP-15) | ✅ 已完成 (0111398 + RT closure 075b4b1 + 540165a) — fn_add_reaction + fn_remove_reaction 五层 guard · bucketReactions · EmojiPicker · onReactionEvent 自-actor gate · REPLICA IDENTITY FULL + publication |
 | M4-7.1 · viewport-flip + regex polish | ✅ 已完成 (7e3ec3f) — EmojiPicker `top→bottom` 自适应翻转 (FLIP_MARGIN_PX=8) + `mapReactionErrorCode` `(?![a-z])` forward-proof regex |
+| **M4-8 · Ambient 在线状态 (F-ST-01 / AC.11)** | ✅ 已完成 (commit `ac3e8f0`) — `useConversationPresence` 双写 (online + typing) receiver · `usePresence` store 重构 per-conv Map · ChatPanel 头部 6 px lavender pulse dot · 9 unit tests (self-actor gate per M4-7 closure 教训) · delete 旧 `useTypingReceivers` + 5 处 upstream JSDoc sync |
+| **M5-1 · Dexie + outbox foundation (F-MEDIA-01 / AC.17)** | ✅ 已完成 (S34.0 · 未 commit) — `src/lib/db/{schema, outbox, client_msg_id}.ts` (Dexie v1 db singleton + state machine + UUID v4 helper) + `src/hooks/useOutbox.ts` (read-only `useLiveQuery` observer + bucketed `{pending, sent, failed, total}` api) · 65/65 vitest + 96/96 full unit suite + 0 new tsc errors + 0 critical reviewer blockers · **foundation only** (上层 wire + SW bg sync defer M5-2) |
+| **M5-2 · Workbox SW bg sync + useSendMessage outbox rewire (F-MEDIA-01 / AC.17)** | ✅ 已完成 (S35.0 · 本机 static-only) — `vite.config.ts` vite-plugin-pwa Workbox BG sync `nook-messages-queue` (7d retention · 5 retries) · `src/hooks/useServiceWorker.ts` plain `registerServiceWorkerOnce()` (refactor from hook) + module-level singleton + PROD/env flag/navigator triple-gate · `src/main.tsx` boot invoke · `src/hooks/useSendMessage.ts` outbox rewire (enqueue/markSent/markFailed fire-and-forget) + `extractErrorMessage` helper (handles Supabase `{code, message}` payload past `Error`-instance) · `src/components/chat/Composer.tsx` 黄色点 + reconnecting strip + canonical `generateClientMsgId` · `src/lib/i18n/locales/{en,zh-CN}/translation.json` `chat.outbox.{pending, pendingCount_one, pendingCount_other, reconnecting}` × 2 lang · `package.json` + `workbox-window@^7` + `vite-plugin-pwa@^0.x` · **11/11 vitest M5-2 specs + 159/159 full unit suite + 0 new tsc errors + 0 critical reviewer blockers** · 6 in-session fix · M5-2.1 followup = manual 「点按钮重试」 + outbox in-app toast (detail scope) · M5-3 = client_msg_id dedupe live verify + process startup rehydrate in-flight outbox rows |
 | **本机 Docker 架构决策** | 🟢 已生效 (S29.0 / KI-9) — 本机 Docker Desktop 已删除 · 验证链 static-only · live verification 仅云 staging/prod |
 
 ---
@@ -337,6 +342,45 @@ __S18_TODO_HEADER_REPLACE__
 - **不变**: 云架构 / 22 项 ADR / FU-3 · FU-4 / KI-1..7 · KI-8 远端仓库推送（仍待 Project Lead 创建 repo）。
 
 ---
+
+## S34.0 Update · 2026-06-28 · M5-1 Dexie + outbox foundation
+
+**里程碑**: M5-1 = AC.17 离线 / 弱网 message replay 链路的 **数据层 foundation**。Ship 4 source files + 4 test files + 1 devDep + 2 runtimeDeps + 5 i18n keys × 2 lang。
+
+**严格 scope discipline**:
+- ✅ M5-1 ships = Dexie v1 schema · outbox state machine · pure reducers · Dexie mutators · UUID v4 helper · useOutbox read-only observer · useTotalOutboxCount · useOutboxManualRefresh (M5-2 reserved)
+- ❌ 不改 Composer.tsx useSendMessage 接入 outbox → **M5-2**
+- ❌ 不注册 Service Worker / bg sync replay → **M5-2**
+- ❌ 不把 outbox wire 到 UI Composer 黄点 → **M5-2**
+- ❌ 不加 Blob attach for outbox kind='image'/'file' → **M5-4 / M5-5 / M5-7**
+- ❌ 不加 Dexie warm messages cache (DR-10 1000-row FIFO 列) → **M5-5**
+
+**代码增量**:
+```
+src/lib/db/client_msg_id.ts                       +30   NEW
+src/lib/db/schema.ts                              +90   NEW
+src/lib/db/outbox.ts                              +240  NEW
+src/hooks/useOutbox.ts                            +130  NEW
+tests/setup.ts                                    +1    fake-indexeddb
+src/lib/db/client_msg_id.test.ts                  +60   NEW
+src/lib/db/schema.test.ts                         +160  NEW
+src/lib/db/outbox.test.ts                         +540  NEW (22 cases)
+src/hooks/useOutbox.test.tsx                      +260  NEW (13 cases)
+src/lib/i18n/locales/{en,zh-CN}/translation.json  +10   5 keys × 2
+package.json                                      +3 deps
+```
+
+**验证** (本机 static-only · per KI-9):
+- vitest **65/65 pass** in M5-1 specs (45 new + 20 carryover)
+- vitest **96/96 pass** in full unit suite (12 files · M5-1 +17 net · **0 regression**)
+- tsc **0 new errors** in 4 modified files (17 pre-existing unchanged)
+- code-reviewer-minimax-m3 **0 critical blockers** (9 polish suggestions 记录不动 · M5-1.1 polish pass 补)
+
+**验证 chain 本机 live verify = 0**: 按 **S29.0 / KI-9 Docker 永久废弃** 决策，本机无任何 `supabase db reset` / `supabase functions serve` / `docker` 路径走 · 仅云 staging/prod path 上以 `supabase db push --include-all --project-ref <cloud>` 施加 M5-1 后的 M5-2 EF migration 后 provokes 端到端 live verification。
+
+**Next session=M5-2**: Workbox SW bg sync + useSendMessage rewire + Composer outbox yellow-dot UI wire · 实际这是 M5-1 的 partner layer · M5-1 foundation + M5-2 application glue = AC.17 完全验收。
+
+**不变**: 22 项 ADR (D-01..D-22) · KI-9 (Docker 永久废弃 · 本机 static-only) · KI-1 (Storage 6-8月) · FU-3 (active friend 重邀请 v1.1+) · FU-4 (Owner 自删 v1.1+) · KI-4 (Supabase 单厂商) · KI-8 (远端仓库 待创建 repo)
 
 ## S32.0 Update · 2026-06-28 · M3 → M4-7 Chat Core 全段 ship + 项目记忆 resync
 

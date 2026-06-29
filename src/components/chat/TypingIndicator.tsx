@@ -5,7 +5,7 @@ import { useConversationsQuery } from '@/hooks/useConversations';
 /**
  * TypingIndicator (M4-2 ambient 3-dot animation + i18n copy).
  *
- * Reads typing user-ids from Zustand (populated by useTypingReceivers)
+ * Reads typing user-ids from Zustand (populated by useConversationPresence)
  * and resolves display-names from the cached `useConversationsQuery()`
  * sidebar data — keeps the realtime presence payload minimal.
  *

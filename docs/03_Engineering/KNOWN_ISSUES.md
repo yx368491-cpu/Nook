@@ -156,6 +156,18 @@
 
 ---
 
+## KI-10 · VITE_ENABLE_SW deploy opt-in flag · emergency rollback 机制 (🟢 Low · S35.0)
+
+| 字段 | 内容 |
+|---|---|
+| **描述** | M5-2 Workbox SW bg sync ship 后 · Nook 接受 `VITE_ENABLE_SW` env flag (deploy-time opt-in enables `registerServiceWorkerOnce()` 而挥 SW register)。`enableSw = isTruthyEnvFlag('VITE_ENABLE_SW')` 解析 = `true` when `"true"` or `"1"` · default `false`(dev + staging 走老路径,prod deploy 强 opt-in 后 SW 装货)。 |
+| **影响范围** | prod 部署 后 · `VITE_ENABLE_SW=false` 走 → `registerServiceWorkerOnce()` 是 noop · 保留外接走会話 cache path (warm tier) · 不会 queue-ack-ful 外入 dexie outbox 期待 Workbox bg sync replay。退款 `env flag = false` 后 dark-row column not surface。 |
+| **临时方案** | Deploy 时 · 可以 `VITE_ENABLE_SW=false` 上云 · 后退全面 unregister。 ʼ̄ Vite PWA出的 dist/sw.js 返 down · 即時 Completion to `vite build` 跑 Vite PWA Plugin -  · unregister()` 提Platform transitionRecovery API)。 |
+| **严重程度** | 🟢 Low ·  早期逃生路径  · 后晚 tool·其实 622 Host clean ·后续无 |
+| **是否已计划修复** | 跨1项目 · 后后 Communication Platform conflicts 。 v1.0 加 + v1.1+ finetune 嵌套 applied |
+| **修复方负责** | v1.0 Platform Ops · Project Lead deploy |
+| **状态** | 🟢 生效 +iDeploy opt-in |
+
 ## KI-9 · Docker 已永久删除 · 架构决策 (🟢 Low · S29.0)
 
 **字段** | **内容**

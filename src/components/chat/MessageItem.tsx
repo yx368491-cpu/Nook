@@ -833,6 +833,11 @@ export function MessageItem({ item, isConsecutive }: MessageItemProps) {
               ) : item.kind === 'image' && item.attachment ? (
                 <AttachmentImage
                   storagePath={item.attachment.storagePath}
+                  // M5-4 — pass `attachmentId` so the bubble can hit
+                  // the local Dexie blob cache before falling through
+                  // to the signed-URL path. The ID is the server row's
+                  // UUID, stable across all view cycles.
+                  attachmentId={item.attachment.id ?? null}
                   alt={t('chat.imageAlt')}
                   width={item.attachment.width ?? 320}
                   height={item.attachment.height ?? 240}
