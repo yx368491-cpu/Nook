@@ -31,5 +31,8 @@ file_size_limit = "50MiB"
 [functions.friend-signup]
 verify_jwt = false
 
+[functions.admin-create-invite]
+verify_jwt = true
+
 [edge_runtime]
 policy = "oneshot"

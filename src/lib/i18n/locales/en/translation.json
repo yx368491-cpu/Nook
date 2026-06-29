@@ -220,7 +220,62 @@
     "deleteFriend": "Delete friend",
     "confirmDelete": "Type \"confirm\" to delete",
     "confirmPlaceholder": "Type confirm",
-    "shareViaWeChat": "Share via WeChat"
+    "shareViaWeChat": "Share via WeChat",
+    "adminBox": {
+      "title": "Admin",
+      "subtitle": "Owner-only actions. All actions are immediate.",
+      "sections": {
+        "invite": {
+          "title": "Friend invites",
+          "subtitle": "Generate a one-time link to bring a friend into your Nook.",
+          "action": "Create invite"
+        },
+        "password": {
+          "title": "Reset password",
+          "subtitle": "Coming in a future update.",
+          "action": "Coming soon"
+        },
+        "delete": {
+          "title": "Delete friend",
+          "subtitle": "Permanently remove a friend's account.",
+          "action": "Coming soon"
+        }
+      }
+    },
+    "inviteNew": {
+      "title": "Create invite link",
+      "subtitle": "Generate a one-time link a friend can use to join your Nook. Links expire after 24 hours.",
+      "targetKindLabel": "Invite type",
+      "targetKindAny": "New 1:1 conversation",
+      "targetKindAnyHint": "Friend starts a private chat with you.",
+      "targetKindConversation": "Add to existing conversation",
+      "targetKindConversationHint": "Friend joins a group they're invited to.",
+      "selectConversationLabel": "Conversation",
+      "selectConversationPlaceholder": "Choose a conversation",
+      "ttlLabel": "Link expires in",
+      "ttlHours": "{{hours}} hours",
+      "create": "Create link",
+      "creating": "Creating…",
+      "created": {
+        "title": "Invite ready",
+        "inviteUrlLabel": "Invite URL",
+        "copyButton": "Copy link",
+        "copied": "Copied!",
+        "expiresAtLabel": "Expires at",
+        "targetSummary": "Target:",
+        "targetAny": "New 1:1 conversation",
+        "targetConversation": "Conversation: {{name}}",
+        "done": "Back to admin"
+      },
+      "error": {
+        "unauthorized": "Your session has expired. Please sign in again.",
+        "forbidden": "Only the Owner can create invites.",
+        "conversationNotOwned": "You don't own this conversation.",
+        "invalidInput": "Invalid invite configuration.",
+        "internal": "Couldn't create invite. Please try again.",
+        "generic": "Something went wrong."
+      }
+    }
   },
   "common": {
     "loading": "Loading…",

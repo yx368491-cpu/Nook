@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { RequireAuth } from './guards/RequireAuth';
 import { RequireOwner } from './guards/RequireOwner';
+import { RequireAdmin } from './guards/RequireAdmin';
 import WelcomePage from './pages/WelcomePage';
 import RegisterPage from './pages/RegisterPage';
 import LoginPage from './pages/LoginPage';
@@ -36,9 +37,9 @@ export default function AppRoutes() {
         path="/invite/new"
         element={
           <RequireAuth>
-            <RequireOwner>
+            <RequireAdmin>
               <InviteNewPage />
-            </RequireOwner>
+            </RequireAdmin>
           </RequireAuth>
         }
       />
@@ -54,9 +55,9 @@ export default function AppRoutes() {
         <Route
           path="admin"
           element={
-            <RequireOwner>
+            <RequireAdmin>
               <SettingsAdminPage />
-            </RequireOwner>
+            </RequireAdmin>
           }
         />
       </Route>

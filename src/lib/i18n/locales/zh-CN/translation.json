@@ -220,7 +220,62 @@
     "deleteFriend": "删除好友",
     "confirmDelete": "输入 \"confirm\" 确认删除",
     "confirmPlaceholder": "输入 confirm",
-    "shareViaWeChat": "分享到微信"
+    "shareViaWeChat": "分享到微信",
+    "adminBox": {
+      "title": "管理",
+      "subtitle": "仅 Owner 可操作，所有操作立即生效。",
+      "sections": {
+        "invite": {
+          "title": "好友邀请",
+          "subtitle": "生成一次性链接，把好友带入你的 Nook。",
+          "action": "创建邀请"
+        },
+        "password": {
+          "title": "重置密码",
+          "subtitle": "后续更新中。",
+          "action": "敬请期待"
+        },
+        "delete": {
+          "title": "删除好友",
+          "subtitle": "永久删除好友账号。",
+          "action": "敬请期待"
+        }
+      }
+    },
+    "inviteNew": {
+      "title": "创建邀请链接",
+      "subtitle": "生成一次性链接，朋友可凭此加入你的 Nook。链接 24 小时后失效。",
+      "targetKindLabel": "邀请类型",
+      "targetKindAny": "新的 1 对 1 对话",
+      "targetKindAnyHint": "好友会和你建立私聊。",
+      "targetKindConversation": "加入现有对话",
+      "targetKindConversationHint": "好友加入一个现有的群聊。",
+      "selectConversationLabel": "对话",
+      "selectConversationPlaceholder": "选择对话",
+      "ttlLabel": "链接有效期",
+      "ttlHours": "{{hours}} 小时",
+      "create": "创建链接",
+      "creating": "正在创建…",
+      "created": {
+        "title": "邀请就绪",
+        "inviteUrlLabel": "邀请链接",
+        "copyButton": "复制链接",
+        "copied": "已复制!",
+        "expiresAtLabel": "失效时间",
+        "targetSummary": "目标：",
+        "targetAny": "新的 1 对 1 对话",
+        "targetConversation": "对话：{{name}}",
+        "done": "返回管理"
+      },
+      "error": {
+        "unauthorized": "会话已过期，请重新登录。",
+        "forbidden": "只有 Owner 可以创建邀请。",
+        "conversationNotOwned": "你不是此对话的所有者。",
+        "invalidInput": "邀请配置无效。",
+        "internal": "无法创建邀请，请重试。",
+        "generic": "出错了。"
+      }
+    }
   },
   "common": {
     "loading": "加载中…",
