@@ -5,7 +5,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 /**
  * Composer-side typing broadcast (M4-1).
  *
- * Pairs with `useTypingReceivers` (ChatPanel-side) — both subscribe
+ * Pairs with `useConversationPresence` (ChatPanel-side) — both subscribe
  * track to the same `presence:<conversationId>` channel; supabase-js
  * dedupes the channel by name so both sides see the same instance.
  *
@@ -16,7 +16,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
  *  - timer expiry, manual stop (broadcast, blur, unmount) → fire
  *    `track({ typing: false })` and disarm
  *
- * Channel lifetime: ChatPanel's `useTypingReceivers` owns the
+ * Channel lifetime: ChatPanel's `useConversationPresence` owns the
  * removeChannel call. Composer only `.track()`s and explicitly
  * emits `track({ typing: false })` on unmount so we don't leave a
  * ghost `typing: true` lingering.
@@ -79,7 +79,7 @@ export function useTypingBroadcast({
       }
       channelRef.current = null;
       // NB: we deliberately do NOT removeChannel here. ChatPanel's
-      // useTypingReceivers owns the channel lifetime.
+      // useConversationPresence owns the channel lifetime.
     };
   }, [conversationId, selfUserId]);
 

@@ -4,8 +4,9 @@ import { Avatar } from '@/components/ui/Avatar';
 import { MessageList } from './MessageList';
 import { Composer } from './Composer';
 import { TypingIndicator } from './TypingIndicator';
-import { useTypingReceivers } from '@/hooks/useTypingReceivers';
+import { useConversationPresence } from '@/hooks/useConversationPresence';
 import { useMarkConversationRead } from '@/hooks/useMessages';
+import { usePresence } from '@/stores/usePresence';
 
 interface ChatPanelProps {
   conversationId: string;
@@ -18,9 +19,13 @@ interface ChatPanelProps {
 /**
  * ChatPanel — orchestrates one conversation view.
  *
- * - Header: minimal avatar + title. M3-4 will replace with the floating
- *   composer island + a richer action bar (F-CONV-04 / M4-8 ambient
- *   online status).
+ * - Header: Avatar + title + 6 px lavender pulse dot when ANY peer is
+ *   online in this conv (F-ST-01 / AC.11). For 1:1 the peer is one
+ *   specific friend; for groups the dot signals "someone is here".
+ *   The dot's semantics are intentionally a single boolean rather
+ *   than per-peer dot: Nook is a small-group product and a single
+ *   pulse carries enough signal v1.0 (per-member dot matrix is a
+ *   v1.1+ polish opportunity).
  * - Body: `MessageList` (virtualized, paginated, day separators).
  * - Footer: minimal composer placeholder until M3-4 lands.
  *
@@ -41,13 +46,39 @@ export function ChatPanel({
   }, [conversationId, markRead]);
 
   /**
-   * M4-1 typing receiver: subscribes to the shared
-   * `presence:<conversationId>` channel and pushes the filtered
-   * (self-excluded, online=true, typing=true) user-ids into Zustand.
-   * The header `<TypingIndicator>` reads from that store and resolves
-   * names against the cached sidebar query.
+   * M4-1 + M4-8 presence receiver: subscribes to the shared
+   * `presence:<conversationId>` channel and writes BOTH
+   * online + typing peer sets (self-excluded) to the Zustand store.
+   *
+   * - TypingIndicator reads `typingUsers[conversationId]` for the 3-dot
+   *   ambient animation (F-MSG-08 / AC.05).
+   * - The header Avatar below reads `onlineUsers[conversationId]` for
+   *   the 6 px lavender pulse dot (F-ST-01 / AC.11).
    */
-  useTypingReceivers({ conversationId });
+  useConversationPresence({ conversationId });
+
+  /**
+   * F-ST-01 / AC.11 — Ambient presense dot / pulse.
+   *
+   * `onlineUsers[convId]` is a Set of peer user-ids (self excluded,
+   * per the hook's self-actor gate). For v1.0 M4-8 we render a single
+   * dot on the header avatar regardless of conv.kind:
+   *   - 1:1 conv  → dot = other peer's online state
+   *   - group conv → dot = "any peer online in this group" (gives the
+   *     chat a "live" feel without per-avatar overhead)
+   *
+   * `size > 0` is the derived boolean passed to Avatar.status.
+   * clearConv leaves a hole on unmount, so this naturally returns
+   * `undefined` → `?? 0` → `false` after a conversation switch.
+   *
+   * a11y: Avatar natively encodes `status` into its aria-label
+   * (`${name} 的头像，在线` per Avatar.spec § 7), so screen readers
+   * already announce the state — no extra <span role="status"> needed.
+   */
+  const onlineSetSize = usePresence(
+    (s) => s.onlineUsers.get(conversationId)?.size ?? 0,
+  );
+  const isAnyPeerOnline = onlineSetSize > 0;
 
   return (
     <section
@@ -59,6 +90,8 @@ export function ChatPanel({
           size="md"
           src={avatarUrl ?? null}
           name={title ?? '?'}
+          status={isAnyPeerOnline ? 'online' : undefined}
+          pulse={isAnyPeerOnline}
         />
         <div className="min-w-0 flex-1">
           <h2 className="truncate font-[600] text-[var(--font-size-body)] text-[var(--color-ink-default)]">

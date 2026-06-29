@@ -16,7 +16,7 @@ import { useTypingBroadcast } from './useTypingBroadcast';
 //     chainable `.on().subscribe()` builders and observable spies for
 //     `.track()`.
 //   - `removeChannel(...)` is a no-op (we don't exercise ChatPanel-side
-//     channel cleanup here — that's useTypingReceivers' territory).
+//     channel cleanup here — that's useConversationPresence' territory).
 vi.mock('@/lib/supabase', () => {
   const channelInstance = {
     on: vi.fn().mockReturnThis(),
