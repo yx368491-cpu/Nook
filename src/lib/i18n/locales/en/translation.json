@@ -232,8 +232,8 @@
         },
         "password": {
           "title": "Reset password",
-          "subtitle": "Coming in a future update.",
-          "action": "Coming soon"
+          "subtitle": "Generate a one-time link to reset a friend's password.",
+          "action": "Reset password"
         },
         "delete": {
           "title": "Delete friend",
@@ -275,6 +275,27 @@
         "internal": "Couldn't create invite. Please try again.",
         "generic": "Something went wrong."
       }
+    },
+    "passwordReset": {
+      "friendPickerLabel": "Friend",
+      "friendPickerPlaceholder": "Choose a friend",
+      "noFriends": "You don't have any friends yet.",
+      "create": "Reset password",
+      "creating": "Creating…",
+      "createdResetUrlLabel": "Reset URL",
+      "copyButton": "Copy reset link",
+      "copied": "Copied!",
+      "expiresAtLabel": "Expires at",
+      "done": "Done",
+      "error": {
+        "unauthorized": "Your session has expired. Please sign in again.",
+        "forbidden": "Only the Owner can reset passwords.",
+        "friendNotFound": "Friend not found.",
+        "alreadyPending": "This friend already has a pending password reset link. Wait for them to use it (or revoke it) before sending another.",
+        "invalidInput": "Invalid reset configuration.",
+        "internal": "Couldn't create reset link. Please try again.",
+        "generic": "Something went wrong."
+      }
     }
   },
   "common": {
@@ -310,6 +331,12 @@
   "notif": {
     "newMessage": "New message",
     "mention": "Someone mentioned you"
+  },
+  "resetPlaceholder": {
+    "title": "Reset your password",
+    "subtitle": "The complete password-reset flow lands in a future update. Your Owner has generated a one-time link that becomes usable once the friend-side completion ships.",
+    "tokenLabel": "Reset token",
+    "home": "Back to home"
   },
   "outbox": {
     "pending": "Pending",

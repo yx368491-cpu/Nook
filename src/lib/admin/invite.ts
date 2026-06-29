@@ -23,6 +23,7 @@ export type InviteValidationCode =
   | 'BAD_KIND'
   | 'BAD_TTL'
   | 'BAD_CONVERSATION_ID'
+  | 'BAD_USER_ID'
   | 'BAD_TOKEN'
   | 'MALFORMED_BODY';
 
@@ -157,6 +158,8 @@ export function inviteErrorCode(inviteErr: InviteValidationError): string {
     case 'BAD_KIND':
       return 'E_VAL_REQUIRED_FIELD';
     case 'BAD_CONVERSATION_ID':
+      return 'E_VAL_INVALID_FORMAT';
+    case 'BAD_USER_ID':
       return 'E_VAL_INVALID_FORMAT';
     case 'BAD_TTL':
       return 'E_VAL_INVALID_FORMAT';

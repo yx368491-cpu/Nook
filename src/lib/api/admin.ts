@@ -41,6 +41,24 @@ export interface CreatedInvite {
  * The supabase.functions.invoke() client throws on non-2xx; we wrap the
  * thrown error in a typed shape so the UI can branch on `.code`.
  */
+// =========================================================================
+// M6-4 · Password-reset surface (admin-only)
+// =========================================================================
+
+export interface CreatePasswordResetArgs {
+  targetUserId: string;
+  /** Optional override of the 24h default (validated server-side 1..168). */
+  ttlHours?: number;
+}
+
+export interface CreatedPasswordReset {
+  id: string;
+  token: string;
+  target_user_id: string;
+  expires_at: string;
+  reset_url: string;
+}
+
 export const adminApi = {
   async createInvite(args: CreateInviteArgs): Promise<CreatedInvite> {
     const body: Record<string, unknown> = {
@@ -63,6 +81,40 @@ export const adminApi = {
     }
     if (!data) {
       throw { code: 'INTERNAL', message: 'Invite EF returned no body' };
+    }
+    return data;
+  },
+
+  /**
+   * M6-4 · Admin-issues a one-time password-reset token for a friend.
+   *
+   * Returns `{ id, token, target_user_id, expires_at, reset_url }` where
+   * `reset_url` is a `${PUBLIC_SITE_URL}/reset-password/${token}` URL
+   * the Owner can hand to the friend over WeChat/text. The friend-side
+   * completion form / EF ship in M6-4.1; until then the URL routes to a
+   * placeholder page so it's verifiable end-to-end visually.
+   *
+   * Errors: same envelope contract as createInvite (see mapAdminError).
+   *  - 401 / 403 / 404 / 400 / 500 — surfacing per mapAdminError.
+   */
+  async createPasswordReset(args: CreatePasswordResetArgs): Promise<CreatedPasswordReset> {
+    const body: Record<string, unknown> = {
+      target_user_id: args.targetUserId,
+    };
+    if (typeof args.ttlHours === 'number') {
+      body.ttl_hours = args.ttlHours;
+    }
+
+    const { data, error } = await supabase.functions.invoke<CreatedPasswordReset>(
+      'admin-reset-password',
+      { body },
+    );
+
+    if (error) {
+      throw mapAdminError(error);
+    }
+    if (!data) {
+      throw { code: 'INTERNAL', message: 'Reset EF returned no body' };
     }
     return data;
   },

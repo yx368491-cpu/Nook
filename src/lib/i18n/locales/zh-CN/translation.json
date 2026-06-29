@@ -232,8 +232,8 @@
         },
         "password": {
           "title": "重置密码",
-          "subtitle": "后续更新中。",
-          "action": "敬请期待"
+          "subtitle": "生成一次性链接，重置好友的密码。",
+          "action": "重置密码"
         },
         "delete": {
           "title": "删除好友",
@@ -275,6 +275,27 @@
         "internal": "无法创建邀请，请重试。",
         "generic": "出错了。"
       }
+    },
+    "passwordReset": {
+      "friendPickerLabel": "好友",
+      "friendPickerPlaceholder": "选择好友",
+      "noFriends": "你还没有任何好友。",
+      "create": "重置密码",
+      "creating": "正在创建…",
+      "createdResetUrlLabel": "重置链接",
+      "copyButton": "复制重置链接",
+      "copied": "已复制！",
+      "expiresAtLabel": "失效时间",
+      "done": "完成",
+      "error": {
+        "unauthorized": "会话已过期，请重新登录。",
+        "forbidden": "只有 Owner 可以重置密码。",
+        "friendNotFound": "找不到该好友。",
+        "alreadyPending": "该好友已有待使用的重置链接，请先使用（或撤销）后再发送新的链接。",
+        "invalidInput": "重置配置无效。",
+        "internal": "无法创建重置链接，请重试。",
+        "generic": "出错了。"
+      }
     }
   },
   "common": {
@@ -310,6 +331,12 @@
   "notif": {
     "newMessage": "新消息",
     "mention": "有人提到了你"
+  },
+  "resetPlaceholder": {
+    "title": "重置密码",
+    "subtitle": "完整的密码重置流程将在后续更新中提供。Owner 已生成一次性链接，待好友端完成后即可使用。",
+    "tokenLabel": "重置 token",
+    "home": "返回首页"
   },
   "outbox": {
     "pending": "发送中…",

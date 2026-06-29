@@ -8,6 +8,7 @@ import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import InviteNewPage from './pages/InviteNewPage';
 import InviteAcceptPage from './pages/InviteAcceptPage';
+import ResetPasswordPlaceholderPage from './pages/ResetPasswordPlaceholderPage';
 import SettingsPage from './pages/SettingsPage';
 import SettingsProfilePage from './pages/SettingsProfilePage';
 import SettingsAdminPage from './pages/SettingsAdminPage';
@@ -23,6 +24,7 @@ export default function AppRoutes() {
       <Route path="/welcome/register" element={<RegisterPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/invite/:token" element={<InviteAcceptPage />} />
+      <Route path="/reset-password/:token" element={<ResetPasswordPlaceholderPage />} />
 
       {/* Protected routes */}
       <Route

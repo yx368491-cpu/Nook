@@ -1,15 +1,15 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
+import { PasswordResetCard } from '@/components/settings/PasswordResetCard';
 
 /**
  * Nook M6 · Settings → Admin page (F-SEC-04 / CAP-03 surface).
  *
  * Layout: per-section cards. Each card has a title, subtitle, and a single
- * CTA. The Invite card is the only LIVE action in M6-1 — Reset password
- * (M6-4) and Delete friend (M6-5) EF surfaces ship later, so those CTAs
- * render as disabled placeholders that translate the ship status to the
- * user without being surprising or non-functional.
+ * CTA. M6-1: Invite + reset + delete (the latter two were disabled stubs).
+ * M6-4: Reset password card is now ACTIVE — the delete-friend card remains
+ * a DISABLED stub since M6-5 is a separate increment.
  */
 export default function SettingsAdminPage() {
   const { t } = useTranslation();
@@ -60,35 +60,8 @@ export default function SettingsAdminPage() {
           </Link>
         </article>
 
-        {/* Reset password card · DISABLED PLACEHOLDER (M6-4) */}
-        <article
-          data-testid="settings-admin-card-password"
-          className="
-            flex flex-col gap-[var(--space-md)]
-            rounded-[var(--radius-xl)] border border-[var(--color-hairline-default)]
-            bg-[var(--color-surface-1)]
-            p-[var(--space-lg)]
-            opacity-60
-          "
-        >
-          <div className="flex flex-col gap-[var(--space-2xs)]">
-            <h3 className="text-[var(--font-size-body-lg)] font-[600] text-[var(--color-ink-default)]">
-              {t('settings.adminBox.sections.password.title')}
-            </h3>
-            <p className="text-[var(--font-size-meta)] text-[var(--color-ink-muted)] leading-[var(--leading-chill)]">
-              {t('settings.adminBox.sections.password.subtitle')}
-            </p>
-          </div>
-          <Button
-            intent="neutral"
-            size="md"
-            disabled
-            aria-disabled="true"
-            data-testid="settings-admin-password-disabled"
-          >
-            {t('settings.adminBox.sections.password.action')}
-          </Button>
-        </article>
+        {/* Reset password card · ACTIVE (M6-4) */}
+        <PasswordResetCard />
 
         {/* Delete friend card · DISABLED PLACEHOLDER (M6-5) */}
         <article
@@ -102,7 +75,8 @@ export default function SettingsAdminPage() {
           "
         >
           <div className="flex flex-col gap-[var(--space-2xs)]">
-            <h3 className="text-[font-size-body-lg] font-[600] text-[var(--color-ink-default)]"
+            <h3
+              className="text-[font-size-body-lg] font-[600] text-[var(--color-ink-default)]"
               style={{ fontSize: 'var(--font-size-body-lg)' }}
             >
               {t('settings.adminBox.sections.delete.title')}
