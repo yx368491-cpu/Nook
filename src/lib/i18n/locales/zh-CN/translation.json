@@ -167,13 +167,40 @@
     "today": "今天",
     "yesterday": "昨天",
     "noMessages": "还没有消息",
-    "emptyConversation": "发送第一条消息吧"
+    "emptyConversation": "发送第一条消息吧",
+    "outbox": {
+      "pending": "发送中",
+      "reconnecting": "正在重连·补发失败消息…",
+      "pendingCount_one": "{{count}} 条正在发送",
+      "pendingCount_other": "{{count}} 条正在发送"
+    },
+    "exifWarning": {
+      "title": "图片包含原数据",
+      "body": "这张图片含有 EXIF 原数据（相机、位置等）。按 Nook 原图保真约定，会原图直传并保留元数据。"
+    }
   },
   "settings": {
     "title": "设置",
     "language": "语言",
-    "profile": "个人资料",
+    "profile": {
+      "name": "个人资料",
+      "saved": "已保存"
+    },
     "displayName": "显示名称",
+    "avatar": {
+      "sectionLabel": "头像",
+      "upload": "上传头像",
+      "remove": "移除头像",
+      "save": "保存头像",
+      "errors": {
+        "empty": "头像文件为空",
+        "tooLarge": "头像过大 (最大 {{size}} MB)",
+        "unsupportedMime": "头像文件类型不支持",
+        "unsupportedExt": "头像文件名缺少扩展名",
+        "uploadFailed": "上传头像失败",
+        "deleteFailed": "删除头像失败"
+      }
+    },
     "save": "保存",
     "admin": "管理",
     "createInvite": "创建邀请链接",
@@ -219,5 +246,14 @@
   "notif": {
     "newMessage": "新消息",
     "mention": "有人提到了你"
+  },
+  "outbox": {
+    "pending": "发送中…",
+    "sending": "正在发送",
+    "sent": "已送达",
+    "failed": "发送失败",
+    "retry": "重试发送",
+    "pendingCount_one": "{{count}} 条正在发送",
+    "pendingCount_other": "{{count}} 条正在发送"
   }
 }

@@ -23,6 +23,20 @@ import { useChat } from '@/stores/useChat';
 import { useDraftInput } from '@/hooks/useDraftInput';
 import { useTypingBroadcast } from '@/hooks/useTypingBroadcast';
 import { useSendReplyMessage } from '@/hooks/useSendReplyMessage';
+// M5-2 — outbox observer for the composer's yellow dot + reconnecting
+// strip. The hook is a pure data read (per-conv Dexie live query) with
+// no SW / network side effects.
+import { useOutbox } from '@/hooks/useOutbox';
+// M5-2 — canonical UUID v4 helper. The line below replaces the inline
+// `crypto.randomUUID()` call that has lived in this file since M3-4;
+// routing both Composer.tsx + useSendMessage.ts through this single
+// helper keeps the format validation in lockstep.
+import { generateClientMsgId } from '@/lib/db/client_msg_id';
+// M5-5 — EXIF detection for the Composer's informational warning toast.
+// Per DATA-MODEL R-30 ("image 不压缩, 原图保真") we DO NOT strip EXIF; we
+// only inform the user. See lib/storage/exif.ts for the no-library
+// JPEG APP1/Exif parser behind the detection.
+import { detectExif } from '@/lib/storage/exif';
 import { ComposeReplyCard } from './ComposeReplyCard';
 
 /**
@@ -58,9 +72,12 @@ interface LocalError {
 const TEXTAREA_MAX_HEIGHT = 144; // px — mirrors DESIGN § 7 form B
 const MIN_DRAFT_LEN_FOR_SEND = 1; // any non-whitespace
 
-function generateClientMsgId(): string {
-  return crypto.randomUUID();
-}
+// M5-5 — auto-dismiss TTL for the EXIF warning toast. Keeps the strip
+// visible long enough for the user to read "原图保留元数据" but short
+// enough that any subsequent attach doesn't pile multiple strips
+// (only the most recent EXIF finding is surfaced). Re-trigger: each
+// new EXIF-detecting attach restarts the timer (see `setWarning` below).
+const EXIF_WARNING_DISMISS_MS = 6000;
 
 export function Composer({ conversationId }: ComposerProps) {
   const { t, i18n } = useTranslation();
@@ -82,7 +99,7 @@ export function Composer({ conversationId }: ComposerProps) {
   const sendAttachM = useSendAttachmentMessage(conversationId, selfUserId);
 
   /**
-   * M4-1 typing broadcast: pairs with ChatPanel's `useTypingReceivers`
+   * M4-1 typing broadcast: pairs with ChatPanel's `useConversationPresence`
    * (supabase-js dedupes the `presence:<conversationId>` channel by name
    * so we share one instance between broadcast + receive sides).
    * - `startTyping():` re-arms the 5 s idle window on each keystroke; the
@@ -96,12 +113,25 @@ export function Composer({ conversationId }: ComposerProps) {
   });
 
   const [error, setError] = useState<LocalError | null>(null);
+  // M5-5 — parallel `warning` state for the EXIF informational toast.
+  // Same shape as `error` but renders in `signal-warning` color, NOT
+  // `signal-error`: this is informational, not blocking. Clears after
+  // `EXIF_WARNING_DISMISS_MS` (re-armed on each new EXIF finding).
+  const [warning, setWarning] = useState<string | null>(null);
+  const exifTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const taRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isBusy = sendTextM.isPending || sendAttachM.isPending;
+
+  // M5-2 — outbox reader (yellow dot + reconnecting strip). The hook
+  // re-emits whenever any outbox row in the conversation changes,
+  // including cross-tab updates from the v1.0 SW replay path.
+  const outbox = useOutbox(conversationId);
+  const pendingOutboxCount = outbox.pending.length;
+  const failedOutboxCount = outbox.failed.length;
 
   // Auto-grow the textarea whenever the draft changes.
   useLayoutEffect(() => {
@@ -115,7 +145,30 @@ export function Composer({ conversationId }: ComposerProps) {
   /** Reset focus on conversationId change so the user can keep typing. */
   useEffect(() => {
     taRef.current?.focus({ preventScroll: true });
+    // M5-5 — clear any in-flight EXIF warning + its auto-dismiss timer
+    // when the conversation changes. Otherwise a `send initiated in
+    // conv A, navigated to conv B within 6 s` flow would surface a
+    // stale EXIF toast on conv B's composer.
+    if (exifTimerRef.current !== null) {
+      clearTimeout(exifTimerRef.current);
+      exifTimerRef.current = null;
+    }
+    setWarning(null);
   }, [conversationId]);
+
+  // M5-5 — cleanup the EXIF warning auto-dismiss timer when the
+  // Composer unmounts entirely (e.g. user signs out, navigates away
+  // from HomePage). Without this, the setTimeout fires post-unmount
+  // and `setWarning(null)` runs on a torn-down component (no-op at
+  // best; a pile of zombie timers in pathological UX scenarios).
+  useEffect(() => {
+    return () => {
+      if (exifTimerRef.current !== null) {
+        clearTimeout(exifTimerRef.current);
+        exifTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const handleSend = useCallback(
     async (body: string) => {
@@ -202,6 +255,35 @@ export function Composer({ conversationId }: ComposerProps) {
       // (file content isn't tracked in the typing payload, but the
       // state machine is symmetric with text send).
       stopTyping();
+      // M5-5 — EXIF informational warning. We only run detection for
+      // images (text attachments / PDF / ZIP are immune by structural
+      // format coverage). The detection itself is read-not-write
+      // (see src/lib/storage/exif.ts); we surface a single toast and
+      // proceed with the upload unchanged. The user retains agency:
+      // they can cancel by re-attaching a stripped-thumbnail version
+      // in a future v1.1+ EXIF-strip feature, OR simply by sending
+      // and accepting the unaltered pixel+metadata delivery.
+      //
+      // We do NOT wrap in try/catch here — `detectExif` has its own
+      // internal catch that coerces every failure to
+      // `{ hasExif: false, sources: [] }` (see the contract comment
+      // at the top of src/lib/storage/exif.ts). Per SPEC § 6 BF E3,
+      // "EXIF strip 失败 → fallback, 仍上传像素" — that fallback rule
+      // is enforced inside the module itself, so the Composer side
+      // stays one single try/catch deep for the whole attempt.
+      if (isImageMime(file.type)) {
+        const exifResult = await detectExif(file);
+        if (exifResult.hasExif) {
+          setWarning(t('chat.exifWarning.body'));
+          if (exifTimerRef.current !== null) {
+            clearTimeout(exifTimerRef.current);
+          }
+          exifTimerRef.current = setTimeout(() => {
+            setWarning(null);
+            exifTimerRef.current = null;
+          }, EXIF_WARNING_DISMISS_MS);
+        }
+      }
       try {
         const kind = isImageMime(file.type) ? 'image' : 'file';
         const clientMsgId = generateClientMsgId();
@@ -318,6 +400,87 @@ export function Composer({ conversationId }: ComposerProps) {
         </p>
       )}
 
+      {/* M5-5 — EXIF informational warning (read-not-write; non-blocking).
+          Renders in signal-warning color (yellow tonal, NOT red) so the
+          user reads it as "informational privacy notice" rather than
+          "blocked upload". Strip auto-dismisses after EXIF_WARNING_DISMISS_MS
+          via a re-armed timer in dispatchFile. role="status" ensures
+          silent a11y announcement via aria-live="polite". */}
+      {warning && (
+        <p
+          role="status"
+          aria-live="polite"
+          data-testid="composer-exif-warning"
+          className={[
+            'mb-[var(--space-xs)] flex items-center gap-[var(--space-xs)]',
+            'rounded-[var(--radius-md)] border border-[var(--color-signal-warning)]',
+            'bg-[var(--color-surface-1)]',
+            'px-[var(--space-sm)] py-[var(--space-2xs)]',
+            'text-[var(--font-size-meta)] text-[var(--color-signal-warning)]',
+          ].join(' ')}
+        >
+          <span aria-hidden="true">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </span>
+          <span>{warning}</span>
+        </p>
+      )}
+
+      {/* M5-2 — outbox failure strip. Mantles the same visual slot as
+          the inline error strip so failed persistent sends are visually
+          distinct from transient try-again-lightly errors. Subscribes
+          to useOutbox.failed; once all rows purge (or the user
+          manually retries — M5-2.1 follow-up), the strip naturally
+          hides. Retry button is deferred to a v1.1 milestone; for
+          now the message stays visible until either (a) Workbox BG
+          sync auto-replays the failed POST and the server returns
+          200 → outbox transitions to `sent`, or (b) the user
+          re-submits and a new optimistic row replaces the failed one. */}
+      {failedOutboxCount > 0 && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={[
+            'mb-[var(--space-xs)] flex items-center gap-[var(--space-xs)]',
+            'rounded-[var(--radius-md)] border border-[var(--color-signal-warning)]',
+            'bg-[var(--color-surface-1)]',
+            'px-[var(--space-sm)] py-[var(--space-2xs)]',
+            'text-[var(--font-size-meta)] text-[var(--color-signal-warning)]',
+          ].join(' ')}
+        >
+          <span aria-hidden="true">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+            </svg>
+          </span>
+          <span>{t('chat.outbox.reconnecting')}</span>
+        </div>
+      )}
+
       <form
         onSubmit={handleSubmit}
         // floating island (DESIGN § 7 form B)
@@ -425,39 +588,70 @@ export function Composer({ conversationId }: ComposerProps) {
           ].join(' ')}
         />
 
-        {/* Send (accent) button — disabled until draft has content */}
-        <button
-          type="submit"
-          aria-label={t('composer.send')}
-          title={t('composer.send')}
-          disabled={!canSend}
-          className={[
-            'flex-shrink-0',
-            'h-[36px] w-[36px] rounded-[12px]',
-            'flex items-center justify-center',
-            'transition-[background-color,transform] duration-[var(--transition-hover)]',
-            canSend
-              ? 'bg-[var(--color-accent-default)] text-[var(--color-on-accent)] hover:bg-[var(--color-accent-hover)] active:scale-[0.97]'
-              : 'bg-[var(--color-surface-1)] text-[var(--color-ink-subtle)] cursor-not-allowed',
-            'focus-visible:outline-[2px] focus-visible:outline-[var(--color-accent-soft-ring)] focus-visible:outline-offset-[2px]',
-          ].join(' ')}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
+        {/* Send (accent) button — disabled until draft has content. M5-2
+            adds an 8 px yellow dot overlay rendered in a slightly larger
+            DOM element wrapping the button so the dot is positioned
+            relative to the button's top-right corner without colliding
+            with the click target. The dot ONLY appears when `pending`
+            (state = 'pending' OR state = 'sending') is non-empty per
+            M5-1's bucketing. The motion is a slow pulse that respects
+            `prefers-reduced-motion` via `animation` shorthand (CSS
+            reverts to opacity:1 instantly when reduced-motion is set). */}
+        <span className="relative flex-shrink-0">
+          <button
+            type="submit"
+            aria-label={t('composer.send')}
+            title={
+              pendingOutboxCount > 0
+                ? `${t('composer.send')} · ${pendingOutboxCount} ${t('chat.outbox.pending')}`
+                : t('composer.send')
+            }
+            disabled={!canSend}
+            className={[
+              'h-[36px] w-[36px] rounded-[12px]',
+              'flex items-center justify-center',
+              'transition-[background-color,transform] duration-[var(--transition-hover)]',
+              canSend
+                ? 'bg-[var(--color-accent-default)] text-[var(--color-on-accent)] hover:bg-[var(--color-accent-hover)] active:scale-[0.97]'
+                : 'bg-[var(--color-surface-1)] text-[var(--color-ink-subtle)] cursor-not-allowed',
+              'focus-visible:outline-[2px] focus-visible:outline-[var(--color-accent-soft-ring)] focus-visible:outline-offset-[2px]',
+            ].join(' ')}
           >
-            <line x1="22" y1="2" x2="11" y2="13" />
-            <polygon points="22 2 15 22 11 13 2 9 22 2" />
-          </svg>
-        </button>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="22" y1="2" x2="11" y2="13" />
+              <polygon points="22 2 15 22 11 13 2 9 22 2" />
+            </svg>
+          </button>
+          {pendingOutboxCount > 0 && (
+            <span
+              aria-hidden="true"
+              data-testid="composer-outbox-pending-dot"
+              className={[
+                'absolute -right-[2px] -top-[2px]',
+                'h-[12px] w-[12px] rounded-full',
+                'border-2 border-[var(--color-surface-2)]',
+                'bg-[var(--color-signal-warning)]',
+                // M5-2 — yellow dot pulse. We use Tailwind's built-in
+                // `animate-pulse` (opacity 1 → 0.5 → 1, 2 s) in lieu
+                // of a custom keyframe so tokens/index.ts stays
+                // uncluttered. `motion-safe:` honors
+                // `prefers-reduced-motion` per AC.AC.motion.
+                'motion-safe:animate-pulse',
+              ].join(' ')}
+            />
+          )}
+        </span>
       </form>
     </div>
   );

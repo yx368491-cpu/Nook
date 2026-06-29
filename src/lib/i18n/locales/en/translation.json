@@ -167,13 +167,40 @@
     "today": "Today",
     "yesterday": "Yesterday",
     "noMessages": "No messages yet",
-    "emptyConversation": "Send the first message"
+    "emptyConversation": "Send the first message",
+    "outbox": {
+      "pending": "Sending",
+      "reconnecting": "Reconnecting failed messages…",
+      "pendingCount_one": "{{count}} sending",
+      "pendingCount_other": "{{count}} sending"
+    },
+    "exifWarning": {
+      "title": "Image contains metadata",
+      "body": "This image includes EXIF metadata (camera, location, etc.). Per Nook's no-compression policy, the original bytes will be sent with metadata intact."
+    }
   },
   "settings": {
     "title": "Settings",
     "language": "Language",
-    "profile": "Profile",
+    "profile": {
+      "name": "Profile",
+      "saved": "Saved"
+    },
     "displayName": "Display name",
+    "avatar": {
+      "sectionLabel": "Avatar",
+      "upload": "Upload avatar",
+      "remove": "Remove avatar",
+      "save": "Save avatar",
+      "errors": {
+        "empty": "Avatar file is empty",
+        "tooLarge": "Avatar too large (max {{size}} MB)",
+        "unsupportedMime": "Avatar file type not supported",
+        "unsupportedExt": "Avatar filename must have a file extension",
+        "uploadFailed": "Failed to upload avatar",
+        "deleteFailed": "Failed to delete avatar"
+      }
+    },
     "save": "Save",
     "admin": "Admin",
     "createInvite": "Create invite link",
@@ -219,5 +246,14 @@
   "notif": {
     "newMessage": "New message",
     "mention": "Someone mentioned you"
+  },
+  "outbox": {
+    "pending": "Pending",
+    "sending": "Sending",
+    "sent": "Delivered",
+    "failed": "Failed to send",
+    "retry": "Retry sending",
+    "pendingCount_one": "{{count}} sending",
+    "pendingCount_other": "{{count}} sending"
   }
 }
