@@ -5,6 +5,15 @@ import type {
   ReactionEmoji,
   UserRole,
 } from '@/shared/types/domain';
+// M5-4 — static import for the local Dexie blob cache mirror inside
+// `uploadAttachment()` → `persistAttachmentBlobLocally()`. Static
+// (rather than dynamic) imports match the rest of chat.ts's surface.
+import {
+  ATTACHMENT_CACHE_MAX_BYTES,
+  estimateQuotaAvailable,
+  lruPurgeUntilUnder,
+  putAttachmentCache,
+} from '@/lib/db/attachments';
 
 /**
  * Chat API — typed wrappers around Supabase REST + RPC.
@@ -750,11 +759,20 @@ async function probeImageDims(
  *   4. INSERT `attachments` row with `message_id = NULL`
  *      (the FK is backfilled by `sendAttachmentMessage` after the message row
  *      exists, so cleanup accounting at pg_cron J-01 stays consistent).
+ *   5. M5-4 — MIRROR the just-uploaded bytes into the local Dexie blob
+ *      cache so the eventual canonical-render of the bubble hydrates
+ *      from IDB without re-fetching the signed URL. This step is
+ *      fire-and-forget: a quota warning or write failure logs but
+ *      does NOT fail the upload (the canonical server row is already
+ *      committed; the cache miss just triggers a fetch on first view).
  *
  * @throws AttachmentValidationError for local validation failures
  * @throws { code: 'STORAGE_ERROR' | 'DB_ERROR', ... } for network / RLS errors
  */
-export async function uploadAttachment(file: File): Promise<UploadedAttachment> {
+export async function uploadAttachment(
+  file: File,
+  conversationId: string,
+): Promise<UploadedAttachment> {
   validateAttachmentFile(file);
   const dims = await probeImageDims(file);
 
@@ -800,6 +818,27 @@ export async function uploadAttachment(file: File): Promise<UploadedAttachment> 
     };
   }
 
+  // M5-4 — mirror to local Dexie blob cache. Fire-and-forget; quota
+  // warnings are logged but do NOT fail the upload. Use a stable
+  // async wrapper so the caller can call `Promise<void>.resolve()`
+  // (the `void` token at the call site in `sendAttachmentMessage`).
+  void persistAttachmentBlobLocally({
+    id: data.id,
+    storagePath,
+    conversationId,
+    file,
+    mime: file.type,
+    sizeBytes: file.size,
+    width: dims?.width ?? null,
+    height: dims?.height ?? null,
+  }).catch((err: unknown) => {
+    // Defensive: QuotaExceededError inside `putAttachmentCache` is
+    // already a `.catch`'d no-op pattern in the cache layer; this is
+    // a meta-handler for the rare case where the wrapper itself
+    // throws (e.g. the previous FireAndForget is still running).
+    console.warn('[nook/attachments] cache mirror failed (non-fatal)', err);
+  });
+
   return {
     id: data.id,
     storagePath,
@@ -809,6 +848,49 @@ export async function uploadAttachment(file: File): Promise<UploadedAttachment> 
     height: dims?.height ?? null,
     originalName: file.name,
   };
+}
+
+/**
+ * M5-4 — fire-and-forget helper that mirrors a freshly-uploaded
+ * attachment's bytes into the local Dexie blob cache. Sits between
+ * `uploadAttachment()` (which owns the network path) and
+ * `putAttachmentCache()` (which owns the IDB write); the seam keeps
+ * the export lists in each file lean.
+ *
+ * Pre-write quota preflight (decision 6 of M5-4 architecture):
+ *   - If `navigator.storage.estimate()` reports free bytes < 110% of
+ *     `ATTACHMENT_CACHE_MAX_BYTES`, run `lruPurgeUntilUnder(MAX/2)`
+ *     BEFORE the write. This protects against `QuotaExceededError`
+ *     mid-upload (the rare but plausible case on year-old mobile
+ *     devices where the user is at 95% allocated IDB).
+ */
+async function persistAttachmentBlobLocally(args: {
+  id: string;
+  storagePath: string;
+  conversationId: string;
+  file: File;
+  mime: string;
+  sizeBytes: number;
+  width: number | null;
+  height: number | null;
+}): Promise<void> {
+  const estimate = await estimateQuotaAvailable();
+  if (
+    estimate.freeBytes !== null &&
+    estimate.freeBytes < ATTACHMENT_CACHE_MAX_BYTES * 1.1
+  ) {
+    await lruPurgeUntilUnder(Math.floor(ATTACHMENT_CACHE_MAX_BYTES / 2));
+  }
+  await putAttachmentCache({
+    id: args.id,
+    storagePath: args.storagePath,
+    conversationId: args.conversationId,
+    blob: args.file,
+    mime: args.mime,
+    sizeBytes: args.sizeBytes,
+    width: args.width,
+    height: args.height,
+  });
 }
 
 /**
@@ -998,7 +1080,12 @@ export async function sendAttachmentMessage(args: {
 }): Promise<{ messageId: string; attachmentId: string; createdAt: string }> {
   const { conversationId, senderId, kind, file, replyToId, clientMsgId } = args;
 
-  const uploaded = await uploadAttachment(file);
+  // M5-4 — `uploadAttachment` now takes the conversationId for the
+  // local blob cache mirror (the cache is conversation-scoped via the
+  // `conversationId` index; without the seam, a self-sent image would
+  // have to look up the conversationId on the way back, costing a
+  // round-trip).
+  const uploaded = await uploadAttachment(file, conversationId);
 
   const { data, error } = await supabase
     .from('messages')
