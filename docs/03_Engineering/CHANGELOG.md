@@ -520,7 +520,19 @@ TODO.md M5-5 row originally listed "EXIF strip" with literal-spec-wording interp
 
 ---
 
-## Unreleased
+## [v0.5.0+M5.6] · 2026-06-29 · M5-* sweep (M4-8 + M5-1/2/4/5/6 ship) · S40.0 docs sync
+
+**Release summary**: 6 commit batch (M4-8 + M5-1 + M5-2 + M5-4 + M5-5 + M5-6) lands in `master` from previously-uncommitted working tree state. **Annotated tag `v0.5.0+M5.6` points at commit `75c286e`** (latest = M5-6 ship, end of batch). M5-3 (client_msg_id dedupe + process startup rehydrate) reassigned into M5-2 commit per S40.0 scope recombination. i18n / package.json / Composer.tsx / vite.config.ts files跨 multiple milestone touches bundle into M5-2 commit (attribution drift documented in commit messages).
+
+**Verification (本机 static-only per KI-9)**:
+- vitest full suite = **22 files / 235 tests passed** (2710 ms) · 与 M5-6 S39.0 claim 完全一致
+- typecheck = 22 errors total · **0 new errors**  (all 22 pre-existing as documented baseline)
+- code-reviewer-minimax-m3 有 5 non-blocking suggestions recorded (attribution drift + i18n file entanglement + M5-3 reassignment reflection + final `git status --short` 调查 + per-commit verification SLA gap) · 不 ship-block
+
+**Documentation resync** (本 entry + AI_HANDOVER.md + TODO.md):
+- TODO.md M3-2 / M4-3 / M4-4 / M4-5 / M4-6 rows 标 ✅ (with commit hashes for each)
+- AI_HANDOVER.md 中部「⚠ 下次开发」表 drop M5-2 next → ✅ 已完成 row + M5-7 next row · 阶段表 add M5-2 / M5-4 / M5-5 / M5-6 rows · add S40.0 Update section
+- CHANGELOG.md Unreleased header → [v0.5.0+M5.6] · 2026-06-29 · 本 section
 
 ### [M5-4.0] · 2026-06-28 · Offline-first image attachment pipeline (Dexie blob cache + sync replay + Workbox image-precache warm layer)
 
@@ -912,6 +924,7 @@ TODO.md M5-5 row originally listed "EXIF strip" with literal-spec-wording interp
 | 0.3.8 | S17.0 | Project Startup Manual（18 章 ~880 行） |
 | 0.4.0 | S20.0 | M1 Foundation Bootstrap Execution (脚手架 + 4 原子组件 + 13 路由 + CI) |
 | 0.5.0 | S25.0 | M2 Auth Flow Complete (Login + Invite + friend-signup EF + 集成测试 + S23/S24 修复) |
+| **v0.5.0+M5.6** | **S40.0** | **6-commit batch (M4-8 + M5-1/2/4/5/6) ship + docs sync + version tag promote** |
 | 1.0.0 | 待 | M3-M7 Chat MVP |
 | 1.1.0 | 待 | 灵魂打磨 |
 | 1.2.0 | 待 | 容器升级 |
