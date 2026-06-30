@@ -22,6 +22,6 @@
     },
     "baseUrl": "."
   },
-  "include": ["src/**/*", "supabase/functions/**/*"],
+  "include": ["src/**/*", "tests/**/*"],
   "exclude": ["node_modules", "dist", "tests/e2e"]
 }

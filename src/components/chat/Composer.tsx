@@ -792,7 +792,7 @@ function placeholderFor(
  */
 function humanizeAttachError(
   err: AttachmentValidationError,
-  t: (key: string) => string,
+  t: (key: string, options?: Record<string, unknown>) => string,
 ): string {
   switch (err.code) {
     case 'EMPTY_FILE':

@@ -308,7 +308,7 @@ function InlineEditForm({
     const ta = taRef.current;
     if (!ta) return;
     ta.focus();
-    ta.setSelectionRange(0, ta.length);
+    ta.setSelectionRange(0, ta.value.length);
   }, []);
 
   const trimmed = draft.trim();
@@ -362,7 +362,7 @@ function InlineEditForm({
         </span>
         <div className="flex gap-[var(--space-xs)]">
           <Button
-            kind="ghost"
+            intent="neutral"
             size="sm"
             onClick={onCancel}
             disabled={disabled}
@@ -371,7 +371,7 @@ function InlineEditForm({
             {t('common.cancel')}
           </Button>
           <Button
-            kind="primary"
+            intent="accent"
             size="sm"
             disabled={saveDisabled}
             onClick={() => onSave(trimmed)}

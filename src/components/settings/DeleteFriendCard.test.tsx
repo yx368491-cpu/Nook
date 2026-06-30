@@ -229,8 +229,8 @@ describe('M6-5 DeleteFriendCard — confirm flow', () => {
     });
     const lastCall = invalidateSpy.mock.calls[
       invalidateSpy.mock.calls.length - 1
-    ]![0];
-    expect(lastCall.queryKey).toEqual(['friends', 'owner-uuid']);
+    ]?.[0];
+    expect(lastCall?.queryKey).toEqual(['friends', 'owner-uuid']);
   });
 
   it('After success → Done button returns to idle', async () => {

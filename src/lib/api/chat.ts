@@ -940,25 +940,19 @@ export async function uploadAttachment(
   if (opts?.onProgress || opts?.signal) {
     await uploadAttachmentBytes(file, storagePath, opts);
   } else {
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadErr } = await supabase.storage
       .from('attachments')
       .upload(storagePath, file, {
         contentType: file.type,
         cacheControl: '3600',
         upsert: false,
       });
-    if (uploadError) {
+    if (uploadErr) {
       throw {
         code: 'STORAGE_ERROR',
-        message: uploadError.message,
+        message: uploadErr.message,
       };
     }
-  }
-  if (uploadError) {
-    throw {
-      code: 'STORAGE_ERROR',
-      message: uploadError.message,
-    };
   }
 
   const { data, error } = await supabase

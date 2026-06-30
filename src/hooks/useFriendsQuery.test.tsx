@@ -162,7 +162,7 @@ describe('M6-4 useFriendsQuery', () => {
     await waitFor(() => {
       expect(result.current.error).toBeTruthy();
     });
-    expect((result.current.error as { code: string }).code).toBe('DB_ERROR');
+    expect((result.current.error as unknown as { code: string }).code).toBe('DB_ERROR');
   });
 
   it('error: surfaces profile-stage (hydration) DB error on the hook', async () => {
@@ -197,6 +197,6 @@ describe('M6-4 useFriendsQuery', () => {
     await waitFor(() => {
       expect(result.current.error).toBeTruthy();
     });
-    expect((result.current.error as { code: string }).code).toBe('DB_ERROR');
+    expect((result.current.error as unknown as { code: string }).code).toBe('DB_ERROR');
   });
 });

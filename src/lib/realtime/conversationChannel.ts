@@ -3,10 +3,8 @@ import type {
   RealtimeChannel,
   RealtimePostgresChangesPayload,
 } from '@supabase/supabase-js';
-import type {
-  MessageKind,
-  MessageListItem,
-} from '@/lib/api/chat';
+import type { MessageListItem } from '@/lib/api/chat';
+import type { MessageKind } from '@/shared/types/domain';
 import type { UserRole } from '@/shared/types/domain';
 
 /**
@@ -169,7 +167,7 @@ export function subscribeConversationEvents(
       (payload) => {
         const p = payload as RealtimePostgresChangesPayload<RawMessageRow>;
         if (!p.new) return;
-        handlers.onMessageInsert!(projectInsert(p.new));
+        handlers.onMessageInsert!(projectInsert(p.new as RawMessageRow));
       },
     );
   }
@@ -186,7 +184,8 @@ export function subscribeConversationEvents(
       (payload) => {
         const p = payload as RealtimePostgresChangesPayload<RawMessageRow>;
         if (!p.new) return;
-        handlers.onMessageUpdate!(p.new.id, projectUpdateDelta(p.new));
+        const msg = p.new as RawMessageRow;
+        handlers.onMessageUpdate!(msg.id, projectUpdateDelta(msg));
       },
     );
   }
@@ -271,7 +270,7 @@ export function subscribeUserEvents(
     },
     (payload) => {
       const p = payload as RealtimePostgresChangesPayload<RawProfileRow>;
-      if (p.new) handlers.onProfileUpdate?.(p.new.id);
+      if (p.new) handlers.onProfileUpdate?.((p.new as RawProfileRow).id);
     },
   );
 
@@ -321,7 +320,7 @@ export function subscribePresenceEvents(
       ({ key, newPresences }) => {
         handlers.onJoin!(
           key,
-          (newPresences as PresenceState[]) ?? [],
+          (newPresences as unknown as PresenceState[]) ?? [],
         );
       },
     );
@@ -334,7 +333,7 @@ export function subscribePresenceEvents(
       ({ key, leftPresences }) => {
         handlers.onLeave!(
           key,
-          (leftPresences as PresenceState[]) ?? [],
+          (leftPresences as unknown as PresenceState[]) ?? [],
         );
       },
     );

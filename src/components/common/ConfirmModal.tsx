@@ -164,7 +164,7 @@ export function ConfirmModal(props: ConfirmModalProps) {
   const handlePanelKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'Tab') return;
     const focusables = [inputRef.current, cancelBtnRef.current].filter(
-      (el): el is HTMLElement => Boolean(el),
+      (el): el is NonNullable<typeof el> => Boolean(el),
     );
     if (focusables.length === 0) return;
     const first = focusables[0]!;

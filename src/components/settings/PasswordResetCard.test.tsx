@@ -307,7 +307,7 @@ describe('M6-4 PasswordResetCard — error surfacing', () => {
 describe('M6-4 PasswordResetCard — copy + reset', () => {
   it('on Copy → navigator.clipboard.writeText called with reset_url + 2s flash', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(global.navigator, 'clipboard', {
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
       value: { writeText },
       configurable: true,
     });

@@ -14,6 +14,7 @@
  * 10. Empty conversations list → first conv option placeholder only
  */
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
+import '@testing-library/jest-dom/vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -70,7 +71,7 @@ const renderPage = () => {
     createElement(
       QueryClientProvider,
       { client: queryClient },
-      createElement(MemoryRouter, null, createElement(InviteNewPage as ReactNode)),
+      createElement(MemoryRouter, null, createElement(InviteNewPage)),
     ),
   );
 };
