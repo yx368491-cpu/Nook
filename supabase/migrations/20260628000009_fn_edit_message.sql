@@ -94,14 +94,14 @@ BEGIN
   END IF;
 
   IF v_kind <> 'text' THEN
-    RAISE EXCEPTION 'E_MSG_EDIT_FORBIDDEN: bad_kind_%%', v_kind
+    RAISE EXCEPTION 'E_MSG_EDIT_FORBIDDEN: bad_kind_%', v_kind
       USING ERRCODE = 'P0001';
   END IF;
 
   -- Guard #9 — body length
   v_new := btrim(coalesce(p_new_body, ''));
   IF char_length(v_new) < 1 OR char_length(v_new) > 4000 THEN
-    RAISE EXCEPTION 'E_MSG_EDIT_FORBIDDEN: bad_length_%%', char_length(v_new)
+    RAISE EXCEPTION 'E_MSG_EDIT_FORBIDDEN: bad_length_%', char_length(v_new)
       USING ERRCODE = 'P0001';
   END IF;
 

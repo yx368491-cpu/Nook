@@ -84,7 +84,7 @@ BEGIN
   -- and produces a friendlier E_REACTION_FORBIDDEN message instead of a
   -- raw `new row for relation "reactions" violates check constraint`).
   IF p_emoji NOT IN ('👍','❤️','😂','👀','🔥','🙏') THEN
-    RAISE EXCEPTION 'E_REACTION_FORBIDDEN: bad_emoji_%%', p_emoji
+    RAISE EXCEPTION 'E_REACTION_FORBIDDEN: bad_emoji_%', p_emoji
       USING ERRCODE = 'P0001';
   END IF;
 
@@ -166,7 +166,7 @@ BEGIN
 
   -- Guard #5 — emoji whitelist (same defense-in-depth as fn_add_reaction)
   IF p_emoji NOT IN ('👍','❤️','😂','👀','🔥','🙏') THEN
-    RAISE EXCEPTION 'E_REACTION_FORBIDDEN: bad_emoji_%%', p_emoji
+    RAISE EXCEPTION 'E_REACTION_FORBIDDEN: bad_emoji_%', p_emoji
       USING ERRCODE = 'P0001';
   END IF;
 

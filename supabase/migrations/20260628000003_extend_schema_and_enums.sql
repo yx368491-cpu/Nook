@@ -80,6 +80,10 @@ create index if not exists idx_attachments_message_id
 
 alter table public.attachments enable row level security;
 
+-- Add attachment_id column to messages (M3-1 fix: column was missing from init 00001)
+alter table public.messages
+  add column if not exists attachment_id uuid;
+
 -- Add FK from messages.attachment_id -> attachments.id now that attachments exists.
 -- The M2 init intentionally omitted this FK until attachments table was created.
 do $$

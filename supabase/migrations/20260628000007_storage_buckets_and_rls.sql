@@ -20,32 +20,38 @@
 -- Idempotent: ON CONFLICT (id) DO NOTHING + DO-block pg_policies check.
 
 -- ====================================================================
--- 1. Insert buckets (idempotent on 'name' uniqueness)
+-- 1. Insert buckets (idempotent via DO-block existence check)
+--    Supabase cloud may already have default buckets; skip if present.
 -- ====================================================================
-insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values (
-  'avatars',
-  'avatars',
-  true,                                -- same-conv members fetch via signed URL; public for direct
-  5 * 1024 * 1024,                     -- 5 MB
-  array['image/png','image/jpeg','image/heic','image/webp']
-)
-on conflict (id) do nothing;
+do $$
+begin
+  if not exists (select 1 from storage.buckets where id = 'avatars') then
+    insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+    values (
+      'avatars',
+      'avatars',
+      true,                                -- same-conv members fetch via signed URL; public for direct
+      5 * 1024 * 1024,                     -- 5 MB
+      array['image/png','image/jpeg','image/heic','image/webp']
+    );
+  end if;
 
-insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values (
-  'attachments',
-  'attachments',
-  false,                               -- strict RLS via message FK
-  50 * 1024 * 1024,                    -- 50 MB
-  array[
-    'image/png','image/jpeg','image/heic','image/webp',
-    'application/pdf','text/plain','text/markdown',
-    'application/zip','application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-  ]
-)
-on conflict (id) do nothing;
+  if not exists (select 1 from storage.buckets where id = 'attachments') then
+    insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+    values (
+      'attachments',
+      'attachments',
+      false,                               -- strict RLS via message FK
+      50 * 1024 * 1024,                    -- 50 MB
+      array[
+        'image/png','image/jpeg','image/heic','image/webp',
+        'application/pdf','text/plain','text/markdown',
+        'application/zip','application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ]
+    );
+  end if;
+end $$;
 
 -- ====================================================================
 -- 2. avatars bucket policies: read-public, write-self, delete-self
@@ -64,7 +70,7 @@ begin
       with check (
         bucket_id = 'avatars'
         -- Path convention enforced client-side: avatars/<user_id>/<file>
-        and (storage.foldername(name) = auth.uid()::text)
+        and ((storage.foldername(name))[1] = auth.uid()::text)
       );
   end if;
 
@@ -78,11 +84,11 @@ begin
       to authenticated
       using (
         bucket_id = 'avatars'
-        and (storage.foldername(name) = auth.uid()::text)
+        and ((storage.foldername(name))[1] = auth.uid()::text)
       )
       with check (
         bucket_id = 'avatars'
-        and (storage.foldername(name) = auth.uid()::text)
+        and ((storage.foldername(name))[1] = auth.uid()::text)
       );
   end if;
 
@@ -96,7 +102,7 @@ begin
       to authenticated
       using (
         bucket_id = 'avatars'
-        and (storage.foldername(name) = auth.uid()::text)
+        and ((storage.foldername(name))[1] = auth.uid()::text)
       );
   end if;
 
