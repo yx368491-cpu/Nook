@@ -2,7 +2,7 @@
 export type UserRole = 'owner' | 'friend';
 
 /** Conversation type */
-export type ConversationKind = 'one_to_one' | 'group';
+export type ConversationKind = 'direct' | 'group';
 
 /**
  * Message content type.

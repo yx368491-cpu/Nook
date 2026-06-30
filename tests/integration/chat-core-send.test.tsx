@@ -92,7 +92,7 @@ function makeWrapper(qc: QueryClient) {
 function makeConvRow(overrides: Partial<ConversationListItem> & { id: string; title: string }): ConversationListItem {
   return {
     id: overrides.id,
-    kind: overrides.kind ?? 'one_to_one',
+    kind: overrides.kind ?? 'direct',
     title: overrides.title,
     avatarUrl: null,
     lastActivityAt: overrides.lastActivityAt ?? DEFAULT_NOW,

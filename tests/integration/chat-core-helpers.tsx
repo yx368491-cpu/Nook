@@ -209,7 +209,7 @@ export function makeConversationListItem(
 ): ConversationListItem {
   return {
     id: overrides.id,
-    kind: overrides.kind ?? 'one_to_one',
+    kind: overrides.kind ?? 'direct',
     title: overrides.title,
     avatarUrl: overrides.avatarUrl ?? null,
     lastActivityAt: overrides.lastActivityAt ?? DEFAULT_NOW,

@@ -64,7 +64,7 @@ export default function InviteNewPage() {
   // Auto-pick the first conversation when (a) targetKind becomes 'conversation'
   // AND (b) there's exactly one choice and (c) the user hasn't picked yet.
   const ownedConvs = useMemo(
-    () => (conversations.data ?? []).filter((c) => c.kind === 'group' || c.kind === 'one_to_one'),
+    () => (conversations.data ?? []).filter((c) => c.kind === 'group' || c.kind === 'direct'),
     [conversations.data],
   );
 

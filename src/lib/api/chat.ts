@@ -91,7 +91,7 @@ interface MessageRowEmbeds {
   deleted_by_sender_at: string | null;
   client_msg_id: string | null;
   created_at: string;
-  // join: messages_sender_id_fkey → profiles
+  // join: messages_sender_id_profiles_fkey → profiles
   sender: {
     id: string;
     display_name: string | null;
@@ -161,14 +161,14 @@ export interface ConversationListItem {
   kind: ConversationKind;
   /**
    * Display title:
-   * - `one_to_one` → other participant's displayName
-   * - `group`      → `conversations.name`
+   * - `direct` → other participant's displayName
+   * - `group`  → `conversations.name`
    */
   title: string;
   /**
    * Display avatar URL:
-   * - `one_to_one` → other participant's avatar_url
-   * - `group`      → `conversations.avatar_url`
+   * - `direct` → other participant's avatar_url
+   * - `group`  → `conversations.avatar_url`
    */
   avatarUrl: string | null;
   /** ISO timestamp used for sorting (latest message createdAt, else updated_at) */
@@ -314,7 +314,7 @@ export async function listConversations(
         id, kind, name, avatar_url, created_at, updated_at,
         members:conversation_members(
           user_id, role, joined_at, left_at, last_read_at,
-          profile:profiles!conversation_members_user_id_fkey(
+          profile:profiles!conversation_members_user_id_profiles_fkey(
             id, display_name, avatar_url, role
           )
         ),
@@ -392,14 +392,14 @@ export async function listMessages(args: {
       `
         id, conversation_id, sender_id, kind, body, attachment_id, reply_to_id,
         edited_at, recalled_at, deleted_by_sender_at, client_msg_id, created_at,
-        sender:profiles!messages_sender_id_fkey(id, display_name, avatar_url),
+        sender:profiles!messages_sender_id_profiles_fkey(id, display_name, avatar_url),
         attachment:attachments!messages_attachment_id_fkey(
           id, storage_path, mime, size_bytes, width, height, uploaded_by, created_at
         ),
         reply_to:messages!reply_to_id(
           id, conversation_id, sender_id, kind, body,
           recalled_at, deleted_by_sender_at, created_at,
-          sender:profiles!messages_sender_id_fkey(id, display_name, avatar_url)
+          sender:profiles!messages_sender_id_profiles_fkey(id, display_name, avatar_url)
         ),
         reactions:reactions(emoji, user_id)
       `,
@@ -504,7 +504,7 @@ function transformConversationListItem(
 
   let title: string;
   let avatarUrl: string | null;
-  if (conv.kind === 'one_to_one') {
+  if (conv.kind === 'direct') {
     if (otherMembers.length === 1) {
       const other = otherMembers[0]!;
       title = other.profile?.display_name?.trim() || '?';
