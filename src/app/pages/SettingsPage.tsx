@@ -14,10 +14,10 @@ export default function SettingsPage() {
       <h1 className="text-[var(--font-size-h2)] font-[600] text-[var(--color-ink-default)] mb-[var(--space-lg)]">
         {t('settings.title')}
       </h1>
-      <div className="flex gap-[var(--space-md)] mb-[var(--space-lg)]">
+      <nav aria-label={t('settings.title')} className="flex gap-[var(--space-md)] mb-[var(--space-lg)]">
         <Link to="/settings/profile" className="text-[var(--color-accent-default)]">{t('settings.profile.name')}</Link>
         <Link to="/settings/admin" className="text-[var(--color-accent-default)]">{t('settings.admin')}</Link>
-      </div>
+      </nav>
       <div className="mb-[var(--space-lg)]">
         <label className="text-[var(--font-size-caption)] text-[var(--color-ink-muted)] block mb-[var(--space-xs)]">
           {t('settings.language')}
@@ -25,7 +25,7 @@ export default function SettingsPage() {
         <button
           type="button"
           onClick={toggleLanguage}
-          className="px-[var(--space-md)] py-[var(--space-sm)] bg-[var(--color-surface-1)] rounded-[var(--radius-md)] text-[var(--color-ink-default)] border border-[var(--color-hairline-default)]"
+          className="px-[var(--space-md)] py-[var(--space-sm)] min-h-[44px] bg-[var(--color-surface-1)] rounded-[var(--radius-md)] text-[var(--color-ink-default)] border border-[var(--color-hairline-default)] focus-visible:outline-[2px] focus-visible:outline-[var(--color-accent-soft-ring)] focus-visible:outline-offset-[2px]"
         >
           {i18n.language === 'zh-CN' ? 'English' : '中文'}
         </button>

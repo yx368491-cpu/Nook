@@ -40,5 +40,8 @@ verify_jwt = true
 [functions.admin-delete-friend]
 verify_jwt = true
 
+[functions.reset-password-complete]
+verify_jwt = false
+
 [edge_runtime]
 policy = "oneshot"

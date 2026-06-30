@@ -55,7 +55,8 @@ export default function SettingsProfilePage() {
   };
 
   return (
-    <div className="max-w-[400px] flex flex-col gap-[var(--space-xl)]">
+    <main className="max-w-[400px] flex flex-col gap-[var(--space-xl)]">
+      <h2 className="sr-only">{t('settings.profile.name')}</h2>
       <AvatarPicker />
 
       <form className="flex flex-col gap-[var(--space-md)]" onSubmit={handleSave}>
@@ -89,6 +90,6 @@ export default function SettingsProfilePage() {
           {t('settings.profile.saved')}
         </p>
       )}
-    </div>
+    </main>
   );
 }

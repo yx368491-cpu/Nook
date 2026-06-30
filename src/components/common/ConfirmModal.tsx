@@ -278,7 +278,7 @@ export function ConfirmModal(props: ConfirmModalProps) {
             aria-describedby={hintId}
             autoComplete="off"
             className="
-              w-full h-[var(--size-button-md)] px-[var(--space-md)]
+              w-full min-h-[44px] px-[var(--space-md)]
               bg-[var(--color-surface-2)]
               border border-[var(--color-hairline-default)]
               text-[var(--font-size-body-md)]

@@ -29,6 +29,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { Avatar } from '@/components/ui/Avatar';
 import { ConfirmModal } from '@/components/common/ConfirmModal';
 import { useAuth } from '@/stores/useAuth';
@@ -191,12 +192,17 @@ export function DeleteFriendCard() {
       {state.kind !== 'deleted' && (
         <>
           {friendsQuery.isLoading && (
-            <p
-              className="text-[var(--font-size-meta)] text-[var(--color-ink-muted)]"
+            <div
+              className="flex flex-col gap-[var(--space-sm)]"
               data-testid="settings-admin-delete-loading"
+              aria-busy="true"
             >
-              {t('common.loading')}
-            </p>
+              <Skeleton width={80} height={12} variant="text" />
+              <div className="flex items-center gap-[var(--space-sm)]">
+                <Skeleton width={28} height={28} variant="circle" />
+                <Skeleton className="flex-1" height={44} />
+              </div>
+            </div>
           )}
 
           {!friendsQuery.isLoading && friends.length === 0 && (
@@ -223,6 +229,7 @@ export function DeleteFriendCard() {
                     rounded-[var(--radius-md)] border border-[var(--color-hairline-default)]
                     bg-[var(--color-surface-2)]
                     px-[var(--space-md)] py-[var(--space-sm)]
+                    min-h-[44px]
                   "
                 >
                   {selectedFriend && (
@@ -240,6 +247,7 @@ export function DeleteFriendCard() {
                     className="
                       flex-1 bg-transparent text-[var(--font-size-body-md)] text-[var(--color-ink-default)]
                       focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]
+                      min-h-[44px]
                     "
                     data-testid="settings-admin-delete-friend-select"
                   >

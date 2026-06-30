@@ -139,7 +139,7 @@ export default function InviteNewPage() {
         : t('settings.inviteNew.created.targetConversation', { name: convTitle ?? '—' });
 
     return (
-      <div
+      <main
         className="min-h-screen bg-[var(--color-canvas-default)] p-[var(--space-xl)]"
         data-testid="invite-new-success"
       >
@@ -216,7 +216,7 @@ export default function InviteNewPage() {
             </Button>
           </div>
         </div>
-      </div>
+      </main>
     );
   }
 
@@ -229,12 +229,11 @@ export default function InviteNewPage() {
     !isCreating &&
     (targetKind === 'any' || (targetKind === 'conversation' && selectedConversationId));
 
-  return (
-    <div
-      className="min-h-screen bg-[var(--color-canvas-default)] p-[var(--space-xl)]"
-      data-testid="invite-new-form"
-    >
-      <div className="mx-auto max-w-[560px] flex flex-col gap-[var(--space-xl)]">
+  return (      <main
+        className="min-h-screen bg-[var(--color-canvas-default)] p-[var(--space-xl)]"
+        data-testid="invite-new-form"
+      >
+        <div className="mx-auto max-w-[560px] flex flex-col gap-[var(--space-xl)]">
         {/* Header */}
         <div className="flex flex-col gap-[var(--space-xs)]">
           <h1 className="text-[var(--font-size-h2)] font-[600] text-[var(--color-ink-default)]">
@@ -392,6 +391,6 @@ export default function InviteNewPage() {
           </Button>
         </form>
       </div>
-    </div>
+    </main>
   );
 }

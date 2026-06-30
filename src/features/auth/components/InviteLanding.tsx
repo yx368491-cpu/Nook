@@ -72,7 +72,7 @@ export function InviteLanding({ details, token }: InviteLandingProps) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--color-canvas-default)] p-[var(--space-xl)]">
+    <main className="min-h-screen flex flex-col items-center justify-center bg-[var(--color-canvas-default)] p-[var(--space-xl)]">
       <div className="w-full max-w-[420px] space-y-[var(--space-xl)]">
         {/* ── Header Logo ── */}
         <div className="text-center">
@@ -213,6 +213,6 @@ export function InviteLanding({ details, token }: InviteLandingProps) {
           Nook v1.0
         </p>
       </div>
-    </div>
+    </main>
   );
 }

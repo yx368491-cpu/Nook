@@ -71,7 +71,6 @@ export default defineConfig({
                 name: 'nook-messages-queue',
                 options: {
                   maxRetentionTime: 7 * 24 * 60, // 7 days, expressed in minutes
-                  maxRetries: 5,
                 },
               },
             },
@@ -96,7 +95,6 @@ export default defineConfig({
                 name: 'nook-messages-queue',
                 options: {
                   maxRetentionTime: 7 * 24 * 60, // 7 days, expressed in minutes
-                  maxRetries: 5,
                 },
               },
             },
@@ -134,8 +132,7 @@ export default defineConfig({
               cacheName: 'nook-image-cache',
               expiration: {
                 maxEntries: 200,
-                maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
-                maxSizeBytes: 200 * 1024 * 1024, // 200 MB
+                maxAgeSeconds: 30 * 24 * 60 * 60 // 30 days
               },
               cacheableResponse: {
                 statuses: [0, 200], // 0 = opaque (cross-origin supabase response)

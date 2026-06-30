@@ -678,7 +678,122 @@
   - 4 份项目记忆文档同步: TODO.md / AI_HANDOVER.md / CHANGELOG.md / 本文件 ✓
   - `git tag -a v0.5.0+M6 -m "..."` ✓
 - **当前状态**: M6 batch 全部完成 ✅ — M6-1/2/3 (admin setup + invite create UI @ `f19a8e8`) + M6-4 (admin-reset-password @ `85a57e9`) + M6-5/6 (admin-delete-friend + ConfirmModal S43.0) + M6-7 (copy invite URL S44.0) = **7 个 milestone 全 ship**
-- **下一步计划**: **M7-4 Responsive layout** (F-UI-01 / NF-RESP-N01) — Sidebar→drawer on <1024px · ChatPanel 适配 · 3 断点。**Deferred v1.1+**: M5-4-compress canvas WebP compression · M5-2.1 manual retry button · M6-4.1 friend-side `/reset-password/:token` completion EF · M5-1.1 quota UI · push-notification cross-device sync
+- **下一步计划**: M6-4.1 friend-side `/reset-password/:token` completion EF (M6 batch 唯一开放端)
+
+---
+
+## S45.0 · 2026-06-29 · M6-4.1 friend-side password reset completion EF + full form (F-AUTH-07 / AC.16)
+
+- **开发内容**: 实现 M6-4.1 — M6 batch 最后未 ship 的 milestone。匿名 EF (verify_jwt=false) 接受 token + 新密码，验证 invites 行状态，通过 `supabaseAdmin.auth.admin.updateUserById()` 更新密码，标记 invite 为已使用。替换 M6-4 的 placeholder 页面为完整密码重置表单 (token 验证 + 新密码/确认密码 + 客户端校验 + 成功/错误状态)。
+- **新增功能**:
+  - `supabase/functions/reset-password-complete/index.ts` (NEW · ~140 行) — 匿名 EF
+    - 验证 token 格式 (32-char base64url regex) + 密码长度 (≥8 字符)
+    - 查找 invites 行，验证: target_kind=password_reset, not expired (E_RES_TOKEN_EXPIRED), not used (E_RES_TOKEN_USED), not revoked (E_RES_TOKEN_REVOKED)
+    - 通过 `supabaseAdmin.auth.admin.updateUserById(targetUserId, { password })` 更新密码
+    - 非致命标记 invite 为已使用 (密码更新成功后尝试标记，失败只 log 不 blocking)
+    - 返回 200 { success, message }。所有错误路径走 _shared/response.ts 的 badRequest/notFound/gone/internalError 统一封装
+  - `supabase/config.toml` — 新增 `[functions.reset-password-complete] verify_jwt = false` stanza
+  - `src/lib/api/admin.ts` — `adminApi.resetPasswordComplete({ token, password })` 方法，复用 `mapAdminError`
+  - `src/app/pages/ResetPasswordPlaceholderPage.tsx` — 完整替换
+    - 状态机: idle → submitting → {success, error}
+    - Token 验证: `/^[A-Za-z0-9_-]{32}$/.test(token)` — 无效 token 显示 invalid-token card
+    - 表单: 新密码 + 确认密码输入框
+    - 客户端校验: min 8 字符, 密码匹配, 清除先前验证错误
+    - 提交调 `adminApi.resetPasswordComplete()`
+    - 成功卡片: 绿色勾 SVG + 标题 + 消息 + /login 按钮
+    - 错误 strip: `codeToI18nKey` 映射 6 个错误码
+    - `data-testid × 10`
+  - `src/app/pages/ResetPasswordPlaceholderPage.test.tsx` — 重写 17 个测试用例
+    - Page chrome (1) · Invalid token ×3 · Client validation ×2 · Validation clear ×1 · Successful submit ×2 · Error states ×5 (每个错误码) · Submit gating ×2 · Loading state ×1
+  - i18n × 2 lang — `resetComplete.*` ~15 keys
+- **遇到的问题**:
+  - React 18 自动批处理导致 `fireEvent.click()` 后 `setState` 不立刻反映在 DOM 中 — 加载状态测试使用 `aria-busy="true"` (Button 组件 loading 态渲染 spinner SVG 而非 children text)
+  - Button 组件 `loading={true}` 时只渲染 spinner SVG, children 被替换 — 不能检查 textContent, 应检查 `aria-busy`
+  - 空 token 路径测试: React Router `:token` param 需要至少一个字符 — 用 `:token?` optional param 才能测试空 token 场景
+- **解决方案**:
+  - Loading 态测试: `await waitFor(() => expect(btn.getAttribute('aria-busy')).toBe('true'))` — 等待 React batch flush
+  - 空 token 测试: `path="/reset-password/:token?"` optional 路由
+  - `beforeEach` 显式从 vitest import (项目风格一致)
+  - 移除 `E_VAL_REQUIRED_FIELD` dead code (EF 从不返回此码)
+- **验证结果** (本机 static-only per KI-9):
+  - `npx vitest run src/app/pages/ResetPasswordPlaceholderPage.test.tsx` → **17/17 pass** ✓
+  - `npx vitest run src/lib/api/admin.test.ts` → **28/28 pass** ✓ (无回归)
+  - `npx vitest run` → **33 files · 412 tests passed** ✓ (+14 net from M6 baseline 398 · 0 regression)
+  - `npx tsc --noEmit` → 0 new errors in M6-4.1 files (pre-existing Deno EF baseline unchanged)
+  - code-reviewer-deepseek-flash: **LGTM — ship-ready** ✓ (no blocking issues, no should-fix)
+  - 4 项目记忆文档更新: TODO.md / AI_HANDOVER.md / CHANGELOG.md / 本文件 ✓
+- **当前状态**: M6-4.1 ship ✅ — M6 batch 全部 8 个 milestone 正式全 ship ✅
+- **下一步计划**: **M7-4 Responsive layout** (F-UI-01 / NF-RESP-N01) — Sidebar→drawer on <1024px · ChatPanel 适配 · 3 断点。**Deferred v1.1+**: M5-4-compress canvas WebP compression · M5-2.1 manual retry button · M5-1.1 quota UI · push-notification cross-device sync
+
+---
+
+## S46.0 · 2026-06-29 · M7 Accessibility UI polish batch (M7-1 · M7-2 · M7-3 · M7-4 · M7-5)
+
+- **开发内容**: 完成 M7 UI/UX 审计批次 5 个 milestone — M7-1 reduced-motion 审计, M7-2 focus-visible ring 修复, M7-3 touch target 44px 审计, M7-4 responsive layout (sidebar drawer + hamburger), M7-5 keyboard tab order 审计。本机 static-only 验收 (per KI-9)。
+
+- **新增功能**:
+
+  **M7-4 · Responsive layout (F-UI-01 / NF-RESP-N01)** — 核心功能变更：
+  - `src/app/pages/HomePage.tsx` — Desktop (≥1024px) 保持 inline `[Sidebar][ChatPanel]` 布局不变。Mobile/Tablet (<1024px) 将 Sidebar 渲染为 `fixed` 抽屉 + scrim 遮罩 overlay。抽屉用 `translate-x` CSS transition 实现 180ms 滑入/出动画。Scrim 有 `opacity` transition + `pointer-events-auto/none` 切换。两个断点共用一个逻辑：mobile `w-screen max-w-[var(--sidebar-width)]`，tablet 同理。
+  - `src/components/chat/ChatPanel.tsx` — 头部添加 hamburger 按钮 (3-line SVG, `w-[var(--size-button-md)]`, `rounded-[var(--radius-md)]`)，仅 `!isDesktop` 时渲染。点击调用 `useUI.toggleSidebar()`。含 `focus-visible:outline` + hover/active 状态 + `aria-label={t('sidebar.open')}`。
+  - i18n × 2 lang — 添加 `sidebar.open` / `sidebar.close` keys。
+
+- **修改内容**:
+
+  **M7-1 · Reduced-motion audit (审计仅, 无代码变更)**：
+  - `src/styles/index.css` 已有全局 `@media (prefers-reduced-motion: reduce)` 规则 (`!important` 覆盖所有 animation/transition)。5 处组件额外使用 `motion-safe:` 前缀 (TypingIndicator, Composer yellow dot, DropZone, ProgressBar, ConfirmModal) 提供双重保障。**结论**: 无需代码变更。
+
+  **M7-2 · focus-visible rings (6 组件修复)**：
+  - `src/components/chat/Sidebar.tsx` — profile avatar button + retry button 添加 `focus-visible:outline-[2px] ... accent-soft-ring` (历史记录中完成)
+  - `src/components/chat/ConversationListItem.tsx` — 行按钮添加 `focus-visible:outline` + `outline-offset-[-2px]` (负偏移应对 selected 左边框)
+  - `src/app/pages/SettingsPage.tsx` — 语言切换按钮添加标准 ring
+  - `src/components/ui/Bubble.tsx` — reaction chip buttons + file download `<a>` 添加标准 ring
+
+  **M7-3 · Touch target ≥ 44px 审计 (5 组件修复)**：
+  - `src/components/chat/Sidebar.tsx` — profile avatar button: `min-w-[44px] min-h-[44px] flex items-center justify-center` (原 ~28px)
+  - `src/app/pages/SettingsPage.tsx` — 语言切换按钮: `min-h-[44px]` (原 ~43.6px)
+  - `src/components/common/ConfirmModal.tsx` — 输入框: `h-[36px]` → `min-h-[44px]`
+  - `src/components/settings/PasswordResetCard.tsx` — `<select>` 容器 + `<select>` 自身: `min-h-[44px]`
+  - `src/components/settings/DeleteFriendCard.tsx` — 同上
+  - **已记录的设计约束**: MessageItem action buttons (24px × 4-5), EmojiPicker trigger (24px), EmojiPicker cells (28px × 6), Composer IconButtons (32px × 2), Bubble reaction chips, Button size="md" (36px global token)
+
+  **M7-5 · Keyboard tab order 审计 + 修复**：
+  - `src/app/pages/HomePage.tsx` — 移动端 Sidebar drawer 关闭时添加 `inert` HTML attribute (通过 `useRef` + `useEffect` + DOM API `setAttribute/removeAttribute`)，防止 Tab 焦点进入不可见的 drawer 元素。Scrim 也同时 `inert`。依赖数组 `[sidebarOpen, isDesktop]` 确保 resize 场景正确同步。
+  - **Tab 顺序审计结论**: Desktop: Sidebar → ChatPanel header → MessageList → Composer ✅。Login/Register: email → password → submit ✅。Settings: nav links → lang toggle → Outlet ✅。InviteNew: radio → select → submit ✅。ResetPassword: token card → form → success card ✅。
+
+- **修复问题**:
+  - M7-4: HomePage 未使用的 `Button` import 移除
+  - M7-5: `inert` 属性类型错误 (React 18 无 `inert` prop 支持) → 改用 DOM API `setAttribute/removeAttribute`
+  - M7-5: `useEffect` 依赖数组缺 `isDesktop` → resize 从桌面切到移动端时 drawer 首次渲染不会设置 `inert` (reviewer 发现) → 添加 `isDesktop` 依赖
+
+- **遇到的问题**:
+  - React 18 不支持 `inert` 作为 JSX prop (TypeScript `HTMLAttributes` 未包含) → 改 `useRef` + `useEffect` 调用 DOM API
+  - `inert` 设置时机: drawer 在 CSS transition 期间 (180ms) 应该已经 inert → `useEffect` 在 DOM commit 后同步执行，transition 动画与 inert 状态一致
+  - M7-3 touch target: Button size="md" (36px global token) 影响面广，不改 token 只加 `min-h` 在具体组件上
+
+- **解决方案**:
+  - **inert via DOM API**: `drawerRef.current.setAttribute/removeAttribute('inert')` 在 `useEffect([sidebarOpen, isDesktop])` 中执行 — 兼容 React 18 类型系统
+  - **touch target 增量**: 用 `min-w-[44px]` `min-h-[44px]` 最低尺寸约束而非改全局 token，避免连锁影响
+  - **focus-visible 统一**: 全部使用 `focus-visible:outline-[2px] focus-visible:outline-[var(--color-accent-soft-ring)] focus-visible:outline-offset-[2px]` 与 Button.tsx/Input.tsx 保持一致
+  - **响应式抽屉**: `translate-x` + `opacity` CSS transition 180ms (`--duration-base`)，全局 `prefers-reduced-motion` 覆盖后降为 0ms
+
+- **验证结果** (本机 static-only per KI-9):
+  - `npx vitest run` → **33 files · 412 tests passed** ✓ (+0 net from S45.0 412 baseline · M7 全部为审计/样式变更，无测试回归)
+  - `npx tsc --noEmit` → 0 new errors in M7 files (pre-existing test file errors unchanged)
+  - code-reviewer-deepseek-flash: **LGTM** for all 5 milestones ✓ (M7-5: 1 finding — `isDesktop` deps — APPLIED)
+  - 4 项目记忆文档更新: TODO.md (待同步) / AI_HANDOVER.md (本 session 更新) / CHANGELOG.md (待同步) / 本文件 ✓
+
+- **当前状态**: M7 UI/UX batch 5/10 milestones ship ✅ — M7-1 (reduced-motion audit), M7-2 (focus-visible rings), M7-3 (touch targets), M7-4 (responsive layout), M7-5 (keyboard tab order). Test suite 稳定 412 tests.
+
+- **下一步计划**: **M7-6 Aria audit** (全局 aria-label/role/语义 HTML) · **M7-9 Hardcoded values** (duration-150, h-[6px] 等裸值替换为 design tokens) · **M7-8 Color contrast** (颜色对比度 WCAG AA)
+
+---
+
+## S19.0 Note · 2026-06-27
+
+- 目录名 i18n 化,所有路径已为英文
+- Total Sessions: 19 (cumulative)
+- 下一步: M1 Foundation (Vite 脚手架 + 4 原子组件 + 13 路由占位页)
 
 ---
 

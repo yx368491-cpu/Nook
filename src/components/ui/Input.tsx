@@ -1,4 +1,4 @@
-import { forwardRef, type InputHTMLAttributes, type TextareaHTMLAttributes, type ReactNode } from 'react';
+import { forwardRef, useId, type InputHTMLAttributes, type TextareaHTMLAttributes, type ReactNode } from 'react';
 
 export type InputVariant = 'form' | 'search' | 'composer' | 'password';
 export type InputSize = 'sm' | 'md' | 'lg';
@@ -65,6 +65,8 @@ export const Input = forwardRef<InputElement, InputProps>(
     className = '',
     ...props
   }, ref) => {
+    const errorId = `${useId()}-error`;
+    const hintId = `${useId()}-hint`;
     const isComposer = variant === 'composer';
     const inputClasses = [
       'w-full outline-none',
@@ -75,7 +77,6 @@ export const Input = forwardRef<InputElement, InputProps>(
       'disabled:bg-[var(--color-surface-2)] disabled:text-[var(--color-ink-subtle)] disabled:opacity-50',
       error ? '!border-[var(--color-signal-error)]' : '',
       variantStyles[variant],
-      sizeStyles[variant][size],
       radiusStyles[variant],
       className,
     ].join(' ');
@@ -89,19 +90,35 @@ export const Input = forwardRef<InputElement, InputProps>(
     };
 
     const wrapperClasses = [
-      'relative flex items-center gap-[var(--space-xs)]',
+      'relative flex flex-col',
     ].join(' ');
 
     if (isComposer) {
+      // Spec §3 — composer only supports size=lg. Force-lg so callers
+      // that accidentally pass sm/md get the correct geometry.
+      const composerClasses = [
+        inputClasses,
+        sizeStyles['composer']['lg'],
+        'resize-none py-[var(--space-sm)] leading-[var(--leading-chill)] text-[var(--font-size-body-lg)]',
+      ].join(' ');
       return (
         <div className={wrapperClasses}>
-          {leadingIcon && <span className="flex-shrink-0 text-[var(--color-ink-muted)]">{leadingIcon}</span>}
-          <textarea
-            {...(inputProps as TextareaHTMLAttributes<HTMLTextAreaElement>)}
-            rows={1}
-            className={`${inputClasses} resize-none py-[var(--space-sm)] leading-[var(--leading-chill)] text-[var(--font-size-body-lg)]`}
-          />
-          {trailingIcon && <span className="flex-shrink-0">{trailingIcon}</span>}
+          <div className="relative flex items-center gap-[var(--space-xs)]">
+            {leadingIcon && <span className="flex-shrink-0 text-[var(--color-ink-muted)]">{leadingIcon}</span>}
+            <textarea
+              {...(inputProps as TextareaHTMLAttributes<HTMLTextAreaElement>)}
+              rows={1}
+              className={composerClasses}
+              aria-describedby={error ? errorId : hint ? hintId : undefined}
+            />
+            {trailingIcon && <span className="flex-shrink-0">{trailingIcon}</span>}
+          </div>
+          {error && (
+            <p id={errorId} className="mt-[var(--space-2xs)] text-[var(--font-size-caption)] text-[var(--color-signal-error)]">{error}</p>
+          )}
+          {hint && !error && (
+            <p id={hintId} className="mt-[var(--space-2xs)] text-[var(--font-size-caption)] text-[var(--color-ink-muted)]">{hint}</p>
+          )}
         </div>
       );
     }
@@ -111,15 +128,16 @@ export const Input = forwardRef<InputElement, InputProps>(
         {leadingIcon && <span className="absolute left-[var(--space-sm)] text-[var(--color-ink-muted)]">{leadingIcon}</span>}
         <input
           {...(inputProps as InputHTMLAttributes<HTMLInputElement>)}
-          className={`${inputClasses} ${leadingIcon ? 'pl-[calc(var(--space-sm)*2+16px)]' : ''} ${trailingIcon ? 'pr-[calc(var(--space-sm)*2+16px)]' : ''}`}
+          className={`${inputClasses} ${sizeStyles[variant][size]} ${leadingIcon ? 'pl-[calc(var(--space-sm)*2+16px)]' : ''} ${trailingIcon ? 'pr-[calc(var(--space-sm)*2+16px)]' : ''}`}
           type={variant === 'password' ? 'password' : variant === 'search' ? 'search' : 'text'}
+          aria-describedby={error ? errorId : hint ? hintId : undefined}
         />
         {trailingIcon && <span className="absolute right-[var(--space-sm)]">{trailingIcon}</span>}
         {error && (
-          <p className="mt-[var(--space-2xs)] text-[var(--font-size-caption)] text-[var(--color-signal-error)]">{error}</p>
+          <p id={errorId} className="mt-[var(--space-2xs)] text-[var(--font-size-caption)] text-[var(--color-signal-error)]">{error}</p>
         )}
         {hint && !error && (
-          <p className="mt-[var(--space-2xs)] text-[var(--font-size-caption)] text-[var(--color-ink-muted)]">{hint}</p>
+          <p id={hintId} className="mt-[var(--space-2xs)] text-[var(--font-size-caption)] text-[var(--color-ink-muted)]">{hint}</p>
         )}
       </div>
     );

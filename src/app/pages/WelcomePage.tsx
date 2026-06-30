@@ -23,7 +23,7 @@ export default function WelcomePage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--color-canvas-default)] p-[var(--space-xl)]">
+    <main className="min-h-screen flex flex-col items-center justify-center bg-[var(--color-canvas-default)] p-[var(--space-xl)]">
       {/* Logo / Brand */}
       <div className="text-center max-w-[420px]">
         <h1 className="text-[var(--font-size-display)] font-[600] text-[var(--color-ink-default)] mb-[var(--space-xs)] tracking-[-0.02em]">
@@ -47,6 +47,6 @@ export default function WelcomePage() {
           </Button>
         </Link>
       </div>
-    </div>
+    </main>
   );
 }

@@ -3,6 +3,7 @@ import { useConversationsQuery } from '@/hooks/useConversations';
 import { useUI } from '@/stores/useUI';
 import { useAuth } from '@/stores/useAuth';
 import { Avatar } from '@/components/ui/Avatar';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { ConversationListItemRow } from './ConversationListItem';
 
 /**
@@ -15,10 +16,10 @@ function SkeletonRow() {
       aria-hidden="true"
       className="w-full flex items-center gap-[var(--space-md)] px-[var(--space-md)] py-[var(--space-sm)]"
     >
-      <div className="w-[32px] h-[32px] rounded-[var(--radius-circle)] bg-[var(--color-surface-2)]" />
-      <div className="flex-1 min-w-0">
-        <div className="h-[14px] w-2/3 rounded-[var(--radius-sm)] bg-[var(--color-surface-2)] mb-[6px]" />
-        <div className="h-[10px] w-1/2 rounded-[var(--radius-sm)] bg-[var(--color-surface-2)]" />
+      <Skeleton width={32} height={32} variant="circle" />
+      <div className="flex-1 min-w-0 flex flex-col gap-[6px]">
+        <Skeleton width="66%" height={14} variant="text" />
+        <Skeleton width="50%" height={10} variant="text" />
       </div>
     </div>
   );
@@ -48,7 +49,11 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
       <button
         type="button"
         onClick={onRetry}
-        className="text-[var(--color-accent-default)] hover:underline text-[var(--font-size-meta)] font-[500]"
+        className={[
+          'text-[var(--color-accent-default)] text-[var(--font-size-meta)] font-[500]',
+          'hover:underline',
+          'focus-visible:outline-[2px] focus-visible:outline-[var(--color-accent-soft-ring)] focus-visible:outline-offset-[2px]',
+        ].join(' ')}
       >
         {t('sidebar.retry')}
       </button>
@@ -82,7 +87,15 @@ export function Sidebar() {
         <button
           type="button"
           aria-label={t('nav.profile')}
-          className="rounded-[var(--radius-circle)] hover:bg-[var(--color-surface-2)] p-[2px] transition-colors duration-[var(--duration-fast)]"
+          className={[
+            'rounded-[var(--radius-circle)]',
+            'p-[2px]',
+            'min-w-[44px] min-h-[44px]',
+            'flex items-center justify-center',
+            'hover:bg-[var(--color-surface-2)]',
+            'transition-colors duration-[var(--duration-fast)]',
+            'focus-visible:outline-[2px] focus-visible:outline-[var(--color-accent-soft-ring)] focus-visible:outline-offset-[2px]',
+          ].join(' ')}
         >
           <Avatar
             size="sm"

@@ -182,13 +182,18 @@ export interface EnqueueInput {
  *
  * `@returns delayMs` — wall-clock ms to wait before attempting again.
  *
- * Examples (base 1s, cap 60s):
- *   backoffMsFor(0) → 1000ms  (next attempt after 0 failures)
- *   backoffMsFor(1) → 2000ms  (next attempt after 1 failure)
- *   backoffMsFor(2) → 4000ms  (next attempt after 2 failures)
- *   backoffMsFor(3) → 8000ms  (next attempt after 3 failures)
- *   backoffMsFor(4) → 16000ms (next attempt after 4 failures — last)
- *   backoffMsFor(5) → 32000ms (not used — MAX_ATTEMPTS=5 stops here)
+ * Called with `nextAttempts` (= `row.attempts + 1`) from `markFailed`.
+ * The retry schedule before terminal `failed`:
+ *
+ *   attempts=0 (nextAttempts=1): backoffMsFor(1) = 2000ms  — 1st retry
+ *   attempts=1 (nextAttempts=2): backoffMsFor(2) = 4000ms  — 2nd retry
+ *   attempts=2 (nextAttempts=3): backoffMsFor(3) = 8000ms  — 3rd retry
+ *   attempts=3 (nextAttempts=4): backoffMsFor(4) = 16000ms — 4th retry
+ *   attempts=4 (nextAttempts=5): ≥ MAX_ATTEMPTS → terminal failed
+ *
+ * Backoff at arbitrary indices (for testing / defensive callers):
+ *   backoffMsFor(0)  → 1000ms
+ *   backoffMsFor(5)  → 32000ms
  *   backoffMsFor(10) → 60000ms (cap)
  *
  * The function clamps the exponent to keep the calculation arithmetic

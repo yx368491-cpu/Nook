@@ -56,13 +56,16 @@
   },
   "sidebar": {
     "title": "对话",
+    "open": "打开对话列表",
+    "close": "关闭对话列表",
     "empty": "暂无对话",
     "emptyHint": "请 Owner 发送邀请链接，加入后你们的对话会出现在这里。",
     "error": "加载对话失败",
     "retry": "重试",
     "previewImage": "图片",
     "previewFile": "文件",
-    "previewSelf": "我: "
+    "previewSelf": "我: ",
+    "conversationLabel": "与 {{name}} 的对话"
   },
   "messages": {
     "loadMore": "向上滚动加载更早消息",
@@ -163,6 +166,7 @@
       "unknown": "表态失败"
     },
     "imageAlt": "图片消息",
+    "error": "加载消息失败",
     "file": "文件",
     "today": "今天",
     "yesterday": "昨天",
@@ -324,6 +328,7 @@
     "loading": "加载中…",
     "error": "出错了",
     "retry": "重试",
+    "downloadFile": "下载 {{name}}",
     "cancel": "取消",
     "confirm": "确认",
     "save": "保存",
@@ -364,6 +369,30 @@
     "subtitle": "完整的密码重置流程将在后续更新中提供。Owner 已生成一次性链接，待好友端完成后即可使用。",
     "tokenLabel": "重置 token",
     "home": "返回首页"
+  },
+  "resetComplete": {
+    "title": "重置密码",
+    "subtitle": "输入新密码以重新访问你的 Nook。",
+    "newPassword": "新密码",
+    "confirmPassword": "确认密码",
+    "passwordPlaceholder": "至少 8 个字符",
+    "submit": "重置密码",
+    "submitting": "正在重置…",
+    "success": {
+      "title": "密码重置成功",
+      "message": "密码已更新。你现在可以用新密码登录了。",
+      "login": "登录"
+    },
+    "errors": {
+      "invalidToken": "重置链接无效，请检查链接是否正确或向 Owner 申请新链接。",
+      "tokenNotFound": "未找到此重置链接。可能是输入有误或链接无效。",
+      "tokenExpired": "此重置链接已过期，请联系 Owner 重新发送。",
+      "tokenUsed": "此重置链接已被使用。如果需要再次重置，请向 Owner 申请新链接。",
+      "tokenRevoked": "此重置链接已被 Owner 撤销。请申请一个新链接。",
+      "invalidInput": "输入无效，请检查密码后重试。",
+      "internal": "无法重置密码，请重试。",
+      "unknown": "出错了，请稍后重试。"
+    }
   },
   "outbox": {
     "pending": "发送中…",

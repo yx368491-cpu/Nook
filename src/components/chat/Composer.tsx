@@ -12,12 +12,12 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  useSendAttachmentMessage,
   ATTACHMENT_MIME_WHITELIST,
   AttachmentValidationError,
   MAX_ATTACHMENT_BYTES,
   isImageMime,
 } from '@/lib/api/chat';
+import { useSendAttachmentMessage } from '@/hooks/useSendMessage';
 import { useAuth } from '@/stores/useAuth';
 import { useChat } from '@/stores/useChat';
 import { useDraftInput } from '@/hooks/useDraftInput';
@@ -681,7 +681,7 @@ export function Composer({ conversationId }: ComposerProps) {
             }
             disabled={!canSend}
             className={[
-              'h-[36px] w-[36px] rounded-[12px]',
+              'h-[36px] w-[36px] rounded-[var(--radius-lg)]',
               'flex items-center justify-center',
               'transition-[background-color,transform] duration-[var(--transition-hover)]',
               canSend

@@ -33,7 +33,7 @@ export function UnreadBadge({
     <span
       role="status"
       aria-label={`${count} unread`}
-      className={`inline-flex items-center justify-center min-w-[20px] h-[20px] px-[6px] text-[var(--font-size-micro)] font-[600] leading-none text-[var(--color-accent-on)] bg-[var(--color-accent-default)] rounded-[var(--radius-pill)] ${className}`}
+      className={`inline-flex items-center justify-center min-w-[20px] h-[20px] px-[6px] text-[var(--font-size-micro)] font-[var(--font-weight-semibold)] leading-none text-[var(--color-accent-on)] bg-[var(--color-accent-default)] rounded-[var(--radius-pill)] ${className}`}
     >
       {display}
     </span>

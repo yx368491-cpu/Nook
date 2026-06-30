@@ -45,6 +45,15 @@ export function useConversationRealtime(conversationId: string | null) {
     const key = MESSAGES_QUERY_KEY(userId, conversationId);
 
     const handlers: MessageChannelHandlers = {
+      // M8 — refetch on channel reconnect so messages that arrived
+      // during the disconnect gap (RT pushes are not replayed) are
+      // recovered via a fresh listMessages query. Invalidates both
+      // the message list and the sidebar so previews + ordering stay
+      // current.
+      onChannelReconnected: () => {
+        void qc.invalidateQueries({ queryKey: key });
+        void qc.invalidateQueries({ queryKey: ['conversations'] });
+      },
       onMessageInsert: (rawMsg) => {
         // Reconcile isSelf — the realtime payload is sender_id only;
         // we know who we are via useAuth.

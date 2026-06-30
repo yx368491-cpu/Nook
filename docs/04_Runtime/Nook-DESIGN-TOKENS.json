@@ -26,8 +26,8 @@
     "ink": {
       "default":     { "$value": "#F2F4F8", "$type": "color", "$description": "Primary text on dark." },
       "muted":       { "$value": "#B7BDC8", "$type": "color", "$description": "Secondary text — timestamp, meta." },
-      "subtle":      { "$value": "#7A8290", "$type": "color", "$description": "Tertiary text — placeholder, disabled." },
-      "faint":       { "$value": "#525864", "$type": "color", "$description": "Quaternary — low-emphasis hint, divider-text." },
+      "subtle":      { "$value": "#828B9A", "$type": "color", "$description": "Tertiary text — placeholder, disabled." },
+      "faint":       { "$value": "#5A616E", "$type": "color", "$description": "Quaternary — low-emphasis hint, divider-text." },
       "placeholder": { "$value": "{color.ink.subtle}", "$type": "color", "$description": "Alias. Placeholder text." }
     },
     "accent": {
@@ -54,7 +54,7 @@
       "infoSoft":     { "$value": "rgba(122, 184, 240, 0.18)", "$type": "color", "$description": "Info badge background." }
     },
     "chat": {
-      "selfBg":          { "$value": "{color.accent.default}",  "$type": "color", "$description": "Own message bubble background." },
+      "selfBg":          { "$value": "#666FC7",  "$type": "color", "$description": "Own message bubble background — darkened from accent to pass WCAG AA 4.5:1 with white text." },
       "selfText":        { "$value": "{color.accent.on}",       "$type": "color", "$description": "Own message bubble text." },
       "friendBg":        { "$value": "{color.surface.1}",       "$type": "color", "$description": "Incoming message bubble background." },
       "friendText":      { "$value": "{color.ink.default}",     "$type": "color", "$description": "Incoming message bubble text." },
@@ -158,7 +158,12 @@
     "1": { "$value": "0 1px 2px rgba(0, 0, 0, 0.20)", "$type": "boxShadow", "$description": "Card subtle lift (rare)." },
     "2": { "$value": "0 4px 12px rgba(0, 0, 0, 0.32)", "$type": "boxShadow", "$description": "Popover / composer / emoji picker." },
     "3": { "$value": "0 8px 24px rgba(0, 0, 0, 0.50)", "$type": "boxShadow", "$description": "Drawer / modal." },
-    "4": { "$value": "0 16px 48px rgba(0, 0, 0, 0.60)", "$type": "boxShadow", "$description": "Largest dialog." }
+    "4": { "$value": "0 16px 48px rgba(0, 0, 0, 0.60)", "$type": "boxShadow", "$description": "Largest dialog." },
+    "card":     { "$value": "{shadow.1}", "$type": "boxShadow", "$description": "Semantic alias — card subtle lift." },
+    "popup":    { "$value": "{shadow.2}", "$type": "boxShadow", "$description": "Semantic alias — popover / composer." },
+    "modal":    { "$value": "{shadow.3}", "$type": "boxShadow", "$description": "Semantic alias — drawer / modal." },
+    "floating": { "$value": "{shadow.3}", "$type": "boxShadow", "$description": "Semantic alias — floating surface." },
+    "hover":    { "$value": "{shadow.1}", "$type": "boxShadow", "$description": "Semantic alias — hover lift." }
   },
 
   "border": {
@@ -173,7 +178,8 @@
     "color": {
       "default": { "$value": "{color.hairline.default}", "$type": "color" },
       "strong":  { "$value": "{color.hairline.strong}",  "$type": "color" }
-    }
+    },
+    "divider": { "$value": "1px solid {color.hairline.default}", "$type": "border", "$description": "Composite 1px divider shorthand." }
   },
 
   "motion": {

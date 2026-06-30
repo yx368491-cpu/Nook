@@ -69,7 +69,7 @@ function EditMenuTrigger({ onClick }: { onClick: () => void }) {
       className="
         flex h-6 w-6 items-center justify-center rounded-full
         text-[var(--color-ink-muted)]
-        opacity-0 transition-opacity duration-150
+        opacity-0 transition-opacity duration-[var(--duration-base)]
         group-hover/message:opacity-100 group-focus-within/message:opacity-100
         hover:text-[var(--color-ink-fg)]
         focus-visible:opacity-100 focus-visible:outline-none
@@ -118,7 +118,7 @@ function RecallMenuTrigger({ onClick }: { onClick: () => void }) {
       className="
         flex h-6 w-6 items-center justify-center rounded-full
         text-[var(--color-ink-muted)]
-        opacity-0 transition-opacity duration-150
+        opacity-0 transition-opacity duration-[var(--duration-base)]
         group-hover/message:opacity-100 group-focus-within/message:opacity-100
         hover:text-[var(--color-ink-fg)]
         focus-visible:opacity-100 focus-visible:outline-none
@@ -175,7 +175,7 @@ function DeleteMenuTrigger({ onClick }: { onClick: () => void }) {
       className="
         flex h-6 w-6 items-center justify-center rounded-full
         text-[var(--color-ink-muted)]
-        opacity-0 transition-opacity duration-150
+        opacity-0 transition-opacity duration-[var(--duration-base)]
         group-hover/message:opacity-100 group-focus-within/message:opacity-100
         hover:text-[var(--color-ink-fg)]
         focus-visible:opacity-100 focus-visible:outline-none
@@ -246,7 +246,7 @@ function ReplyMenuTrigger({
       className="
         flex h-6 w-6 items-center justify-center rounded-full
         text-[var(--color-ink-muted)]
-        opacity-0 transition-opacity duration-150
+        opacity-0 transition-opacity duration-[var(--duration-base)]
         group-hover/message:opacity-100 group-focus-within/message:opacity-100
         hover:text-[var(--color-ink-fg)]
         focus-visible:opacity-100 focus-visible:outline-none
@@ -331,7 +331,7 @@ function InlineEditForm({
           bg-[var(--color-bg-elevated)] px-[var(--space-sm)] py-[var(--space-xs)]
           text-[var(--font-size-body)] text-[var(--color-ink-fg)]
           leading-[var(--line-height-body)] font-[var(--font-weight-body)]
-          outline-none transition-shadow duration-150
+          outline-none transition-shadow duration-[var(--duration-base)]
           focus:shadow-[0_0_0_3px_var(--color-accent)]/16
           disabled:opacity-60
         "

@@ -18,7 +18,7 @@ export default function SettingsAdminPage() {
   const { t } = useTranslation();
 
   return (
-    <div className="flex flex-col gap-[var(--space-lg)]">
+    <div className="flex flex-col gap-[var(--space-lg)]" role="region" aria-label={t('settings.adminBox.title')}>
       {/* ── Header ───────────────────────────────────────────── */}
       <div className="flex flex-col gap-[var(--space-2xs)]">
         <h2 className="text-[var(--font-size-h3)] font-[600] text-[var(--color-ink-default)]">
@@ -34,6 +34,7 @@ export default function SettingsAdminPage() {
         {/* Invite card · ACTIVE (M6-3) */}
         <article
           data-testid="settings-admin-card-invite"
+          aria-labelledby="admin-card-invite-title"
           className="
             flex flex-col gap-[var(--space-md)]
             rounded-[var(--radius-xl)] border border-[var(--color-hairline-default)]
@@ -45,7 +46,7 @@ export default function SettingsAdminPage() {
           "
         >
           <div className="flex flex-col gap-[var(--space-2xs)]">
-            <h3 className="text-[var(--font-size-body-lg)] font-[600] text-[var(--color-ink-default)]">
+            <h3 id="admin-card-invite-title" className="text-[var(--font-size-body-lg)] font-[600] text-[var(--color-ink-default)]">
               {t('settings.adminBox.sections.invite.title')}
             </h3>
             <p className="text-[var(--font-size-meta)] text-[var(--color-ink-muted)] leading-[var(--leading-chill)]">

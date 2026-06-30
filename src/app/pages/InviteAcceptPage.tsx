@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useInviteValidation } from '@/features/auth/hooks/useInviteValidation';
 import { InviteLanding } from '@/features/auth/components/InviteLanding';
 import { Button } from '@/components/ui/Button';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 /**
  * InviteAcceptPage — M2-4 /invite/:token
@@ -22,33 +23,30 @@ export default function InviteAcceptPage() {
   // ── Loading state ──────────────────────────────────────────
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--color-canvas-default)] p-[var(--space-xl)]">
+      <main className="min-h-screen flex flex-col items-center justify-center bg-[var(--color-canvas-default)] p-[var(--space-xl)]">
         <div className="w-full max-w-[420px] space-y-[var(--space-lg)]">
           {/* Logo skeleton */}
           <div className="flex justify-center">
-            <div className="h-[24px] w-[80px] bg-[var(--color-surface-2)] rounded-[var(--radius-sm)] animate-pulse" />
+            <Skeleton width={80} height={24} variant="text" />
           </div>
 
           {/* Owner card skeleton */}
           <div className="flex flex-col items-center gap-[var(--space-md)] p-[var(--space-lg)] bg-[var(--color-surface-1)] rounded-[var(--radius-xl)] border border-[var(--color-hairline-default)]">
-            <div className="w-[48px] h-[48px] rounded-[var(--radius-circle)] bg-[var(--color-surface-2)] animate-pulse" />
-            <div className="space-y-[var(--space-xs)] text-center">
-              <div className="h-[12px] w-[120px] bg-[var(--color-surface-2)] rounded-[var(--radius-sm)] animate-pulse mx-auto" />
-              <div className="h-[20px] w-[160px] bg-[var(--color-surface-2)] rounded-[var(--radius-sm)] animate-pulse mx-auto" />
+            <Skeleton width={48} height={48} variant="circle" />
+            <div className="flex flex-col gap-[var(--space-xs)] items-center">
+              <Skeleton width={120} height={12} variant="text" />
+              <Skeleton width={160} height={20} variant="text" />
             </div>
           </div>
 
           {/* Form skeleton */}
           <div className="flex flex-col gap-[var(--space-md)] p-[var(--space-lg)] bg-[var(--color-surface-1)] rounded-[var(--radius-xl)] border border-[var(--color-hairline-default)]">
             {[1, 2, 3, 4].map((i) => (
-              <div
-                key={i}
-                className="h-[48px] w-full bg-[var(--color-surface-2)] rounded-[var(--radius-md)] animate-pulse"
-              />
+              <Skeleton key={i} className="w-full" height={48} />
             ))}
           </div>
         </div>
-      </div>
+      </main>
     );
   }
 
@@ -88,7 +86,7 @@ export default function InviteAcceptPage() {
     })();
 
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--color-canvas-default)] p-[var(--space-xl)]">
+      <main className="min-h-screen flex flex-col items-center justify-center bg-[var(--color-canvas-default)] p-[var(--space-xl)]">
         <div className="w-full max-w-[380px] flex flex-col items-center gap-[var(--space-lg)] text-center">
           {/* Error icon */}
           <div className="text-[var(--color-ink-muted)]">
@@ -131,7 +129,7 @@ export default function InviteAcceptPage() {
             </Link>
           </div>
         </div>
-      </div>
+      </main>
     );
   }
 

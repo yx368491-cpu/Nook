@@ -99,7 +99,8 @@ export function ConversationListItemRow({
       type="button"
       onClick={() => onSelect(item.id)}
       aria-current={selected ? 'true' : undefined}
-      className={`w-full flex items-center gap-[var(--space-md)] px-[var(--space-md)] py-[var(--space-sm)] text-left transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-surface-2)] ${
+      aria-label={t('sidebar.conversationLabel', { name: item.title })}
+      className={`w-full flex items-center gap-[var(--space-md)] px-[var(--space-md)] py-[var(--space-sm)] text-left transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-surface-2)] focus-visible:outline-[2px] focus-visible:outline-[var(--color-accent-soft-ring)] focus-visible:outline-offset-[-2px] ${
         selected
           ? 'bg-[var(--color-accent-soft-bg)] border-l-[3px] border-[var(--color-accent-default)]'
           : 'border-l-[3px] border-transparent'

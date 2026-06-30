@@ -49,7 +49,7 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
           color: 'var(--color-ink-muted)',
         }}
       >
-        <span>Loading…</span>
+        <span role="status">Loading…</span>
       </div>
     );
   }

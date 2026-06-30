@@ -193,7 +193,7 @@ export function EmojiPicker({
         className={[
           'flex h-6 w-6 items-center justify-center rounded-full',
           'text-[var(--color-ink-muted)]',
-          'opacity-0 transition-opacity duration-150',
+          'opacity-0 transition-opacity duration-[var(--duration-base)]',
           'group-hover/message:opacity-100',
           'group-focus-within/message:opacity-100',
           'hover:text-[var(--color-ink-fg)]',

@@ -105,6 +105,16 @@ export interface MessageChannelHandlers {
       created_at?: string;
     }>,
   ) => void;
+  /**
+   * Fired when the Supabase Realtime channel recovers after a
+   * disconnection (network flap, server restart). Consumers should
+   * refetch their data to recover any messages that arrived during
+   * the gap (RT pushes are ephemeral — they are NOT replayed).
+   *
+   * NOT fired on initial subscribe — only on subsequent SUBSCRIBED
+   * events after the first.
+   */
+  onChannelReconnected?: () => void;
 }
 
 export interface UserChannelHandlers {
@@ -199,6 +209,27 @@ export function subscribeConversationEvents(
           }>,
         ),
     );
+  }
+
+  // ── Connection health tracking ──────────────────────────────────
+  // The channel auto-reconnects via supabase-js, but RT pushes are
+  // ephemeral — messages that arrived during the disconnect gap are
+  // NOT replayed. The `onChannelReconnected` handler lets the
+  // consumer (useConversationRealtime) trigger a TanStack Query
+  // refetch to backfill the gap.
+  let wasSubscribed = false;
+  if (handlers.onChannelReconnected) {
+    channel.on('system', { event: 'SUBSCRIBED' }, () => {
+      if (wasSubscribed) {
+        handlers.onChannelReconnected!();
+      }
+      wasSubscribed = true;
+    });
+    channel.on('system', { event: 'CLOSED' }, () => {
+      // Mark as not-subscribed so the NEXT SUBSCRIBED event
+      // (reconnect) triggers the recovery refetch.
+      wasSubscribed = false;
+    });
   }
 
   channel.subscribe();

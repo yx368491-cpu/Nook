@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useInfiniteMessages } from '@/hooks/useMessages';
 import { useConversationRealtime } from '@/hooks/useConversationRealtime';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { MessageItem } from './MessageItem';
 import type { MessageListItem } from '@/lib/api/chat';
 
@@ -67,6 +68,7 @@ export function MessageList({ conversationId }: MessageListProps) {
     isFetchingNextPage,
     isLoading,
     error,
+    refetch,
   } = useInfiniteMessages(conversationId);
 
   // M3-5: subscribe per-conv Realtime (messages INSERT/UPDATE + reactions).
@@ -229,22 +231,63 @@ export function MessageList({ conversationId }: MessageListProps) {
   // Render-states
   if (isLoading) {
     return (
-      <div className="flex flex-1 items-center justify-center p-[var(--space-md)] text-[var(--color-ink-muted)]">
-        {t('common.loading')}
+      <div
+        className="flex flex-col gap-[var(--space-md)] p-[var(--space-md)]"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        {/* Simulate incoming message bubbles */}
+        <div className="flex items-end gap-[var(--space-xs)] self-start max-w-[75%]">
+          <Skeleton width={28} height={28} variant="circle" />
+          <div className="flex flex-col gap-[6px] flex-1">
+            <Skeleton height={36} className="rounded-[var(--chat-bubble-friend-radius)]" />
+            <Skeleton width="60%" height={24} className="rounded-[var(--chat-bubble-friend-radius)]" />
+          </div>
+        </div>
+
+        <div className="flex items-end gap-[var(--space-xs)] self-end max-w-[60%]">
+          <Skeleton height={28} className="rounded-[var(--chat-bubble-self-radius)]" />
+        </div>
+
+        <div className="flex items-end gap-[var(--space-xs)] self-start max-w-[70%]">
+          <Skeleton width={28} height={28} variant="circle" />
+          <Skeleton height={44} className="rounded-[var(--chat-bubble-friend-radius)] flex-1" />
+        </div>
       </div>
     );
   }
   if (error) {
     return (
-      <div className="flex flex-1 items-center justify-center p-[var(--space-md)] text-[var(--color-status-error)]">
-        {t('chat.error')}
+      <div className="flex flex-1 flex-col items-center justify-center gap-[var(--space-md)] p-[var(--space-md)] text-center">
+        <p className="text-[var(--font-size-body)] font-[500] text-[var(--color-status-error)]" role="alert">
+          {t('chat.error')}
+        </p>
+        <p className="text-[var(--font-size-meta)] text-[var(--color-ink-muted)] max-w-[32ch] leading-[var(--leading-chill)]">
+          {t('common.error')}
+        </p>
+        <button
+          type="button"
+          onClick={() => void refetch()}
+          className="
+            text-[var(--color-accent-default)] text-[var(--font-size-meta)] font-[500]
+            hover:underline focus-visible:outline-[2px] focus-visible:outline-[var(--color-accent-soft-ring)] focus-visible:outline-offset-[2px]
+          "
+        >
+          {t('common.retry')}
+        </button>
       </div>
     );
   }
   if (sortedItems.length === 0) {
     return (
-      <div className="flex flex-1 items-center justify-center p-[var(--space-md)] text-[var(--color-ink-muted)]">
-        {t('chat.noMessages')}
+      <div className="flex flex-1 flex-col items-center justify-center gap-[var(--space-sm)] p-[var(--space-md)] text-center">
+        <p className="text-[var(--font-size-body)] text-[var(--color-ink-muted)]" role="status">
+          {t('chat.noMessages')}
+        </p>
+        <p className="text-[var(--font-size-meta)] text-[var(--color-ink-subtle)] max-w-[28ch] leading-[var(--leading-chill)]">
+          {t('chat.emptyConversation')}
+        </p>
       </div>
     );
   }

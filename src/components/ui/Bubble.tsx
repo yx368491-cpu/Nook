@@ -1,4 +1,5 @@
 import { forwardRef, useState, type HTMLAttributes, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export type BubbleKind = 'self' | 'friend';
 
@@ -83,12 +84,13 @@ interface BubbleFileProps {
 }
 
 function BubbleFile({ name, sizeBytes, url }: BubbleFileProps) {
+  const { t } = useTranslation();
   const sizeLabel = sizeBytes < 1_000_000
     ? `${Math.round(sizeBytes / 1024)} KB`
     : `${(sizeBytes / 1_000_000).toFixed(1)} MB`;
 
   return (
-    <div className="flex items-center gap-[var(--space-sm)] bg-[var(--color-surface-2)] rounded-[var(--radius-md)] p-[8px_12px]">
+    <div className="flex items-center gap-[var(--space-sm)] bg-[var(--color-surface-2)] rounded-[var(--radius-md)] px-[var(--space-sm)] py-[var(--space-xs)]">
       <div className="flex-1 min-w-0">
         <p className="m-0 text-[var(--font-size-body)] truncate">{name}</p>
         <p className="m-0 text-[var(--font-size-caption)] text-[var(--color-ink-muted)]">{sizeLabel}</p>
@@ -96,8 +98,8 @@ function BubbleFile({ name, sizeBytes, url }: BubbleFileProps) {
       <a
         href={url}
         download={name}
-        className="flex-shrink-0 text-[var(--color-ink-muted)] hover:text-[var(--color-ink-default)]"
-        aria-label="下载文件"
+        className="flex-shrink-0 text-[var(--color-ink-muted)] hover:text-[var(--color-ink-default)] focus-visible:outline-[2px] focus-visible:outline-[var(--color-accent-soft-ring)] focus-visible:outline-offset-[2px]"
+        aria-label={t('common.downloadFile', { name })}
       >
         ⤓
       </a>
@@ -149,7 +151,7 @@ function BubbleReactions({ items, selfReacted = new Set(), onReact, onUnreact }:
             key={emoji}
             type="button"
             onClick={() => (isReacted ? onUnreact?.(emoji) : onReact?.(emoji))}
-            className={`inline-flex items-center gap-[2px] px-[var(--space-2xs)] py-[2px] rounded-[var(--radius-md)] text-[var(--font-size-caption)] transition-[background-color] duration-[var(--transition-hover)] ${
+            className={`inline-flex items-center gap-[2px] px-[var(--space-2xs)] py-[2px] rounded-[var(--radius-md)] text-[var(--font-size-caption)] transition-[background-color] duration-[var(--transition-hover)] focus-visible:outline-[2px] focus-visible:outline-[var(--color-accent-soft-ring)] focus-visible:outline-offset-[2px] ${
               isReacted
                 ? 'bg-[var(--color-accent-soft-bg)]'
                 : 'bg-transparent hover:bg-[var(--color-surface-2)]'

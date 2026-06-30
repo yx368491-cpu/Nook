@@ -18,8 +18,8 @@
   /* Ink */
   --color-ink-default: #F2F4F8;
   --color-ink-muted:   #B7BDC8;
-  --color-ink-subtle:  #7A8290;
-  --color-ink-faint:   #525864;
+  --color-ink-subtle:  #828B9A;
+  --color-ink-faint:   #5A616E;
 
   /* Accent */
   --color-accent-default:  #7B85F0;
@@ -45,7 +45,7 @@
   --color-signal-info-soft:   rgba(122, 184, 240, 0.18);
 
   /* Chat-specific */
-  --color-chat-self-bg:       #7B85F0;
+  --color-chat-self-bg:       #666FC7;
   --color-chat-self-text:     #FFFFFF;
   --color-chat-friend-bg:     #181B22;
   --color-chat-friend-text:   #F2F4F8;
@@ -58,9 +58,16 @@
   /* Overlay */
   --color-overlay-drawer-back: rgba(0, 0, 0, 0.50);
 
+  /* Placeholder alias */
+  --color-ink-placeholder: var(--color-ink-subtle);
+
   /* Typography */
   --font-family-sans: 'Inter', system-ui, sans-serif;
   --font-family-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Font feature settings */
+  --font-feature-default: "calt", "kern", "liga", "ss03";
+  --font-feature-numeric: tabular-nums;
   --font-size-display: 32px;
   --font-size-h1: 24px;
   --font-size-h2: 20px;
@@ -80,6 +87,15 @@
   --leading-chill: 1.55;
   --leading-loose: 1.60;
 
+  /* Tracking (letter-spacing) */
+  --tracking-display: -0.8px;
+  --tracking-h1: -0.5px;
+  --tracking-h2: -0.3px;
+  --tracking-h3: -0.2px;
+  --tracking-normal: 0;
+  --tracking-button: 0.2px;
+  --tracking-chinese: 0.02em;
+
   /* Spacing (4px base) */
   --space-2xs: 4px;
   --space-xs: 8px;
@@ -90,6 +106,7 @@
   --space-2xl: 32px;
   --space-3xl: 40px;
   --space-4xl: 64px;
+  --space-section: 96px;
 
   /* Radius */
   --radius-xs: 4px;
@@ -110,6 +127,22 @@
   --shadow-3: 0 8px 24px rgba(0, 0, 0, 0.50);
   --shadow-4: 0 16px 48px rgba(0, 0, 0, 0.60);
 
+  /* Shadow semantic aliases */
+  --shadow-card:     var(--shadow-1);
+  --shadow-popup:    var(--shadow-2);
+  --shadow-modal:    var(--shadow-3);
+  --shadow-floating: var(--shadow-3);
+  --shadow-hover:    var(--shadow-1);
+
+  /* Border */
+  --border-width-hairline: 1px;
+  --border-width-thick: 2px;
+  --border-width-focusring: 2px;
+  --border-style-default: solid;
+  --border-color-default: var(--color-hairline-default);
+  --border-color-strong: var(--color-hairline-strong);
+  --border-divider: 1px solid var(--color-hairline-default);
+
   /* Motion */
   --duration-instant: 60ms;
   --duration-fast: 120ms;
@@ -126,6 +159,7 @@
   --transition-toast: 180ms cubic-bezier(0.00, 0.00, 0.20, 1.00);
   --transition-chat-bubble-enter: 180ms cubic-bezier(0.00, 0.00, 0.20, 1.00);
   --transition-page: 180ms cubic-bezier(0.00, 0.00, 0.20, 1.00);
+  --transition-page-transition: var(--transition-page);
 
   /* Z-index */
   --z-base: 0;
@@ -138,9 +172,19 @@
   --z-tooltip: 500;
   --z-loading: 600;
 
+  /* Breakpoints */
+  --breakpoint-mobile: 480px;
+  --breakpoint-tablet: 768px;
+  --breakpoint-laptop: 1024px;
+  --breakpoint-desktop: 1280px;
+  --breakpoint-large-desktop: 1440px;
+
   /* Opacity */
   --opacity-disabled: 0.5;
   --opacity-overlay: 0.5;
+  --opacity-hover: 0.08;
+  --opacity-pressed: 0.16;
+  --opacity-loading: 0.6;
 
   /* Sizes */
   --size-button-sm: 32px;
@@ -159,6 +203,22 @@
   --sidebar-width: 320px;
   --chat-content-max-width: 960px;
   --image-max-width: 480px;
+
+  /* Layout */
+  --layout-page-max-width: 1440px;
+  --layout-sidebar-width: var(--sidebar-width);
+  --layout-chat-width: var(--chat-content-max-width);
+  --layout-container-padding: var(--space-xl);
+  --layout-grid-columns: 12;
+  --layout-grid-gap: var(--space-xl);
+  --layout-section-gap: var(--space-section);
+
+  /* Icon */
+  --icon-size-default: 20px;
+  --icon-size-sm: 16px;
+  --icon-size-lg: 24px;
+  --icon-stroke-width: 1.5px;
+  --icon-radius: 2px;
 }
 
 /* ===========================================================
@@ -184,4 +244,19 @@
 @keyframes progress-fade-in {
   from { opacity: 0;   transform: scale(0.98); }
   to   { opacity: 1;   transform: scale(1);    }
+}
+
+/* ===========================================================
+ * M7-7 — Shimmer loading animation.
+ * Gradient sweep across skeleton placeholders. Dark-theme optimized
+ * with surface-1 → surface-3 → surface-1 sweep so the shimmer is
+ * visible without being harsh. Tailwind's `animate-pulse` is not
+ * used because a linear gradient sweep looks more natural for
+ * content placeholders than a uniform opacity pulse.
+ * Prefers-reduced-motion: downgraded to a static 0.01s duration
+ * (effectively invisible) via the global media query in index.css.
+ * =========================================================== */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0;  }
 }

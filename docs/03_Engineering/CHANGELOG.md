@@ -10,6 +10,38 @@
 ---
 
 
+
+### [M6-4.1.0] · 2026-06-29 · Friend-side password reset completion (F-AUTH-07 / AC.16)
+
+#### Summary
+
+M6-4.1 delivers the friend-side password reset completion flow — the last remaining open end from M6-4. An anonymous Edge Function (verify_jwt=false) accepts a one-time token + new password, validates the invite row, updates auth.users via GoTrue admin API, and marks the invite as used. The M6-4 placeholder page is replaced with a full password reset form.
+
+#### Added
+
+- ** (NEW · ~140 lines)** — anonymous EF (verify_jwt=false). Validates token shape (32-char base64url) + password (≥8 chars). Looks up invites row, checks target_kind=password_reset, not expired/used/revoked. Updates password via . Non-fatal invite marking. Error codes: E_VAL_INVALID_FORMAT / E_RES_NOT_FOUND / E_RES_TOKEN_EXPIRED / E_RES_TOKEN_USED / E_RES_TOKEN_REVOKED. Returns 200 { success, message }.
+- ** (extended)** —  stanza.
+- ** (extended)** —  method. Reuses  for error envelope.
+- ** (replaced)** — stub → full password reset form. State machine (idle→submitting→{success,error}). Token validation via regex. Password + confirm password fields. Client-side validation (min 8 chars, match). Success card with /login link. Error strip mapping 6 error codes. Invalid token card. .
+- ** (replaced · 17 cases)** — page chrome, invalid token ×3, client validation ×2, validation clear on resubmit, successful submit ×2, error states ×5 (E_RES_TOKEN_EXPIRED, E_RES_TOKEN_USED, E_RES_NOT_FOUND, E_RES_TOKEN_REVOKED, generic), submit gating ×2, loading state via .
+- ** (extended)** —  — ~15 keys per language.
+
+#### Verification
+
+- vitest M6-4.1 specs: **17/17 pass** ✓ (ResetPasswordPlaceholderPage full suite)
+- vitest full unit suite: **33 files · 412 tests passed** ✓ (+14 net from M6 baseline 398 · 0 regression)
+- tsc: **0 new errors** ✓ (pre-existing baseline in Deno EFs unchanged)
+- code-reviewer-deepseek-flash: **LGTM — ship-ready** ✓ (no blocking issues, no should-fix)
+
+#### Scope discipline note
+
+- ✅ M6-4.1 ships = anonymous EF + full form page + 17 tests + i18n ~15 keys × 2 lang
+- ✅ M6 batch fully complete (M6-1..7 + M6-4.1 = 8 milestones)
+- ❌ M5-4-compress canvas WebP compression → deferred v1.1+
+- ❌ M5-2.1 manual retry button → deferred v1.1+
+
+---
+
 ### [M6-7.0] · 2026-06-29 · copy invite URL to clipboard (F-AUTH-03)
 
 #### Summary

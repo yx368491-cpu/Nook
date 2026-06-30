@@ -2,6 +2,9 @@
  * Nook · Design Tokens v1.0
  * Single source of truth for all design values.
  * Business code / components MUST reference this file only.
+ *
+ * Synced with: src/styles/tokens.css (runtime CSS variables)
+ *             + docs/04_Runtime/Nook-DESIGN-TOKENS.json (W3C format)
  */
 
 /* ---------- Color Palette ---------- */
@@ -15,8 +18,8 @@ const palette = {
   surface4: '#2E3440',
   inkDefault: '#F2F4F8',
   inkMuted:   '#B7BDC8',
-  inkSubtle:  '#7A8290',
-  inkFaint:   '#525864',
+  inkSubtle:  '#828B9A',
+  inkFaint:   '#5A616E',
   accentDefault:  '#7B85F0',
   accentHover:    '#919BFF',
   accentPress:    '#5E68D2',
@@ -35,6 +38,7 @@ const palette = {
   info:         '#7AB8F0',
   infoSoft:     'rgba(122, 184, 240, 0.18)',
   overlayDrawerBack: 'rgba(0, 0, 0, 0.50)',
+  selfBg: '#666FC7',
 } as const;
 
 /* ---------- Colors (Semantic) ---------- */
@@ -81,7 +85,7 @@ export const colors = {
     infoSoft:     palette.infoSoft,
   },
   chat: {
-    selfBg:          palette.accentDefault,
+    selfBg:          palette.selfBg,
     selfText:        palette.accentOn,
     friendBg:        palette.surface1,
     friendText:      palette.inkDefault,
@@ -102,6 +106,10 @@ export const typography = {
     sans: '"Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
     mono: '"JetBrains Mono", ui-monospace, monospace',
   },
+  feature: {
+    default: '"calt", "kern", "liga", "ss03"',
+    numeric: 'tabular-nums',
+  },
   size: {
     display: 32,
     h1:      24,
@@ -119,7 +127,8 @@ export const typography = {
     relaxed: 1.50, chill: 1.55, loose: 1.60,
   } as const,
   tracking: {
-    display: -0.8, h1: -0.5, h2: -0.3, h3: -0.2, normal: 0, button: 0.2,
+    display: -0.8, h1: -0.5, h2: -0.3, h3: -0.2,
+    normal: 0, button: 0.2, chinese: 0.02,
   },
 } as const;
 
@@ -134,12 +143,125 @@ export const radius = {
   xs: 4, sm: 6, md: 8, lg: 12, xl: 16, pill: 9999, circle: '50%',
 } as const;
 
+/* ---------- Chat Bubble Radius ---------- */
+export const chatBubble = {
+  self: '16px 16px 16px 12px',
+  friend: '16px 16px 12px 16px',
+} as const;
+
 /* ---------- Shadows ---------- */
 export const shadow = {
   1: '0 1px 2px rgba(0, 0, 0, 0.20)',
   2: '0 4px 12px rgba(0, 0, 0, 0.32)',
   3: '0 8px 24px rgba(0, 0, 0, 0.50)',
   4: '0 16px 48px rgba(0, 0, 0, 0.60)',
+  card:     '0 1px 2px rgba(0, 0, 0, 0.20)',
+  popup:    '0 4px 12px rgba(0, 0, 0, 0.32)',
+  modal:    '0 8px 24px rgba(0, 0, 0, 0.50)',
+  floating: '0 8px 24px rgba(0, 0, 0, 0.50)',
+  hover:    '0 1px 2px rgba(0, 0, 0, 0.20)',
+} as const;
+
+/* ---------- Border ---------- */
+export const border = {
+  width: {
+    hairline:  '1px',
+    thick:     '2px',
+    focusring: '2px',
+  },
+  style: {
+    default: 'solid',
+  },
+  color: {
+    default: palette.hairlineDefault,
+    strong:  palette.hairlineStrong,
+  },
+  divider: `1px solid ${palette.hairlineDefault}`,
+} as const;
+
+/* ---------- Motion ---------- */
+export const motion = {
+  duration: {
+    instant: '60ms',
+    fast:    '120ms',
+    base:    '180ms',
+    slow:    '280ms',
+    ambient: '1200ms',
+  },
+  easing: {
+    default: 'cubic-bezier(0.20, 0.80, 0.40, 1.00)',
+    out:     'cubic-bezier(0.00, 0.00, 0.20, 1.00)',
+    in:      'cubic-bezier(0.40, 0.00, 0.80, 0.20)',
+    inOut:   'cubic-bezier(0.40, 0.00, 0.20, 1.00)',
+  },
+  transition: {
+    hover:           '120ms cubic-bezier(0.00, 0.00, 0.20, 1.00)',
+    click:           '120ms cubic-bezier(0.40, 0.00, 0.80, 0.20)',
+    modal:           '180ms cubic-bezier(0.00, 0.00, 0.20, 1.00)',
+    toast:           '180ms cubic-bezier(0.00, 0.00, 0.20, 1.00)',
+    chatBubbleEnter: '180ms cubic-bezier(0.00, 0.00, 0.20, 1.00)',
+    page:            '180ms cubic-bezier(0.00, 0.00, 0.20, 1.00)',
+    pageTransition:  '180ms cubic-bezier(0.00, 0.00, 0.20, 1.00)',
+  },
+} as const;
+
+/* ---------- Opacity ---------- */
+export const opacity = {
+  disabled: 0.5,
+  overlay:  0.5,
+  hover:    0.08,
+  pressed:  0.16,
+  loading:  0.6,
+} as const;
+
+/* ---------- Z-Index ---------- */
+export const zIndex = {
+  base: 0, raised: 1, sticky: 10,
+  dropdown: 100, overlay: 200, modal: 300,
+  toast: 400, tooltip: 500, loading: 600,
+} as const;
+
+/* ---------- Breakpoints ---------- */
+export const breakpoint = {
+  mobile:       480,
+  tablet:       768,
+  laptop:       1024,
+  desktop:      1280,
+  largeDesktop: 1440,
+} as const;
+
+/* ---------- Sizes ---------- */
+export const size = {
+  button: { sm: 32, md: 36, lg: 44 } as const,
+  input:  { sm: 32, md: 40, lg: 44 } as const,
+  avatar: { sm: 24, md: 32, lg: 48 } as const,
+  icon:   { sm: 16, md: 20, lg: 24 } as const,
+  navbarHeight:     56,
+  sidebarWidth:     320,
+  chatContentWidth: 960,
+  imageMaxWidth:    480,
+} as const;
+
+/* ---------- Layout ---------- */
+export const layout = {
+  pageMaxWidth:     1440,
+  sidebarWidth:     320,
+  chatWidth:        960,
+  containerPadding: 24,
+  gridColumns:      12,
+  gridGap:          24,
+  sectionGap:       96,
+} as const;
+
+/* ---------- Icon ---------- */
+export const icon = {
+  size: {
+    default: 20,
+    sm:      16,
+    lg:      24,
+  } as const,
+  strokeWidth: 1.5,
+  radius:      2,
 } as const;
 
 /* ---------- Animation ---------- */
@@ -148,5 +270,21 @@ export const animation = {
 } as const;
 
 /* ---------- Master Export ---------- */
-const tokens = { colors, typography, spacing, radius, shadow, animation };
+const tokens = {
+  colors,
+  typography,
+  spacing,
+  radius,
+  chatBubble,
+  shadow,
+  border,
+  motion,
+  opacity,
+  zIndex,
+  breakpoint,
+  size,
+  layout,
+  icon,
+  animation,
+};
 export default tokens;

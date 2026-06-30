@@ -56,13 +56,16 @@
   },
   "sidebar": {
     "title": "Conversations",
+    "open": "Open conversations",
+    "close": "Close conversations",
     "empty": "No conversations yet",
     "emptyHint": "Ask an Owner to send you an invite link — then your shared chat will appear here.",
     "error": "Failed to load conversations",
     "retry": "Retry",
     "previewImage": "Image",
     "previewFile": "File",
-    "previewSelf": "Me: "
+    "previewSelf": "Me: ",
+    "conversationLabel": "Conversation with {{name}}"
   },
   "messages": {
     "loadMore": "Scroll up to load older messages",
@@ -163,6 +166,7 @@
       "unknown": "Reaction failed"
     },
     "imageAlt": "Image message",
+    "error": "Failed to load messages",
     "file": "File",
     "today": "Today",
     "yesterday": "Yesterday",
@@ -324,6 +328,7 @@
     "loading": "Loading…",
     "error": "Something went wrong",
     "retry": "Retry",
+    "downloadFile": "Download {{name}}",
     "cancel": "Cancel",
     "confirm": "Confirm",
     "save": "Save",
@@ -364,6 +369,30 @@
     "subtitle": "The complete password-reset flow lands in a future update. Your Owner has generated a one-time link that becomes usable once the friend-side completion ships.",
     "tokenLabel": "Reset token",
     "home": "Back to home"
+  },
+  "resetComplete": {
+    "title": "Reset your password",
+    "subtitle": "Enter a new password to regain access to your Nook.",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm password",
+    "passwordPlaceholder": "At least 8 characters",
+    "submit": "Reset password",
+    "submitting": "Resetting…",
+    "success": {
+      "title": "Password reset successful",
+      "message": "Your password has been updated. You can now log in with your new password.",
+      "login": "Log in"
+    },
+    "errors": {
+      "invalidToken": "Invalid reset link. Please check the URL or ask your Owner for a new reset link.",
+      "tokenNotFound": "This reset link was not found. It may have been mistyped or is invalid.",
+      "tokenExpired": "This reset link has expired. Please ask your Owner for a new one.",
+      "tokenUsed": "This reset link has already been used. If you need to reset again, ask your Owner for a new link.",
+      "tokenRevoked": "This reset link has been revoked by the Owner. Please ask for a new one.",
+      "invalidInput": "Invalid input. Please check your password and try again.",
+      "internal": "Couldn't reset password. Please try again.",
+      "unknown": "Something went wrong. Please try again."
+    }
   },
   "outbox": {
     "pending": "Pending",

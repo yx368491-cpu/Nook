@@ -39,8 +39,18 @@ function hashCode(s: string): number {
 
 function getAvatarBg(name: string | undefined): string {
   if (!name) return 'var(--color-surface-3)';
+  return 'var(--color-accent-default)';
+}
+
+/**
+ * Spec §2 — stable accent perturbation from name hash.
+ * Returns the CSS filter to apply (±6° hue-rotate) for a subtly
+ * distinct initials background. Same name → same offset ("fingerprint").
+ */
+function getAvatarFilter(name: string | undefined): string | undefined {
+  if (!name) return undefined;
   const offset = Math.abs(hashCode(name)) % 12 - 6;
-  return `var(--color-accent-default)`; // v1.0 simplified
+  return `hue-rotate(${offset}deg)`;
 }
 
 export const Avatar = forwardRef<HTMLSpanElement, AvatarProps>(
@@ -75,6 +85,7 @@ export const Avatar = forwardRef<HTMLSpanElement, AvatarProps>(
         className="flex items-center justify-center w-full h-full select-none"
         style={{
           backgroundColor: bgColor,
+          filter: getAvatarFilter(name),
           color: 'var(--color-accent-on)',
           fontSize: dims.font,
           fontWeight: 500,
@@ -88,7 +99,11 @@ export const Avatar = forwardRef<HTMLSpanElement, AvatarProps>(
       <span
         ref={ref}
         role="img"
-        aria-label={name ? `${name} 的头像${status === 'online' ? '，在线' : status === 'offline' ? '，离线' : ''}` : undefined}
+        aria-label={
+          name
+            ? `${name} 的头像${status === 'online' ? '，在线' : status === 'offline' ? '，离线' : ''}`
+            : undefined
+        }
         className={`relative inline-flex items-center justify-center flex-shrink-0 rounded-[var(--radius-circle)] overflow-hidden ${className}`}
         style={{ width: dims.px, height: dims.px }}
         {...props}

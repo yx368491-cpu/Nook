@@ -7,6 +7,8 @@ import { TypingIndicator } from './TypingIndicator';
 import { useConversationPresence } from '@/hooks/useConversationPresence';
 import { useMarkConversationRead } from '@/hooks/useMessages';
 import { usePresence } from '@/stores/usePresence';
+import { useUI } from '@/stores/useUI';
+import { useIsDesktop } from '@/hooks/useMediaQuery';
 
 interface ChatPanelProps {
   conversationId: string;
@@ -79,6 +81,8 @@ export function ChatPanel({
     (s) => s.onlineUsers.get(conversationId)?.size ?? 0,
   );
   const isAnyPeerOnline = onlineSetSize > 0;
+  const isDesktop = useIsDesktop();
+  const toggleSidebar = useUI((s) => s.toggleSidebar);
 
   return (
     <section
@@ -86,6 +90,36 @@ export function ChatPanel({
       aria-label={title ?? t('app.name')}
     >
       <header className="flex items-center gap-[var(--space-md)] border-b border-[var(--color-hairline-default)] bg-[var(--color-canvas-soft)] px-[var(--space-md)] py-[var(--space-sm)]">
+        {/* M7-4: Hamburger sidebar toggle — hidden on desktop */}
+        {!isDesktop && (
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            aria-label={t('sidebar.open')}
+            className={[
+              'flex items-center justify-center',
+              'w-[var(--size-button-md)] h-[var(--size-button-md)]',
+              'rounded-[var(--radius-md)]',
+              'text-[var(--color-ink-muted)]',
+              'hover:bg-[var(--color-surface-2)] hover:text-[var(--color-ink-default)]',
+              'active:bg-[var(--color-surface-1)]',
+              'transition-[background-color,color] duration-[var(--transition-hover)]',
+              'focus-visible:outline-[2px] focus-visible:outline-[var(--color-accent-soft-ring)]',
+              'focus-visible:outline-offset-[2px]',
+            ].join(' ')}
+            data-testid="sidebar-hamburger"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path
+                d="M2.5 5h15M2.5 10h15M2.5 15h15"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        )}
+
         <Avatar
           size="md"
           src={avatarUrl ?? null}

@@ -148,6 +148,38 @@ export const adminApi = {
     }
     return data;
   },
+
+  /**
+   * M6-4.1 · Friend-side password reset completion (anonymous — no JWT needed).
+   *
+   * POST /functions/v1/reset-password-complete
+   * verify_jwt=false — the one-time token from the invite is the auth.
+   *
+   * Accepts a token + new password, validates the invite row, and updates
+   * auth.users.encrypted_password via GoTrue admin API (service_role).
+   *
+   * Returns { success: true, message } on success. The caller must then
+   * log in with the new password.
+   */
+  async resetPasswordComplete(args: {
+    token: string;
+    password: string;
+  }): Promise<{ success: boolean; message: string }> {
+    const { data, error } = await supabase.functions.invoke<{
+      success: boolean;
+      message: string;
+    }>('reset-password-complete', {
+      body: { token: args.token, password: args.password },
+    });
+
+    if (error) {
+      throw mapAdminError(error);
+    }
+    if (!data) {
+      throw { code: 'INTERNAL', message: 'Reset-complete EF returned no body' };
+    }
+    return data;
+  },
 };
 
 // =========================================================================
