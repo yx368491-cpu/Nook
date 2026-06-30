@@ -11,6 +11,9 @@
 ## Quick Start
 
 ```bash
+# Copy environment template and fill in your Supabase credentials
+cp .env.example .env
+
 # Install dependencies
 npm install
 
@@ -20,6 +23,8 @@ npm run dev
 # Build for production
 npm run build
 ```
+
+See [`.env.example`](.env.example) for all required environment variables (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, etc.).
 
 ## Project Memory
 
