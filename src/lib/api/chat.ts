@@ -51,7 +51,7 @@ interface ConversationMemberRow {
   left_at: string | null;
   last_read_at: string | null;
   profile: {
-    id: string;
+    user_id: string;
     display_name: string | null;
     avatar_url: string | null;
     role: UserRole | null;
@@ -93,7 +93,7 @@ interface MessageRowEmbeds {
   created_at: string;
   // join: messages_sender_id_profiles_fkey → profiles
   sender: {
-    id: string;
+    user_id: string;
     display_name: string | null;
     avatar_url: string | null;
   } | null;
@@ -125,7 +125,7 @@ interface MessageRowEmbeds {
     deleted_by_sender_at: string | null;
     created_at: string;
     sender: {
-      id: string;
+      user_id: string;
       display_name: string | null;
       avatar_url: string | null;
     } | null;
@@ -315,7 +315,7 @@ export async function listConversations(
         members:conversation_members(
           user_id, role, joined_at, left_at, last_read_at,
           profile:profiles!conversation_members_user_id_profiles_fkey(
-            id, display_name, avatar_url, role
+            user_id, display_name, avatar_url, role
           )
         ),
         messages:messages(
@@ -392,14 +392,14 @@ export async function listMessages(args: {
       `
         id, conversation_id, sender_id, kind, body, attachment_id, reply_to_id,
         edited_at, recalled_at, deleted_by_sender_at, client_msg_id, created_at,
-        sender:profiles!messages_sender_id_profiles_fkey(id, display_name, avatar_url),
+        sender:profiles!messages_sender_id_profiles_fkey(user_id, display_name, avatar_url),
         attachment:attachments!messages_attachment_id_fkey(
           id, storage_path, mime, size_bytes, width, height, uploaded_by, created_at
         ),
         reply_to:messages!reply_to_id(
           id, conversation_id, sender_id, kind, body,
           recalled_at, deleted_by_sender_at, created_at,
-          sender:profiles!messages_sender_id_profiles_fkey(id, display_name, avatar_url)
+          sender:profiles!messages_sender_id_profiles_fkey(user_id, display_name, avatar_url)
         ),
         reactions:reactions(emoji, user_id)
       `,
