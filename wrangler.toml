@@ -4,6 +4,8 @@ pages_build_output_dir = "./dist"
 
 [vars]
 VITE_APP_VERSION = "0.5.0"
+VITE_SUPABASE_URL = "https://btnkqmanajaqdfcpwvxi.supabase.co"
+VITE_SUPABASE_ANON_KEY = "sb_publishable_S74yDZ6ARABlqYrx9HMInw_hcm1piAY"
 
 [env.production]
-vars = { VITE_APP_VERSION = "0.5.0", VITE_ENABLE_SW = "true" }
+vars = { VITE_APP_VERSION = "0.5.0", VITE_ENABLE_SW = "true", VITE_SUPABASE_URL = "https://btnkqmanajaqdfcpwvxi.supabase.co", VITE_SUPABASE_ANON_KEY = "sb_publishable_S74yDZ6ARABlqYrx9HMInw_hcm1piAY" }
