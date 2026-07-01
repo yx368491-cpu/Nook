@@ -293,7 +293,7 @@ Nook 是一个只服务"你和你的少数密友"的私人聊天网站。
 - **前置条件**: 自己已登录；target username 已存在 profiles.username
 - **主流程**: `/friends` 输入 @username + 点 “Add” → RPC `fn_create_friendship(p_username text)` SECURITY DEFINER 内部执行：(1) 反查 profile by username；(2) 检查 friend_blocks 表（若 A→B 或 B→A blocked → raise 'E_FRIEND_BLOCKED'）；(3) idempotent INSERT INTO friendships；(4) 查找双方是否存在 direct conversation；(5) 若不存在 → INSERT conversations(kind='direct') + 2 conversation_members；(6) 写 AppEvent
 - **返回**: `{ friendship_id, conversation_id, peer_id }`
-- **异常流程**: E1 username 不存在 → 404；E2 已被好友屏蔽 → 410 + reason；E3 已是好友（idempotent re-call） → 重复返回现有 friendship_id + conversation_id
+- **异常流程**: E1 username 不存在 → 404（generic 无 reason）；E2 已被好友屏蔽 → RPC raise `E_FRIEND_BLOCKED`（server-side audit log 可见）但 **wire response = 404 generic + 无 reason text** —— 与 username 不存在不可区分 → block 静默（见 R-4b）；E3 已是好友（idempotent re-call） → 重复返回现有 friendship_id + conversation_id；E4 self-add（targetUsername == self） → RPC raise `E_SELF_ADD`，wire 400 invalid_argument；E5 触发 4/8 hard cap（group create 边缘） → wire 409 conflict
 - **成功条件**: friendships row 已写 + conversation_members 已是 active + 客户端 inbox 列表里出现该 peer
 - **副作用**: 双方均发现对方在 friend-list；任一方 1:1 就绪
 - **优先级**: **Must**（v1.x；M9 起替代 F-AUTH-03/04/05/06）
@@ -315,7 +315,8 @@ Nook 是一个只服务"你和你的少数密友"的私人聊天网站。
 
 #### F-FRIEND-04 · 屏蔽用户（防御 unilateral-add 垃圾）
 - **用户目标**: 阻止某个用户继续加你为好友（且不让对方发现）
-- **主流程**: ProfilePopover 或 friend-list 三点菜单 → `Block @<peer>` → RPC `fn_block_user(p_username text)` 写入 friend_blocks 表，可再次 toggle unblock
+- **主流程**: ProfilePopover 或 friend-list 三点菜单 → `Block @<peer>` → RPC `fn_block_user(p_username text)` 写入 friend_blocks 表（toggle 行：ON CONFLICT DO UPDATE 复用 row），可再次 toggle unblock
+- **异常流程**: E1 self-block（targetUsername == self） → client UI pre-check 防 99% cases；DB CHECK `blocker_id != blocked_id` 兜底；wire 400 invalid_argument + RPC raise `E_SELF_BLOCK`
 - **副作用**: 主页删除对方 + 1:1 历史区不显示 + 不出现在 friend-list；对方尝试加你时 fn_create_friendship 直接返回 E_FRIEND_BLOCKED
 - **优先级**: **Must**（unilateral add 必备防御）
 - **关联**: AC.AC.friend-block
@@ -355,6 +356,11 @@ Nook 是一个只服务"你和你的少数密友"的私人聊天网站。
 - **成员来源**: 创建者从自己的 friend-list 中选择（picks ≤ 8 人）
 - **优先级**: **Must**（M9 起替代原 Owner-Only）
 - **关联**: F-FRIEND-02
+
+> ⚠️ **SUPERSEDED (M9)** — 详见 F-CONV-02（M9 块紧跟其后）+ F-FRIEND-02。
+> Owner-only invite 入口路线作废；任意已登录用户均可从 friend-list 创建群。
+> 硬上限保持：4 群 / user + 8 成员 / group（M9 不放宽）。
+> 本 F-ID 保留作历史归档。
 #### F-CONV-02 · Owner 创建新群
 - **用户目标**: 创建 1 个新群
 - **前置条件**: 当前群数 < 4（**硬上限**，DB + UI 双重拦截）
@@ -719,6 +725,8 @@ Owner (1, 单点永久)
 | `/welcome` | 未登录 | 入口引导：登录 vs. 注册 Owner |
 | `/login` | 未登录 | 仅 Owner 登录（F-AUTH-02）。**Friend 通过 invite 注册，没有"登录页"对外暴露** |
 | `/welcome/register` | 未登录 | Owner 注册（F-AUTH-01） |
+> **🟡 DEPRECATED (M9)** `/invite/new` + `/invite/:token` 两条路由 — replaced by `@username` sibling search。
+> UI 已删除入口；旧链接仍能 visit 但落到 404。
 | `/invite/new` | **Owner** | Owner 创建 Invite（手动 / 新群），F-AUTH-03/04 |
 | `/invite/:token` | 任何人 (validate) | Friend 注册落地（F-AUTH-05） |
 | `/home` | 已登录 | 主聊天 SPA |
@@ -1776,8 +1784,8 @@ E2 同一 user 同一 emoji 唯一（PK 兜底去重）。
 - **失败**: 不响应 / 全字段返回（隐私泄漏） / 包含 email 字面 / 不 form 下拉字符
 
 ### AC.AC.friend-block · unilateral add 防御
-- **DoD**: 用户 A block 用户 B 后：B 调用 fn_create_friendship → 返回 E_FRIEND_BLOCKED 且不写任何 row；A 的 friend-list 不显示 B；B 不能看到 A 在 friend-list
-- **失败**: B 能加 A / B 能看到 A profile / block 后并发写成功 → 跨 user 信息泄漏
+- **DoD**: 用户 A block 用户 B 后：B 调用 fn_create_friendship → RPC raise `E_FRIEND_BLOCKED`（server-side audit log 可见）；wire response = HTTP **404 generic + 无 reason text**（与 username 不存在不可区分 → block 静默）；**不写**任何 row（既无 friendship 也无 conversation）；A 的 friend-list 不显示 B；B 不能看到 A 在 friend-list
+- **失败定义**: B 能加 A / B 能看到 A profile / block 后并发写成功 / 客户端向后端透出 block 字样 → 跨 user 信息泄漏
 
 - **失败**: 长度 > 30 天的消息存在 → 违反硬约束
 

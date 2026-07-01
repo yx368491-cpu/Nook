@@ -30,6 +30,7 @@
 | 日期 | 版本 | 变更 |
 |---|---|---|
 | 2026-06-27 | v1.0.1 | 初版 · 严格基于已冻结 SPEC v1.0.1 + ARCH-DESIGN v1.0 生成；FU-3/FU-4 在对应章节标注「Deferred to v1.1+」 |
+| 2026-07-01 | v1.0.2 | M9 最大变革：拉销 Owner-invite 门控，引入 @username 单向 add-friend + 社交边表 friendships + friend_blocks；InviteToken 表 dormant 保留供历史审计。新增 F-AUTH-11/12/13、F-FRIEND-01..05、F-CONV-02 任何人可创建群（hard cap：4 group/user + 8 member/group）；DATA-MODEL § 3.9-3.13 重新编号为 § 3.12-3.16，新增 § 3.9 Friendship / § 3.10 FriendBlock / § 3.11 联动规则。AC.AC.friend-block DoD 现在区分 RPC 层 raise 与 wire 层 404（block 静默，不可区分于 username 不存在）。Migration 命名空间切换至 20260701xxxxxx_*.sql 起。 |
 
 ---
 
@@ -46,7 +47,9 @@
 | 5 | **Message**（消息） | 好友间传递的最小通信单位。text / image / file / system 四种 kind。 | 创建 → 编辑（2 min） / 撤回 / 列级软删 → 30 天 TTL 硬删 | ✅ |
 | 6 | **Attachment**（附件） | 单文件 / 单图。强依附 Message（无独立存在）。 | 创建 → 30 天 TTL 与父消息同步清理 | ✅ |
 | 7 | **Reaction**（反应） | 6 emoji 枚举反应。强依附 Message。 | 创建 → 撤销 → 与 Message 同生命周期 | ✅ |
-| 8 | **InviteToken**（邀请令牌） | Invite-only 唯一入口。一次性、24h 过期、可撤销。 | 创建 → 使用 / 过期 / 作废 → 30 天清理 | ✅ |
+| 8 | **InviteToken**（邀请令牌） | **M9 deprecated**。表 + RLS 保留供历史审计 + 30 天 cron 老化；UI 不再创建。 | 创建 → 使用 / 过期 / 作废 → 30 天清理 | 🟡 Dormant |
+| 9 | **Friendship**（好友关系） | M9 核心。多对多社交边。pair 代表「双方都能联系」。单向 add（任何 user 可单方面 add）；单向 remove（某一方设 removed_at）+ 同时两人的 1:1 conversation_members.left_at。 | 创建 → active → remove → 30 天后老化 | ✅ **M9 Core** |
+| 10 | **FriendBlock**（屏蔽表） | M9 防 unilateral-add 垃圾。pair (blocker, blocked)。有效期不限但可 toggle unblock。 | 创建 → active → 取消 → 30 天 cron 后老化 | ✅ **M9 Core** |
 
 ### 1.2 支撑业务实体（Supporting · 体验完整性）
 
@@ -90,6 +93,9 @@ erDiagram
     Message ||--o| Message : "1:0..1 reply_to_id 自引用"
     User ||--o{ Reaction : "1:N 提交反应"
     User ||--o{ InviteToken : "1:N 创建邀请"
+    InviteToken ||--o| User : "(deprecated M9) 历史邀请老化中"
+    Friendship ||--o{ Profile : "M9 社交边 (canonical pair)"
+    FriendBlock ||--o{ Profile : "M9 防垃圾屏蔽"
     InviteToken ||--o| User : "0..1 used_by 标记使用人"
     User ||--o{ AppEvent : "1:N 触发事件"
     ConversationMember }o--|| User : "FK"
@@ -323,6 +329,9 @@ erDiagram
   - **销毁时机**：用户撤销或 Message 被硬删（30 天 cron 跟随）。
 - **F-ID 映射**：`F-MSG-06`（反应）。
 
+> **⚠️ DEPRECATED (M9)** — invite 路径已被 F-FRIEND-01（@username 单向 add）取代。
+> 本节仅留作历史参考。表 + RLS 保留，UI 不再发放新 invite token，现有 pending invite 由 30 天 cron 老化。
+
 ### 3.8 InviteToken
 
 - **业务描述**：Invite-only 唯一入口。一次性的邀请信物。
@@ -342,7 +351,50 @@ erDiagram
   - **销毁时机**：被使用 (used_at) / 过期 (expires_at) / 撤销 (revoked_at) → 30 天 cron 物理清。
 - **F-ID 映射**：`F-AUTH-02`（Friend 注册）· `F-SEC-04`（24h 过期）· `F-SEC-05`（撤销）· `F-SEC-06`（active friend 重邀请 FU-3 deferred）。
 
-### 3.9 Presence（**不持久化**）
+### 3.9 Friendship（M9 · 新增核心实体）
+
+- **业务描述**：维系「我和你能不能聊」的社交边。pair（一对 user）一旦存在，能 chain 创建 direct conversation + 自动给双方开通 1:1 chat。
+- **数据字段**（高层）：
+  - `id`（UUID PK）
+  - `pair_low_id`（UUID FK → profiles.user_id，always small half of the pair）
+  - `pair_high_id`（UUID FK → profiles.user_id，always large half）
+  - `created_by`（UUID FK → profiles.user_id，谁的第一个 add 操作者，友善认账用）
+  - `created_at`（timestamptz）
+  - `removed_at`（nullable timestamptz，user 单向 remove 时设置；row 永存）
+  - **CHECK**（`pair_low_id < pair_high_id`）：canonical 序，保证全局唯一 pair
+  - **UNIQUE**(`pair_low_id, pair_high_id`)
+- **是否可删除**：❌ row 永不物理删；30 天 cron 老化仅针对已 `removed_at IS NOT NULL` 且超 30 天的 row
+- **是否可恢复**：❌（v1.1+ 考虑 add-reinstate session-reset）
+- **软删除**：✅ 通过 `removed_at` 实现
+- **生命周期**：
+  - **创建时机**：任意一方调用 fn_create_friendship RPC（SELF 或对方均可发起）
+  - **销毁时机**：任意一方调用 fn_remove_friend → removed_at=now()；30 天 cron 后物理清
+- **F-ID 映射**：`F-FRIEND-01`（单向 add）/ `F-FRIEND-02`（list）/ `F-FRIEND-03`（remove）/ `F-FRIEND-05`（block 之后 history 策略）。
+
+### 3.10 FriendBlock（M9 · 防御 spam）
+
+- **业务描述**：让被反复 unilateral-add 垃圾骚扰的人能一键「屏蔽」。block 后对方调用 fn_create_friendship 时 RPC raise E_FRIEND_BLOCKED；block 静默，对方不知道。
+- **数据字段**：
+  - `blocker_id`（UUID FK → profiles.user_id）
+  - `blocked_id`（UUID FK → profiles.user_id）
+  - `created_at`
+  - `canceled_at`（nullable timestamptz，toggle unblock 时设置）
+  - **CHECK**（`blocker_id != blocked_id`）（防自 block）
+  - **UNIQUE**(`blocker_id, blocked_id`) WHERE `canceled_at IS NULL`（partial unique，避免 active 重复 block）
+  - **TOGGLE 语义**：re-block after unblock 走 INSERT ON CONFLICT DO UPDATE 模式复用同一 row；不会产生 2-row audit state。`canceled_at` 在 re-block 时被设回 NULL。
+- **是否可删除**：❌ row 永存；30 天 cron 老化仅针对已 `canceled_at IS NOT NULL` 且超 30 天的 row
+- **是否可恢复**：✅ toggle 重新写新的 row（如果是同一对旧的 canceled）。常态 toggle 走 ON CONFLICT 复用同 row（canceled_at ← NULL）。
+- **生命周期**：
+  - **创建时机**：主动点击「屏蔽 @username」
+  - **销毁时机**：主动点击「取消屏蔽」 / 30 天 cron 后物理清
+- **F-ID 映射**：`F-FRIEND-04`。
+
+### 3.11 Friendship-Conversation 联动规则（M9 · 跨实体）
+
+- **业务规则**：Friendship 边缘存在 ≠ Conversation 已建立；但 fn_create_friendship RPC 确保在 friendships 已写后同步建立或复用 direct conversation。两方存在 active friendships 在 1:1 上 = conversation_members 双方 active。任一侧 unilateral remove 时，该 direct conv 的 conversation_members.left_at 也同步 now()（保持侧栏/历史一致性）。
+- **F-ID 映射**：`F-FRIEND-01`（创建链路）/ `F-FRIEND-03`（remove 双侧同步）/ `F-CONV-01`（1:1 创建）/ `F-CONV-05`（群解散语义）。
+
+### 3.12 Presence（**不持久化**）（**不持久化**）
 - **业务描述**：在场状态通过 **Realtime broadcast** 推送，**不入库**（与 SPEC § 2.6 一致）。
 - **业务字段**（Realtime payload 形态）：
   - `user_id`
@@ -351,7 +403,7 @@ erDiagram
 - **生命周期**：fully ephemeral；连接断开即 broadcast `offline`。
 - **F-ID 映射**：`F-PRES-01`（呼吸光点）。
 
-### 3.10 TypingIndicator（**不持久化**）
+### 3.13 TypingIndicator（**不持久化**）
 - **业务描述**：打字中指示通过 Realtime broadcast 推送，**不入库**。
 - **业务字段**：
   - `conversation_id`
@@ -360,7 +412,7 @@ erDiagram
 - **生命周期**：fully ephemeral；输入停止 5 s 后或输入清空自动 broadcast 结束。
 - **F-ID 映射**：`F-MSG-11`（Typing 指示器）。
 
-### 3.11 OutboxItem（**仅 client-side，Dexie**）
+### 3.14 OutboxItem（**仅 client-side，Dexie**）
 - **业务描述**：客户端离线 / 弱网时的待发送项队列（**服务端无对应表**）。
 - **业务字段**：
   - `client_msg_id`（幂等键）
@@ -372,7 +424,7 @@ erDiagram
 - **生命周期**：7 天后客户端自动清理（避免 Dexie 胀大）。
 - **F-ID 映射**：`F-SYNC-04`（离线发件箱）。
 
-### 3.12 AppEvent
+### 3.15 AppEvent
 - **业务描述**：审计 / 安全 / 异常事件流（**仅供 Owner 可读 / Sentry 索引**）。
 - **业务字段**：
   - `id`
@@ -383,7 +435,7 @@ erDiagram
 - **生命周期**：180 天保留后冷归档至 R2 `audit/year=YYYY/month=MM/`，超过 2 年物理清。
 - **F-ID 映射**：`F-SEC-09`（审计）· `F-SEC-10`（异常告警）。
 
-### 3.13 SchemaVersion
+### 3.16 SchemaVersion
 - **业务描述**：单行表，记录当前生效 schema 版本（仅 Drizzle migrations 使用，**不影响业务**）。
 - **业务字段**：`version`（text / int）· `applied_at`。
 - **生命周期**：每次 migration 后 `version + 1`。
@@ -396,7 +448,9 @@ erDiagram
 - **R-1**：全局 `is_owner = TRUE` 的行**最多 1 条**（应用层 + DB 层双重约束，partial unique index）。
 - **R-2**：User 的 `email` 在 `auth.users` 内**唯一**；注销后不可复用至 v1.0.1（复活仅限 v1.1+ FU-4）。
 - **R-3**：每个 User 必有一条 Profile 行（trigger 兜底）。
-- **R-4**（FU-3 deferred）：active friend `left_at IS NULL` 时再次收到新 InviteToken 时——不允许直接 create new User，避免「一个朋友两条 account」悖论；FU-3 已推迟至 v1.1+ 实现 session-reset-on-reuse。
+- **R-4**（**M9 SUPERSEDED**）— 原 invite-only 模型的「active friend 重邀不允许双 account」规则。M9 起 invite-only 关闭，按定义不再触发。但底层不变式「一个真人 = 一个 account = 一个 profile row」仍然由 R-3 + auth.users PK + profiles.user_id UNIQUE 兜底。保留 R-4 作为 invite 模型历史对照。
+- **R-4a（M9 新增）**：一对 user 之间最多一条 active friendship（`removed_at IS NULL`）。
+- **R-4b（M9 新增）**：block → 被 block 者任何 add 行为一律 raise E_FRIEND_BLOCKED RPC；wire 层返回通用 404 + 无 reason text，与「username 不存在」不可区分 → block 静默（对方不知道）。Self-block 也受 DB CHECK 拒绝（`blocker_id != blocked_id`）。
 
 ### 4.2 Conversation 域规则
 - **R-5**：1:1 conversation 的 `kind = 'direct'` 且**恰好 2 个 ConversationMember 且 `left_at IS NULL`**。
@@ -460,7 +514,9 @@ erDiagram
 | **Message** | 客户端 send | edited / recalled / deleted_by_sender | Realtime `message:new / :update / :delete` | 30 天 cron 物理硬删（含所有状态） | ❌（v1.1+ Owner emergency restore via DB） |
 | **Attachment** | 上传 Storage 后 POST message | ❌ 不可改 | Realtime `attachment:new` | 跟随 Message 30 天 cron 同步清 | ❌ |
 | **Reaction** | 用户点击 emoji | ❌ 不可改（切换覆盖 = INSERT + DELETE） | Realtime `reaction:new / :delete` | 用户撤销 / Message 30 天删 | ❌ |
-| **InviteToken** | Owner 创建 | ❌ 不可改 | Realtime `invite:created / :used / :revoked` | 30 天 cron 清（used / expired / revoked 全清） | ❌ |
+| **InviteToken** | Owner 创建（**M9 deprecated**） | ❌ 不可改 | Realtime `invite:created / :used / :revoked`（仅历史 30 天老化途径） | 30 天 cron 清（used / expired / revoked 全清） | ❌ |
+| **Friendship** | 任一 user add（fn_create_friendship RPC） | ❌ 不可改 | Realtime `friend:added / :removed` | 30 天 cron 清（removed_at 超过 30 天）；活跃期内仍在 friend-list 显示 | ❌ v1.x；v1.1+ slot re-instate |
+| **FriendBlock** | 任一 user block（fn_block_user RPC） | ✅ toggle unblock | Realtime `friend:blocked / :unblocked` | 30 天 cron 清（canceled_at 超过 30 天） | ✅ toggle |
 | **Presence** | Realtime broadcast | ❌ | 仅 Realtime | ephemeral · disconnect → offline | n/a |
 | **Typing** | Realtime broadcast | ❌ | 仅 Realtime | ephemeral · 5 s typing 停顿 → broadcast stop | n/a |
 | **OutboxItem** | 客户端 send 接受 | retry / state | client-only | 7 天 client auto-cleanup | n/a |
@@ -488,7 +544,9 @@ erDiagram
 | **Message** | R all（除 sender-self column-level hidden）/ W self (create) | R all (in conv) / W self (create/delete/edit/recall within 2 min) | R all (in conv) | — | RW (trigger / Cron / EF cleanup) |
 | **Attachment** | R | RW self (upload) | R (in conv) | — | RW |
 | **Reaction** | R | RW self (insert / delete self) | R / RW self | — | R (trigger) |
-| **InviteToken** | RW create/use-list/revoke | — | — | — | RW (audit) |
+| **InviteToken** | R own created | — | — | — | RW (M9 deprecated) |
+| **Friendship** | RW self.pair = pair | R own pair | R own pair | R own pair | RW (RPC SECURITY DEFINER) |
+| **FriendBlock** | RW self.blocker = self | RW self.blocker = self | RW self | RW self | RW |
 | **AppEvent** | R | R self events only | R self events only | R self events only | RW (trigger / EF) |
 
 > **注**：上表是**业务视图**（owner vs friend）——具体的 Supabase RLS policy 见 `Nook-ARCH-DESIGN-v1.0.md § 5`。
@@ -657,7 +715,8 @@ erDiagram
 | Message | — | — | **30 天硬删** | — | ❌ (v1.1+ emergency restore) |
 | Attachment | — | — | **30 天硬删** | — | ❌ |
 | Reaction | — | ✅ | 跟随 Message 30 天 cron 清 | — | ❌ |
-| InviteToken | — | — | **30 天硬删** | — | ❌ |
+| InviteToken | — | — | — | **30 天硬删**（**M9 deprecated** 未创新） | — | ❌ |
+| Friendship | — | — | — | 30 天 cron 清（仅 removed_at 超 30 天老化） | — | ❌ v1.x |
 | AppEvent | — | — | 180 天 → 冷归档 R2 · 2 年物理清 | ✅ | ❌ |
 | SchemaVersion | ✅ | — | — | — | n/a |
 | Presence / Typing / Outbox | — | ✅ ephemeral | client 7 days | — | n/a |
@@ -793,12 +852,12 @@ erDiagram
 | F-AUTH-03 | 首登 | § 3.2 |
 | F-MSG-01..11 | 消息 CRUD / 编辑 / 撤回 / 删除 / 反应 / 回复 | § 3.5 / § 3.7 |
 | F-CONV-01..07 | 会话管理 | § 3.3 / § 3.4 |
-| F-SEC-04/05/06/09/10 | 安全 / 审计 | § 3.8 / § 3.12 / § 4.9 |
+| F-SEC-04/05/06/09/10 | 安全 / 审计 | § 3.8 / § 3.15 / § 4.9 |
 | F-FILE-01..04 | 附件 | § 3.6 |
 | F-I18N-01 | 语言 (zh-CN/en) | § 3.2 / § 4.5 |
-| F-PRES-01/02 | 在场光点 | § 3.9 / § 3.10 |
-| F-NOTIF-01..03 | 通知（❌ 不入库） | § 3.9 § 3.10（确认无表） |
+| F-PRES-01/02 | 在场光点 | § 3.12 / § 3.13 |
+| F-NOTIF-01..03 | 通知（❌ 不入库） | § 3.12 § 3.13（确认无表） |
 | F-USR-01..04 | 资料 | § 3.2 / § 4.5 |
-| F-SYNC-04 | 离线发件箱 | § 3.11 |
+| F-SYNC-04 | 离线发件箱 | § 3.14 |
 
 ✅ F-ID 100% 回归覆盖（无遗漏）。
