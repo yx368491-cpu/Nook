@@ -108,7 +108,8 @@ Nook 是一个只服务"你和你的少数密友"的私人聊天网站。
 - Ambient 在线状态（呼吸光点）
 - **全端同步**（PC + 移动）
 - **30 天消息自动清理**（文字 + 图片 + 文件 一体）
-- Invite-only 邀请制（唯一入口）
+- **好友发现**：通过 @username 主动搜索 + 添加（单向 add，无 accept 门）
+- Invite-only 邀请制：**M9 起 deprecated**；遗留 `invites` 表保留以供历史审计 + 30 天 cron 老化
 [来源: Nook-PRODUCT.md § 3.6 + INTERVIEW § 0/§ 2/§ 5.1]
 
 #### 1.7.2 ❌ 永久不在边界内（Never-Do / Hard Boundaries）
@@ -194,6 +195,7 @@ Nook 是一个只服务"你和你的少数密友"的私人聊天网站。
 - **优先级**: **Must**（AUTH-2）
 - **关联**: AC.01
 
+> ⚠️ **SUPERSEDED (M9)** — 详见 F-FRIEND-01。Owner-invite 路径关闭，已迁至 @username 单向加好友。本 F-ID 保留作为历史归档。
 #### F-AUTH-03 · Owner 创建 Invite (target=any)
 - **用户目标**: 把朋友拉进 Nook，并自动建立与 owner 的 1:1
 - **前置条件**: 已登录为 Owner
@@ -204,6 +206,7 @@ Nook 是一个只服务"你和你的少数密友"的私人聊天网站。
 - **优先级**: **Must**（AUTH-3 + AUTH-6 的入口）
 - **关联**: AC.02
 
+> ⚠️ **SUPERSEDED (M9)** — 详见 F-FRIEND-01。Owner-invite 路径关闭，已迁至 @username 单向加好友。本 F-ID 保留作为历史归档。
 #### F-AUTH-04 · Owner 创建 Invite (target=conversation)
 - **用户目标**: 把新朋友直接拉进某个已存在的群（不创建 1:1）
 - **前置条件**: Owner 已登录；目标群未满 8 人（CONV-4）
@@ -214,6 +217,7 @@ Nook 是一个只服务"你和你的少数密友"的私人聊天网站。
 - **优先级**: **Must**（AUTH-3 + AUTH-4 + CONV-4）
 - **关联**: AC.02 / AC.14
 
+> ⚠️ **SUPERSEDED (M9)** — 详见 F-FRIEND-01。Owner-invite 路径关闭，已迁至 @username 单向加好友。本 F-ID 保留作为历史归档。
 #### F-AUTH-05 · Friend 通过 Invite 注册落页
 - **用户目标**: 加入 Nook
 - **前置条件**: token 未过期（24h）且未使用
@@ -224,6 +228,7 @@ Nook 是一个只服务"你和你的少数密友"的私人聊天网站。
 - **优先级**: **Must**（AUTH-4 + AUTH-5）
 - **关联**: AC.03
 
+> ⚠️ **SUPERSEDED (M9)** — 详见 F-FRIEND-01。Owner-invite 路径关闭，已迁至 @username 单向加好友。本 F-ID 保留作为历史归档。
 #### F-AUTH-06 · Friend 注册后自动 1:1 with Owner (★灵魂)
 - **用户目标**: 第一步就能跟发起人聊，不需要任何"我已被加入 Nook"提示窗
 - **前置条件**: invite.target_kind = 'any'
@@ -262,6 +267,73 @@ Nook 是一个只服务"你和你的少数密友"的私人聊天网站。
 - **关联**: AC.13
 
 #### F-AUTH-10 · 修改 UI 语言 (zh-CN / en)
+#### F-AUTH-11 · 注册时绑定 @username（M9 起必备 · SPEC § 0.3 new）
+- **功能描述**: 注册时设置全局唯一 `@username`，作为后续好友发现 / 搜索的唯一公开 handle
+- **用户目标**: 拥有自己简短、等输入即能找到的社交 ID
+- **前置条件**: 任何新注册用户
+- **主流程**: 注册表单新增 `@username` 字段 → Zod 客户端校验（长度 3–20、字符 `[a-z0-9_]`、reserved-word 黑名单）→ `authApi.signUp()` 把 `username` 传给 EF → EF 在 `username` 列 citext NOT NULL UNIQUE 写入
+- **异常流程**: E1 username 已被占用 → 红字 “该用户名已被使用” + 建议改；E2 含非允许字符或长度越界 → 内联错误；E3 reserved word（`admin` / `system` / `owner` / `nook` / `support` / `root` / `help` / `info` / `nobody` 等）→ 内联错误
+- **成功条件**: profiles.username 已写入；客户端 sidebar 头显示 `@me`
+- **失败条件**: 留在 `/welcome/register` 展示错误
+- **优先级**: **Must**（M9 起，为 F-FRIEND-01 提供 discoverability 基础）
+- **关联**: AC.AC.username · DATA-MODEL § 3.2 Profile
+- **迁移说明**: 现有 Owner / Friend 账号的 username 在 migration 24 backfill：从 `auth.users.email` 的 `local-part` 用 `regexp_replace(lower(email), '[^a-z0-9_]', '', 'g')` 截断到 20 + 碰撞自动 `-1`/`-2`/`-3` 后缀 → 现有用户首登时引导“是否改名”
+
+#### F-AUTH-12 · 按 @username 搜索用户（M9）
+- **用户目标**: 添加新朋友
+- **主流程**: `/friends` 页输入框打字 → debounce 300 ms → RPC `fn_search_users_by_username(p_prefix text)` 返回 ≤ 10 行结果（user_id + username + display_name + avatar_url；email / role / language / status_emoji / status_text / last_seen_at **不**返回）→ 用户点 Add → RPC `fn_create_friendship(p_username text)` 自动生效
+- **异常流程**: E1 未匹配 → “没有找到” empty state；E2 你已经加过他 → 红字 “已是好友”
+- **成功条件**: 跳转到该用户的 1:1 conversation（owner_kind='friend'的角色自动加入）
+- **优先级**: **Must**（F-FRIEND-01 的入口）
+- **关联**: F-FRIEND-01 · AC.AC.friend-search
+
+#### F-AUTH-13 · 在 Settings 修改自己的 @username（M9）
+#### F-FRIEND-01 · 通过 @username 单向加好友（M9 必须）
+- **用户目标**: 添加另一个 Nook 用户为好友，自动开通与对方的 1:1 私聊
+- **前置条件**: 自己已登录；target username 已存在 profiles.username
+- **主流程**: `/friends` 输入 @username + 点 “Add” → RPC `fn_create_friendship(p_username text)` SECURITY DEFINER 内部执行：(1) 反查 profile by username；(2) 检查 friend_blocks 表（若 A→B 或 B→A blocked → raise 'E_FRIEND_BLOCKED'）；(3) idempotent INSERT INTO friendships；(4) 查找双方是否存在 direct conversation；(5) 若不存在 → INSERT conversations(kind='direct') + 2 conversation_members；(6) 写 AppEvent
+- **返回**: `{ friendship_id, conversation_id, peer_id }`
+- **异常流程**: E1 username 不存在 → 404；E2 已被好友屏蔽 → 410 + reason；E3 已是好友（idempotent re-call） → 重复返回现有 friendship_id + conversation_id
+- **成功条件**: friendships row 已写 + conversation_members 已是 active + 客户端 inbox 列表里出现该 peer
+- **副作用**: 双方均发现对方在 friend-list；任一方 1:1 就绪
+- **优先级**: **Must**（v1.x；M9 起替代 F-AUTH-03/04/05/06）
+- **关联**: F-AUTH-12 · DATA-MODEL § 3.9 Friendship
+
+#### F-FRIEND-02 · 列出所有当前好友（friend-list）
+- **用户目标**: 知道自己有谁在 friend-list
+- **主流程**: `useFriendsQuery()` 调用 `listActiveFriendships(currentUserId)` RPC，JOIN profiles 取 user_id + username + display_name + avatar_url；按 display_name locale-aware 排序
+- **过滤**: 仅 `removed_at IS NULL` 的边缘，类似 "邮箱是否 read receipt" 的考虑：blocked 不显示 peer，但 friendships.removed_at 出现后保留（30 天滚动期审计）
+- **优先级**: **Must**
+- **关联**: AC.AC.friend-list
+
+#### F-FRIEND-03 · 单向移除好友（双方同时关闭 1:1）
+- **用户目标**: 我自己不再想看到他 / 与他聊天
+- **主流程**: Sidebar 三点菜单 → `Remove @<peer>` → `fn_remove_friend(p_username text)` RPC SECURITY DEFINER：UPDATE friendships SET removed_at = now() WHERE pair = pair AND removed_at IS NULL + UPDATE conversation_members SET left_at = now() WHERE pair (active) conversation_rows
+- **客户端**: 1:1 conversation 移到历史区；history messages 仍依赖 30 天 TTL 滚动
+- **优先级**: **Must**
+- **关联**: F-FRIEND-01 · DATA-MODEL § 5 Lifecycle
+
+#### F-FRIEND-04 · 屏蔽用户（防御 unilateral-add 垃圾）
+- **用户目标**: 阻止某个用户继续加你为好友（且不让对方发现）
+- **主流程**: ProfilePopover 或 friend-list 三点菜单 → `Block @<peer>` → RPC `fn_block_user(p_username text)` 写入 friend_blocks 表，可再次 toggle unblock
+- **副作用**: 主页删除对方 + 1:1 历史区不显示 + 不出现在 friend-list；对方尝试加你时 fn_create_friendship 直接返回 E_FRIEND_BLOCKED
+- **优先级**: **Must**（unilateral add 必备防御）
+- **关联**: AC.AC.friend-block
+
+#### F-FRIEND-05 · 屏蔽 / 解屏蔽 后1:1 历史保留与显示策略
+- **保留**: messages + attachments 不被删除（30 天 TTL 仍生效）
+- **显示**: блок后聊天入口 (Sidebar) 不显示给对方；自己端不显示自己的发件箱
+- **范围**: 仅当前 user 可见；对方不知道自己被屏蔽
+- **优先级**: **Should**
+- **关联**: F-FRIEND-04
+
+- **用户目标**: 改名 / 让 handle 更个性化
+- **主流程**: `/settings/profile` → “修改 @username” 按钮（如果未设置过，强制显示）→ 输入新 username → Zod 校验 → `fn_update_username(p_new_username text)` RPC 写入
+- **限制**: 30 天冷却期（自上次改名起算）；不限制次数但频率 = 1 / 30 天
+- **副作用**: 已存在 friendships / conversation_members / messages **不变**（它们引用 `auth.users.id` UUID，不引用 username）→ 客户端 Dexie 缓存需要 invalidate-by-username，下次拉取会拿到新名字
+- **优先级**: **Must**（v1.0 必备）
+- **关联**: AC.AC.username-rename
+
 - **用户目标**: 切换界面语言
 - **前置条件**: 已登录
 - **主流程**: `/settings/profile` 选择 `zh-CN` 或 `en` → localStorage 保存 → 整页 i18n 切换；好友之间的"显示名"不翻译，但 UI 文案翻译
@@ -277,6 +349,12 @@ Nook 是一个只服务"你和你的少数密友"的私人聊天网站。
 - **异常流程**: 无会话 → 空状态插画 + 「去 `/invite/new`？」或「等朋友加你」
 - **优先级**: **Must**（CONV-5 + 视觉规范 DESIGN § 6）
 
+#### F-CONV-02 · 任何已登录用户创建新群（M9）
+- **原描述**: Owner 创建群（< 4 个）；改为 → "任何已登录用户都能创建群"
+- **变更**: group.createed_by 不再要求 role='owner'；任何 user 可创建，硬上限仍然是 ≤ 4 个 group per user
+- **成员来源**: 创建者从自己的 friend-list 中选择（picks ≤ 8 人）
+- **优先级**: **Must**（M9 起替代原 Owner-Only）
+- **关联**: F-FRIEND-02
 #### F-CONV-02 · Owner 创建新群
 - **用户目标**: 创建 1 个新群
 - **前置条件**: 当前群数 < 4（**硬上限**，DB + UI 双重拦截）
@@ -1689,7 +1767,18 @@ E2 同一 user 同一 emoji 唯一（PK 兜底去重）。
 
 ### AC.AC.30day.cap · 30 天消息非永久
 
-- **DoD**: 任意 message + attachment 在 30 天后必须被 pg_cron 删
+- **DoD**: 任意 message + attachment 在 30 天后必须被 pg_cron 删### AC.AC.username · Username 格式 + 唯一
+- **DoD**: 新注册用户能在表单输入合规 `@username`（3–20 字符、lowercase `[a-z0-9_]`、非 reserved）；后端 RPC 写入 citext NOT NULL UNIQUE 列；existing users 在 M9 backfill 后必须有 username
+- **失败行为（broken）**: 同名互相踏；含大写或特殊字符能写入 → SPEC 违约
+
+### AC.AC.friend-search · 按 @username 发现
+- **DoD**: 当前已登录用户输入『@jade』这样的 query，能在 < 500 ms 收到 ≤ 10 行（不带 email / role / language 等敏感字段）
+- **失败**: 不响应 / 全字段返回（隐私泄漏） / 包含 email 字面 / 不 form 下拉字符
+
+### AC.AC.friend-block · unilateral add 防御
+- **DoD**: 用户 A block 用户 B 后：B 调用 fn_create_friendship → 返回 E_FRIEND_BLOCKED 且不写任何 row；A 的 friend-list 不显示 B；B 不能看到 A 在 friend-list
+- **失败**: B 能加 A / B 能看到 A profile / block 后并发写成功 → 跨 user 信息泄漏
+
 - **失败**: 长度 > 30 天的消息存在 → 违反硬约束
 
 ---
