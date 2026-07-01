@@ -65,7 +65,10 @@
     "previewImage": "Image",
     "previewFile": "File",
     "previewSelf": "Me: ",
-    "conversationLabel": "Conversation with {{name}}"
+    "conversationLabel": "Conversation with {{name}}",
+    "footerLabel": "Sidebar actions",
+    "inviteFriend": "Invite friend",
+    "settings": "Settings"
   },
   "messages": {
     "loadMore": "Scroll up to load older messages",

@@ -31,11 +31,17 @@ export default function SettingsPage() {
           {i18n.language === 'zh-CN' ? 'English' : '中文'}
         </button>
       </div>
-      <Outlet />
-      <hr className="my-[var(--space-xl)] border-0 border-t border-[var(--color-hairline-default)]" />
-      <div className="max-w-[400px]">
+
+      {/* Session-end card — placed BEFORE the Outlet so it's immediately
+          visible the moment the user lands on /settings (whether via the
+          Sidebar footer "Settings" link, the Sidebar avatar, or any deep
+          link). Without this, logout would be one full-screen scroll
+          below the profile/admin cards. */}
+      <div className="mb-[var(--space-lg)] max-w-[400px]">
         <LogoutCard />
       </div>
+
+      <Outlet />
     </div>
   );
 }

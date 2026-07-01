@@ -65,7 +65,10 @@
     "previewImage": "图片",
     "previewFile": "文件",
     "previewSelf": "我: ",
-    "conversationLabel": "与 {{name}} 的对话"
+    "conversationLabel": "与 {{name}} 的对话",
+    "footerLabel": "侧边栏操作",
+    "inviteFriend": "邀请好友",
+    "settings": "设置"
   },
   "messages": {
     "loadMore": "向上滚动加载更早消息",

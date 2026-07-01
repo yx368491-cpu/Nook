@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useConversationsQuery } from '@/hooks/useConversations';
 import { useUI } from '@/stores/useUI';
 import { useAuth } from '@/stores/useAuth';
+import { useIsOwner } from '@/lib/auth/guards';
 import { Avatar } from '@/components/ui/Avatar';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ConversationListItemRow } from './ConversationListItem';
@@ -59,6 +60,89 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
         {t('sidebar.retry')}
       </button>
     </div>
+  );
+}
+
+/**
+ * Persistent footer item.
+ *
+ * Two-link footer (admin-gated "Invite friend" + "Settings") gives one-click
+ * access to the highest-value actions from any chat view without forcing the
+ * user to discover the deep-link paths (/invite/new lives behind
+ * /settings/admin and the avatar in the header is not obviously clickable).
+ *
+ * Intentional redundancy: the footer "Settings" link duplicates the header
+ * avatar's `<Link to="/settings">`. The avatar is a thin visual atom and
+ * users routinely don't realise it's tappable; an explicit text affordance
+ * wins on discoverability. Don't deduplicate without revisiting the
+ * UX-discoverability cost.
+ *
+ * The "Invite friend" link is gated on `useIsOwner()` so non-admin profiles
+ * never see an entry-point they couldn't actually act on. The Server-side
+ * admin-create-invite EF re-checks `profile.role === 'owner'` so this is a
+ * UX nicety, not a security boundary.
+ *
+ * a11y: visible text is the link name; we deliberately do NOT add an
+ * `aria-label` because that would double-announce for screen readers, and
+ * we skip `title=` because hover already shows the link text.
+ */
+function FooterActions() {
+  const { t } = useTranslation();
+  const isOwner = useIsOwner();
+  const isAuthed = useAuth((s) => s.session !== null);
+
+  return (
+    <footer
+      className="
+        flex flex-col gap-[var(--space-xs)]
+        px-[var(--space-md)] py-[var(--space-md)]
+        border-t border-[var(--color-hairline-default)]
+        bg-[var(--color-canvas-soft)]
+      "
+      aria-label={t('sidebar.footerLabel')}
+      data-testid="sidebar-footer"
+    >
+      {isAuthed && (
+        <>
+          {isOwner && (
+            <Link
+              to="/invite/new"
+              data-testid="sidebar-footer-invite"
+              className="
+                flex items-center gap-[var(--space-sm)]
+                min-h-[40px] px-[var(--space-sm)] py-[var(--space-2xs)]
+                rounded-[var(--radius-md)]
+                text-[var(--font-size-meta)] font-[500]
+                text-[var(--color-accent-default)]
+                hover:bg-[var(--color-surface-2)]
+                transition-colors duration-[var(--duration-fast)]
+                focus-visible:outline-[2px] focus-visible:outline-[var(--color-accent-soft-ring)] focus-visible:outline-offset-[2px]
+              "
+            >
+              <span aria-hidden="true" className="text-[var(--font-size-body)]">+</span>
+              <span>{t('sidebar.inviteFriend')}</span>
+            </Link>
+          )}
+          <Link
+            to="/settings"
+            data-testid="sidebar-footer-settings"
+            className="
+              flex items-center gap-[var(--space-sm)]
+              min-h-[40px] px-[var(--space-sm)] py-[var(--space-2xs)]
+              rounded-[var(--radius-md)]
+              text-[var(--font-size-meta)]
+              text-[var(--color-ink-default)]
+              hover:bg-[var(--color-surface-2)]
+              transition-colors duration-[var(--duration-fast)]
+              focus-visible:outline-[2px] focus-visible:outline-[var(--color-accent-soft-ring)] focus-visible:outline-offset-[2px]
+            "
+          >
+            <span aria-hidden="true">⚙</span>
+            <span>{t('sidebar.settings')}</span>
+          </Link>
+        </>
+      )}
+    </footer>
   );
 }
 
@@ -140,6 +224,9 @@ export function Sidebar() {
           </ul>
         )}
       </div>
+
+      {/* Persistent footer — Invite friend (admin-only) + Settings */}
+      <FooterActions />
     </aside>
   );
 }
