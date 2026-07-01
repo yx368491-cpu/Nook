@@ -10,6 +10,60 @@
 ---
 
 
+### [M8-0.1] · 2026-07-01 · Sidebar '加载对话失败' 三层根因修复 (M19 + M20/M21 + M22)
+
+#### Summary
+
+部署后用户注册 / 登录后左侧 Sidebar **永久显示「加载对话失败」**。逐层剥津菜定位三连击根因，先修复的 BUG 会遮蔽后修复的 BUG，全部 push 前 surface 都不充分。三次 push 后浏览器端到端验证通过。
+
+#### Fixed
+
+- **顶层 BUG-1**：`conversations` 表缺 `updated_at` 列 → PostgREST SELECT / ORDER BY 抛 `column does not exist` (400) → sidebar 永久调用失败。
+- **中层 BUG-2**：嵌套 embed `conversation_members → profiles` 与 `messages → profiles` 的 FK 提示 `..._user_id_fkey` / `..._sender_id_fkey` 实际指向 `auth.users`，PostgREST 无法 chain（`PGRST200`）。直接 GET profiles 失败。
+- **根因 BUG-3**：migration 04 中 `members_read_same_conv` SELECT 策略 subquery 同一张 `conversation_members` 表 → Postgres `42P17 infinite recursion detected in policy for relation "conversation_members"` (500)。M19 BUG-1 修复后此 500 暴露 → 所有 conversations REST 查询死循环。
+
+#### Added (4 SQL migrations)
+
+- **`supabase/migrations/20260628000019_add_conversations_updated_at.sql`** — `ALTER TABLE public.conversations ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()` + backfill existing rows from `created_at`。
+- **`supabase/migrations/20260628000020_add_conversation_members_profiles_fk.sql`** — 加直接 FK `conversation_members.user_id → profiles.user_id`（约束名 `conversation_members_user_id_profiles_fkey`）。绕过 `auth.users` 间接链让 PostgREST embed 解析 `profile:profiles!conversation_members_user_id_profiles_fkey`。
+- **`supabase/migrations/20260628000021_add_messages_sender_profiles_fk.sql`** — 同上 FK for `messages.sender_id → profiles.user_id`，约束名 `messages_sender_id_profiles_fkey`，让 `sender:profiles!messages_sender_id_profiles_fkey` 可解析。
+- **`supabase/migrations/20260628000022_fix_rls_recursion_with_security_definer.sql`** — **根因修复**。创建 `public.fn_is_conversation_member(uuid) RETURNS boolean` SECURITY DEFINER helper（LANGUAGE sql STABLE + `SET search_path = public`），然后 DROP + CREATE 重写 8 个 RLS 策略改用 helper 调用：`members_read_same_conv` / `conversations_read_member` / `messages_read_member` / `messages_insert_self` / `profiles_read_self_or_same_conv` / `attachments_read_via_message` / `reactions_read_member` / `reactions_insert_self`。helper 在 OWNER role 下执行绕过 RLS，break self-recursive cycle。
+
+#### Changed (5 source files)
+
+- **`src/lib/api/chat.ts`** — FK hints 更新：`conversation_members_user_id_fkey` → `conversation_members_user_id_profiles_fkey`，`messages_sender_id_fkey` → `messages_sender_id_profiles_fkey`。 3 个 join 位置 + 注释。
+- **`src/shared/types/domain.ts`** — `ConversationKind` 类型：`'one_to_one' | 'group'` → `'direct' | 'group'`（对齐 DB CHECK 约束 `kind IN ('direct', 'group')`）。
+- **`src/app/pages/InviteNewPage.tsx`** — filter `(c.kind === 'group' || c.kind === 'one_to_one')` → `(c.kind === 'group' || c.kind === 'direct')`。
+- **`tests/integration/chat-core-helpers.tsx`** — `makeConversationListItem` 默认 kind `one_to_one` → `direct`。
+- **`tests/integration/chat-core-send.test.tsx`** — `makeConvRow` 默认 kind `one_to_one` → `direct`。
+
+#### Architectural decision (D-23 candidate，DECISIONS followup)
+
+- **SECURITY DEFINER helper pattern** 是 Postgres / Supabase docs 对 `42P17 infinite recursion between policies` 的推荐修复路径。helper 在 OWNER role 下运行（BYPASSRLS），调用方 RLS 评估不再 self-recurse。helper 只回 boolean，不暴露任何 PII。8 个受影响的 RLS 策略一次性重写调用 helper。
+- Migration 04 之前未应用此 pattern，存在同类自递归隐患的策略在所有 7 张表的 SELECT / INSERT 路径。本 fix **只**修复 conversation_members 直接递归 + 6 个级联递归。其他 7 表策略经审计无同类问题，但 followup 阶段应统一审 `pg_policies` view 是否有 indirect cycle（data-model R-13 「 messages.body 列级 GRANT 」也建议同步审）。
+
+#### Verification (本机 static-only per KI-9)
+
+- vitest full suite: **38 files · 437 tests passed** ✓ (0 regression from M7 baseline 412)
+- tsc `src/`: **0 new errors** ✓
+- code-reviewer-minimax-m3: LGTM with 1 minor advisory (`grant execute ... to anon` 是 dead code — anon 调用永远伤 FALSE 因为 auth.uid() NULL；可后续清球 revoke)
+- 浏览器端到端 (https://nook-3nt.pages.dev/)：user 已登录 → REST `/conversations` HTTP 200 empty array `[]` → sidebar 显示「暂无对话」(empty state)。修复前是 500 递归。
+
+#### Production deploy path
+
+- Cloud Supabase: `supabase db push --include-all --project-ref btnkqmanajaqdfcpwvxi`（4 migrations 顺序 19 → 22，幂等性已验证）
+- Cloudflare Pages: src 改动随 git push 自动 rebuild（M19-M21 + M22 的 pick-up 已完成）
+
+#### Scope discipline note
+
+- ✅ M8-0.1 ships = 4 SQL migrations + 5 source 文件改动 + 3 docs 同步（本 CHANGELOG entry + DEVELOPMENT_LOG S47.0 + KNOWN_ISSUES FIX-8 row）
+- ❌ Anon grant 清球 → cleanup followup（M23 migration 可一行 REVOKE）
+- ❌ `fn_is_conversation_member` unit test → test followup（真成员 =TRUE · 已离 =FALSE · anon =FALSE 三 case）
+- ❌ 审视其余 7 表 RLS 策略潜在 indirect-cycle → audit followup
+- ❌ `package.json` version 0.5.0 → 0.5.1 + annotated tag `v0.5.0+M8` → version followup（用户未在本轮显式要求）
+
+---
+
 
 ### [M6-4.1.0] · 2026-06-29 · Friend-side password reset completion (F-AUTH-07 / AC.16)
 

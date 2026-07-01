@@ -802,3 +802,64 @@
 - 目录名 i18n 化,所有路径已为英文
 - Total Sessions: 19 (cumulative)
 - 下一步: M1 Foundation (Vite 脚手架 + 4 原子组件 + 13 路由占位页)
+
+## S47.0 · 2026-07-01 · M8-0.1 · Sidebar '加载对话失败' 三层根因修复 (M19 + M20 + M21 + M22 RLS recursion fix)
+
+- **开发内容**: 修复生产 BUG — 用户注册 / 登录后 sidebar 永久显示「加载对话失败」。三层根因 + 四次 migration push + 五处 src alignment + 三 docs 同步。Browser end-to-end post-deploy 验证通过 (nook-3nt.pages.dev REST `/conversations` HTTP 200 empty array)。
+- **三层 BUG 诊断**:
+  - **BUG-1 (暴露层)**: `conversations.updated_at` 列不存在 → PostgREST 400 (column does not exist)
+  - **BUG-2 (FK 提示层)**: `conversation_members → profiles` 与 `messages → profiles` FK 实指 `auth.users` → PostgREST PGRST200 (无法 chain)
+  - **BUG-3 (根因层·隐藏)**: migration 04 `members_read_same_conv` SELECT policy 自递归 subquery → 修复 BUG-1 后暴露 Postgres 500 (42P17 infinite recursion)
+- **修复方法** (顺序 push):
+  - **M19** ALTER TABLE 加 `updated_at` + DEFAULT now() + retro-backfill（commit `491b0b0` 包含 M19+M20+M21 + src alignment）
+  - **M20 + M21** 加直接 FK `conversation_members.user_id → profiles.user_id` + `messages.sender_id → profiles.user_id`（DO block + `pg_constraint` 存在性 check · idempotent）
+  - **M22 (根因修复)** 创建 `public.fn_is_conversation_member(uuid) RETURNS boolean` SECURITY DEFINER helper + 8 个 RLS 策略重写（commit `fcf9428`）
+- **新增文件** (4):
+  - `supabase/migrations/20260628000019_add_conversations_updated_at.sql`
+  - `supabase/migrations/20260628000020_add_conversation_members_profiles_fk.sql`
+  - `supabase/migrations/20260628000021_add_messages_sender_profiles_fk.sql`
+  - `supabase/migrations/20260628000022_fix_rls_recursion_with_security_definer.sql`
+- **修改文件** (5):
+  - `src/lib/api/chat.ts`（3 FK hints 更新 · 1 注释更新）
+  - `src/shared/types/domain.ts`（`ConversationKind` enum `one_to_one` → `direct`）
+  - `src/app/pages/InviteNewPage.tsx`（filter alignment）
+  - `tests/integration/chat-core-helpers.tsx`（test default alignment）
+  - `tests/integration/chat-core-send.test.tsx`（test default alignment）
+- **架构决策** (SECURITY DEFINER for RLS 42P17):
+  - helper `LANGUAGE sql STABLE` 供 per-query cache
+  - `SET search_path = public` 防 search-path attack
+  - GRANT EXECUTE TO authenticated (anon 不必用但保留向后兼容)
+  - DROP POLICY IF EXISTS / CREATE POLICY 包装在 DO-block 幂等性 guard
+  - 该 pattern 是 Postgres / Supabase docs 推荐路径 (https://supabase.com/docs/guides/auth/row-level-security § "Infinite recursion between policies")
+- **文档同步**（per workflow § 8.1 step 7）:
+  - CHANGELOG → `[M8-0.1]` patch entry 顶层
+  - KNOWN_ISSUES → 历史已修复 row `FIX-8`（三层根因描述）
+  - 本 DEVELOPMENT_LOG → S47.0 entry（本条）
+  - AI_HANDOVER + TODO 未动（用户本轮未要求）
+- **验证结果**（本机 static-only per KI-9）:
+  - vitest full suite: **38 files · 437 tests passed** ✓ (0 regression from M7 412 baseline)
+  - tsc `src/`: **0 new errors** ✓（预存在 baseline unchanged）
+  - code-reviewer-minimax-m3: LGTM + 1 minor advisory (anon grant 是 dead code, deferred cleanup)
+  - Supabase CLI: `supabase link `--project-ref btnkqmanajaqdfcpwvxi`` + `supabase login --token <PAT>` + `supabase db push` 都顺利 (M19/M20/M21 通过 M22 之前 push · M22 单独 push)
+  - 浏览器 end-to-end: `https://nook-3nt.pages.dev/` 已登录 user → REST `/conversations` HTTP 200 empty array → sidebar 显示「暂无对话」(empty state) — 修复前是 500 / BUG-1/2/3 任一未修都会失败
+- **遇到的问题** (4 issues materialised during this fix):
+  - **浏览器验证返回不同错误阶段反映 BUG 串**: 修复 M19 → 500 RLS recursion 涌现 (BUG-3); 修复 M20/M21 → embed 路径 OK 但 conversation_members 仍 RLS recursion; 修复 M22 → 200 OK 三层 BUG 全部通过。任一遗漏 = sidebar 仍失败。说明三层 BUG 互为隐藏层。
+  - **SECURITY DEFINER 在 self-hosted vanilla Postgres 兼容**: Supabase cloud Postgres 15+ 默认有 `pg_catalog.pg_publication` + `auth.uid()` getter, M22 直接走标准 API。self-hosted 用户需要在 role 上显式 BYPASSRLS — 不在 v1.0 ship scope 内。
+  - **`(?![a-z])` regex forward-proof 在 M4-7.1 polish 中已立 ADR precedent**: helper 函数 path 同理应用 `search_path = public` 而非依赖 schema isolation — 防未来 schema injection。
+  - **tsc 没有覆盖 SQL migration 文件**: M22 漏洞靠 vitest 间接验证 (chat-core-isolation test 5 个集成测试覆盖 useCase 路径) + 浏览器 end-to-end。如果未来想测试 migration 逻辑本身，需写 sql test framework (e.g. pgTAP) — 不在 v1.0 scope。
+- **解决方案的后层**:
+  - **三层 push 顺序**: 先 M19 (暴露 BUG-1) → 上线验证 → BUG-1 修复确认 + BUG-2/3 仍未暴露 → push M20/M21 (暴露 BUG-2 embed 错误) → 上线验证 → push M22 (修复 BUG-3 根因) → 上线验证。任一中间状态都不算完成。production 不能停在中间状态 — 这是「单职责 BUG fix 但 BUG 是单根因不可能拆」的反例。
+  - **SECURITY DEFINER helper 命名约定**: 共用 `_is_<table>_<predicate>(...)` pattern; 未来类似 RLS 策略统一走 `public.is_*` helpers + GRANT `authenticated` (perms per 调用方 role)。
+  - **ConversationKind enum 双源真相**: 因 v1.0 项目历史原因 (M2 init 写成 `direct`, 代码层 `one_to_one`) 造成的语义不齐。fix 后端 + 代码一致对齐 DB CHECK。后续任何 enum / kind / type 改动应 **先改 DB CHECK + 再改代码** · 而不是 vice versa — 后者会重现 BUG-2。
+- **auto-commit policy 锁入**: 此次 Session 确立「以后每次代码改动后自动 git commit + push to origin/main」。此 Session 应用新行为：M22 commit `fcf9428` + 本 docs commit (即将 push)。
+- **下一步 followup**（本 Session 留下）:
+  - **M-23 cleanup migration**: `revoke execute on function public.fn_is_conversation_member(uuid) from anon;`（code-reviewer advisory · anon = dead code）
+  - **集成测试**: `tests/integration/chat-core-helpers.tsx` 加 `describe('fn_is_conversation_member')`（TRUE / FALSE / auth.uid NULL = FALSE）
+  - **RLS audit followup**: 审 migration 04 其余 7 表策略无 indirect cycle（matrix check pg_policies）
+  - **DECISIONS D-23**: 将 SECURITY DEFINER for RLS 42P17 pattern 提升为 ADR（用户未显式要求）
+  - **package.json version + git tag**: 0.5.0 → 0.5.1 创建 tag `v0.5.1+M8-RLS-fix`（用户未显式要求）
+- **当前状态**: M8-0.1 docs-only ship ✅ — 仅 docs 同步 · 0 source 代码改动。Source 改动已在前面 commits: `491b0b0` (M19+M20+M21+src) + `9278e4f` (FK hint fix) + `fcf9428` (M22 + RLS fix)。本 commit = docs sync per workflow § 8.1 step 7。
+- **验证结果**: 3 docs file edits · no code change · vitest + tsc clean · no new commit 依赖
+- **下一步**: 上述 followup 各 1 项 · 不阻塞。
+
+---

@@ -197,6 +197,7 @@
 | FIX-5 | SPEC 没显式 4-cap / 8-cap / edited_2min 三条 trigger | S7.0 | ARCH-DESIGN § 4.3 显式列 3 trigger |
 | FIX-6 | SPEC § 8 CAP-21 unread 缺游标 | S7.0 | ARCH-DESIGN § 6.1 改 `last_read_at` 游标 + 新 `fn_mark_conversation_read` RPC |
 | FIX-7 | SPEC / ARCH 没显式 RLS SELECT/INSERT/UPDATE/DELETE 完整策略 | S7.0 | ARCH-DESIGN § 5 全穷举 7 表 |
+| FIX-8 | Sidebar '加载对话失败' (生产 BUG) — 三层根因：① conversations.updated_at 列缺失 → PostgREST 400；② conversation_members/messages → profiles 的 FK 实指 auth.users 而非 profiles，PostgREST PGRST200 无法 chain；③ migration 04 `members_read_same_conv` SELECT policy 自递归 subquery 同一表 → Postgres 42P17 infinite recursion (500) | S47.0 | M19 ALTER TABLE conversations ADD COLUMN updated_at + DEFAULT now() + retro-backfill；M20/M21 DO 块加直接 FK conversation_members.user_id/messages.sender_id → profiles.user_id (idempotent)；M22 根因修复：创建 `public.fn_is_conversation_member(uuid) RETURNS boolean` SECURITY DEFINER helper (LANGUAGE sql STABLE + SET search_path=public) + DROP+CREATE 重写 8 个 RLS 策略改用 helper 调用 (members_read_same_conv / conversations_read_member / messages_read_member / messages_insert_self / profiles_read_self_or_same_conv / attachments_read_via_message / reactions_read_member / reactions_insert_self)。Post-deploy browser 验证：REST /conversations HTTP 200 empty array → sidebar 显示「暂无对话」empty state (修复前是 500) |
 
 ---
 
