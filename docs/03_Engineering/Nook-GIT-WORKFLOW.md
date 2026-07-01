@@ -639,6 +639,8 @@ Patch 升级（Bug 修复）:
 
 ---
 
+<a id="proxy-setup"></a>
+
 ## 十三、Network Configuration / Proxy Setup (clash-verge)
 
 > **Doc status**: v1.0.x patch — 上为 Section 十二 (Stage 14 DoD) 原结句，Project Lead 2026-07-01 主动追記。限限于 internet 网络环境侧问题，不动 Git workflow 本体。
