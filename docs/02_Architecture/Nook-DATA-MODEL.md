@@ -380,10 +380,10 @@ erDiagram
   - `created_at`
   - `canceled_at`（nullable timestamptz，toggle unblock 时设置）
   - **CHECK**（`blocker_id != blocked_id`）（防自 block）
-  - **UNIQUE**(`blocker_id, blocked_id`) WHERE `canceled_at IS NULL`（partial unique，避免 active 重复 block）
+  - **UNIQUE**(`blocker_id, blocked_id`)（**full unique**，不用 partial）— 故意不带 `WHERE canceled_at IS NULL`，否则 unblock 后 re-block 会因 partial index 不覆盖已取消 row 而插入新 row，破坏 TOGGLE row-reuse 不变式。`canceled_at` 仅是 lifecycle marker，不参与 unique。
   - **TOGGLE 语义**：re-block after unblock 走 INSERT ON CONFLICT DO UPDATE 模式复用同一 row；不会产生 2-row audit state。`canceled_at` 在 re-block 时被设回 NULL。
 - **是否可删除**：❌ row 永存；30 天 cron 老化仅针对已 `canceled_at IS NOT NULL` 且超 30 天的 row
-- **是否可恢复**：✅ toggle 重新写新的 row（如果是同一对旧的 canceled）。常态 toggle 走 ON CONFLICT 复用同 row（canceled_at ← NULL）。
+- **是否可恢复**：✅ UPSERT 在已 canceled 的 row 上把 canceled_at 改回 NULL（不会 INSERT 新 row——full UNIQUE 强制 1 row per pair）。常态 toggle 走 ON CONFLICT 复用同 row（canceled_at ← NULL）。
 - **生命周期**：
   - **创建时机**：主动点击「屏蔽 @username」
   - **销毁时机**：主动点击「取消屏蔽」 / 30 天 cron 后物理清
@@ -677,7 +677,9 @@ erDiagram
 | `profiles.user_id` | PK (=FK 1:1) |
 | `invites.token` | global unique |
 | `messages.client_msg_id` | global unique（**幂等键**） |
-| `reactions (message_id, user_id)` | composite unique |
+| `friendships (pair_low_id, pair_high_id)` | composite unique（canonical pair；`pair_low_id < pair_high_id` CHECK 保证顺序稳定，避免「A-B 是同一 friendship 但 row id 不同」的镜像重复） |
+| `reactions (message_id, user_id)` | composite unique（强依附 Message） |
+| `friend_blocks (blocker_id, blocked_id)` | composite unique（**full UNIQUE**，不用 partial）— `canceled_at` 仅 lifecycle marker，不参与 unique；TOGGLE 走 `ON CONFLICT DO UPDATE` 收敛回 1 row，2-row audit state 在 DB 层被禁止 |
 
 ### 9.4 格式校验
 
