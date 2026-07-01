@@ -1,6 +1,6 @@
 # Nook v1.0
 
-> 「深夜书房」— 屏蔽互联网社交噪音的私人聊天网站。
+> 「深夜书房」-- 屏蔽互联网社交噪音的私人聊天网站。
 
 ## Quick Links
 
@@ -34,7 +34,7 @@ curl -x http://127.0.0.1:7897 -s -o /dev/null \
 
 Skip this entire section if you are not behind the GFW. Full
 troubleshooting + decision-rationale (D-03 / D-15) + change history:
-see [Nook-GIT-WORKFLOW section 13 -- Proxy Setup](docs/03_Engineering/Nook-GIT-WORKFLOW.md#proxy-setup).
+see [Nook-GIT-WORKFLOW -- Proxy Setup](docs/03_Engineering/Nook-GIT-WORKFLOW.md#proxy-setup).
 
 ## Quick Start
 
