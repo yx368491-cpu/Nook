@@ -636,3 +636,75 @@ Patch 升级（Bug 修复）:
 ---
 
 *End of Nook Git Workflow v1.0 — 2026-06-27 · Stage 14 · Frozen*
+
+---
+
+## 十三、Network Configuration / Proxy Setup (clash-verge)
+
+> **Doc status**: v1.0.x patch — 上为 Section 十二 (Stage 14 DoD) 原结句，Project Lead 2026-07-01 主动追記。限限于 internet 网络环境侧问题，不动 Git workflow 本体。
+
+### 13.1 背景
+
+中国大陆访问 GitHub HTTPS 时常因 GFW 阻断而失败（`Connection was reset` 或 `Failed to connect to github.com:443`），导致 `git push` / `git pull` / `gh` 走不到远端。项目主开发员当前部署使用 **Clash Verge / mihomo 类**代理软件，HTTP/HTTPS 代理端口默认为 **7897**（可以在 Clash Verge 设置页 ⇒ 系统代理 中确认）。
+
+originating 缘起：M8-0.1 docs 三次重试 push 均 `Could not connect to github.com port 443`，为本机到远端纯网络阻断（路由层）。启 Proxy 后 `curl --max-time 15 https://github.com/` 从 timeout 0.0xs 转为 HTTP 200 in 0.20s。
+
+### 13.2 配置命令
+
+```bash
+# 仓储级别（推荐，不影响其他项目）
+git config --local http.proxy http://127.0.0.1:7897
+git config --local https.proxy http://127.0.0.1:7897
+
+# 全局（如果多个项目都需绕过）
+git config --global http.proxy http://127.0.0.1:7897
+git config --global https.proxy http://127.0.0.1:7897
+
+# 仅 GitHub 域名（粒度更细，non-GitHub 流量不代理）
+git config --local http.https://github.com.proxy http://127.0.0.1:7897
+git config --local https.https://github.com.proxy http://127.0.0.1:7897
+
+# 取消代理
+git config --local --unset http.proxy
+git config --local --unset https.proxy
+```
+
+### 13.3 验证
+
+```bash
+# 1. 代理端口连通测试
+curl -x http://127.0.0.1:7897 -o /dev/null -s \
+  -w 'github.com via proxy: HTTP %{http_code} | time %{time_total}s\n' \
+  --max-time 15 https://github.com/
+# 期望：HTTP 200 | time 0.20..3.0s（未代理时为 timeout 或 0.0xs）
+
+# 2. 验证 git 已读到 proxy
+cd path/to/Nook && git config --get http.proxy
+# 期望：http://127.0.0.1:7897
+
+# 3. 实推一次
+cd path/to/Nook && git push origin main
+# 期望看到：To https://github.com/yx368491-cpu/Nook.git ... => refs/heads/main
+```
+
+### 13.4 与现有决策的一致性
+
+- **F-SEC-06** / **D-03**：本配置走 HTTP 网络层代理，不影响 git protocol 层加密（push 流量仍走 TLS in tunnel），不违反 secret/key 安全约束。
+- **D-15** 部署架构：CF Pages 部署链路不依赖代理（CF CDN 跨过 GFW），无需为生产 CI 配代理。
+- **GitHub Actions CI**：CI runner 在 GitHub提供的 云虚拟环境里，不在中国网络上，不需配置代理。
+
+### 13.5 故障排查
+
+| 症状 | 原因 | 解决 |
+|---|---|---|
+| `fatal: unable to access ... Connection was reset` | 真直连 443 航 GFW reset | 确认代理运行 + 端口正确：检查 Clash Verge 是否启用系统代理 + 端口 7897 |
+| `Failed to connect to 127.0.0.1:7897` (port closed) | 本机代理服务未启动 / 端口 misconfig | 启动 Clash Verge / 检查 `netstat -ano \| grep 7897` 是否正听 |
+| `407 Proxy Authentication Required` | Clash Verge 启用了 authentication | 在 git proxy URL 中加入账号密码：`http://user:pass@127.0.0.1:7897`（password 会被 git config 记录于 .git/config，可能不希望） |
+| `could not read Username for 'https://github.com'` | proxy 转发后仍需 auth Token | `gh auth login` 后用 `gh repo sync` 路径 / 或使用 Personal Access Token |
+| curl / push 仍 0.20s timeout 而未 proxy | 环境变量 也在覆盖 git config | 检查 `env \| grep -i proxy` （HTTPS_PROXY / http_proxy / NO_PROXY）会覆盖 git config |
+
+### 13.6 变更历史
+
+| 日期 | 内容 |
+|---|---|
+| 2026-07-01 | 初版 · 源于 M8-0.1 push 失败三次后才走 Clash Verge (port 7897) 穿透成功后的记录。限文档冻结 patch，不改任何 workflow 本体决策。 |
