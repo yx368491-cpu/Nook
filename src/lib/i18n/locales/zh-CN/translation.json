@@ -322,6 +322,21 @@
         "internal": "无法删除好友，请重试。",
         "generic": "出错了。"
       }
+    },
+    "logout": {
+      "title": "退出登录",
+      "subtitle": "结束当前会话。重新进入需要用邮箱和密码登录。",
+      "chooseAction": "退出登录",
+      "confirm": {
+        "title": "确认退出登录？",
+        "message": "你的会话将结束，并返回欢迎页。输入框中未发送的消息会丢失。",
+        "submit": "退出登录",
+        "cancel": "取消"
+      },
+      "error": {
+        "unauthorized": "会话已过期，请重新登录。",
+        "generic": "退出失败，请重试。"
+      }
     }
   },
   "common": {

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Link, Outlet } from 'react-router-dom';
+import { LogoutCard } from '@/components/settings/LogoutCard';
 
 export default function SettingsPage() {
   const { t, i18n } = useTranslation();
@@ -31,6 +32,10 @@ export default function SettingsPage() {
         </button>
       </div>
       <Outlet />
+      <hr className="my-[var(--space-xl)] border-0 border-t border-[var(--color-hairline-default)]" />
+      <div className="max-w-[400px]">
+        <LogoutCard />
+      </div>
     </div>
   );
 }

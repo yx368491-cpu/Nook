@@ -322,6 +322,21 @@
         "internal": "Couldn't delete friend. Please try again.",
         "generic": "Something went wrong."
       }
+    },
+    "logout": {
+      "title": "Log out",
+      "subtitle": "End your current session. You'll need to sign in again with your email and password to come back.",
+      "chooseAction": "Log out",
+      "confirm": {
+        "title": "Log out of Nook?",
+        "message": "Your session will end and you'll return to the welcome screen. Any unsent messages in your composer will be lost.",
+        "submit": "Log out",
+        "cancel": "Cancel"
+      },
+      "error": {
+        "unauthorized": "Your session has expired. Please sign in again.",
+        "generic": "Couldn't log you out. Please try again."
+      }
     }
   },
   "common": {
