@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { useConversationsQuery } from '@/hooks/useConversations';
 import { useUI } from '@/stores/useUI';
 import { useAuth } from '@/stores/useAuth';
@@ -84,8 +85,8 @@ export function Sidebar() {
         <h1 className="text-[var(--font-size-h3)] font-[600] text-[var(--color-ink-default)] tracking-tight">
           {t('app.name')}
         </h1>
-        <button
-          type="button"
+        <Link
+          to="/settings"
           aria-label={t('nav.profile')}
           className={[
             'rounded-[var(--radius-circle)]',
@@ -96,6 +97,7 @@ export function Sidebar() {
             'transition-colors duration-[var(--duration-fast)]',
             'focus-visible:outline-[2px] focus-visible:outline-[var(--color-accent-soft-ring)] focus-visible:outline-offset-[2px]',
           ].join(' ')}
+          data-testid="sidebar-profile-link"
         >
           <Avatar
             size="sm"
@@ -103,7 +105,7 @@ export function Sidebar() {
             name={profile?.displayName ?? ''}
             initials={(profile?.displayName ?? '·')[0] ?? '·'}
           />
-        </button>
+        </Link>
       </header>
 
       {/* Conversation list (scrolls independently) */}

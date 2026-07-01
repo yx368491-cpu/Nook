@@ -140,7 +140,7 @@ export function useFriendSignup(): UseFriendSignupReturn {
       });
 
       // Navigate to home
-      navigate('/home', { replace: true });
+      navigate('/', { replace: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'errors.internalError';
       setError(msg);

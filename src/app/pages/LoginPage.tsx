@@ -37,13 +37,13 @@ export default function LoginPage() {
 
   // Already logged in → go to home
   if (session) {
-    return <Navigate to="/home" replace />;
+    return <Navigate to="/" replace />;
   }
 
   const onSubmit = async (data: LoginFormData) => {
     try {
       await login(data.email, data.password);
-      navigate('/home', { replace: true });
+      navigate('/', { replace: true });
     } catch {
       setError('root', { message: 'errors.invalidCredentials' });
     }

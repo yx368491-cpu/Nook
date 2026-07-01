@@ -46,13 +46,13 @@ export default function RegisterPage() {
 
   // Already logged in → go to home
   if (session) {
-    return <Navigate to="/home" replace />;
+    return <Navigate to="/" replace />;
   }
 
   const onSubmit = async (data: RegisterFormData) => {
     try {
       await register(data.email, data.password, data.displayName);
-      navigate('/home', { replace: true });
+      navigate('/', { replace: true });
     } catch (err: unknown) {
       // Error is already set in the store, but we also set form root error
       const code = err && typeof err === 'object' && 'code' in err

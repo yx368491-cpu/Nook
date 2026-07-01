@@ -19,7 +19,7 @@ export default function WelcomePage() {
 
   // Already logged in → go to home
   if (session) {
-    return <Navigate to="/home" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return (
